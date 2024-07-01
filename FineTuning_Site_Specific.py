@@ -50,7 +50,6 @@ tf.random.set_seed(1) # Set global random seed for reproducibility
 
 
 
-
 #matplotlib inline
 import matplotlib.pyplot as plt
 import numpy as np
