@@ -22,11 +22,12 @@ AoD = np.zeros(env.N_UEs) # real value
 aod = np.zeros(env.N_UEs) # estimated value
 a_BS = np.zeros((env.N_UEs, env.number_of_antennas)) + 1j
 mmWave_LoS_NLoS_channel = np.zeros((env.N_UEs, env.number_of_antennas)) + 1j
-current_beam = np.zeros(env.N_UEs,).astype(object)
+current_beam = np.empty([env.N_UEs,], dtype=object)
 config = np.arange(env.N_UEs)
 r = np.zeros(env.N_UEs)
-noise_power = 1  
-TTI = 1
+edge_snr_db = 0
+noise_power = env.Pt/env.N_UEs / (50*np.sqrt(2)) ** 2 * 10 ** (-edge_snr_db / 10)  
+TTI = 10
 N = 16 # number of samples
 y_user = np.zeros((env.N_UEs, N))
 y_BS = np.zeros((env.number_of_antennas, N))
@@ -34,7 +35,8 @@ waveform = hadamard(N)
 rate = np.zeros((env.N_UEs,TTI))
 nitta = np.zeros((env.number_of_antennas)) # temperal variable for AoD estimation
 beamwidth = 2*np.arcsin(1.2/env.number_of_antennas) # radians, consider 3 dB beamwidth
-error = np.zeros((TTI,env.N_UEs)) # AoD estimation error
+error = np.zeros((env.N_UEs, TTI)) # AoD estimation error
+pathloss = np.zeros((env.N_UEs, TTI)) # pathloss
 
  # Used for AoD estimation
 A = np.zeros((100,env.number_of_antennas),dtype=complex)
@@ -79,17 +81,23 @@ for n in range(TTI):
 
         # update LoS channel
         mmWave_LoS_NLoS_channel[u] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[u], d[u])
+        pathloss[u,n] = np.linalg.norm(mmWave_LoS_NLoS_channel[u])
 
         mono_LoS_channel += np.sqrt(env.number_of_antennas) * env.reflection_coefficient[u] * np.outer(a_BS[u,:] , np.conj(a_BS[u,:]))
 
         # transmit signal
-        s_BS += np.sqrt(env.Pt / env.N_UEs) * np.outer(np.transpose(env.codebook[:, current_beam[u]]), waveform[u, :])
+        if current_beam[u].size == 1:
+            transmit_beam = env.codebook[:, current_beam[u]]
+        else:
+            transmit_beam = env.codebook[:, current_beam[u]].sum(axis=1)
+        
+        s_BS += np.sqrt(env.Pt / env.N_UEs / np.size(waveform[u,:])) * np.outer(np.transpose(transmit_beam), waveform[u, :])
 
         # user received signal noise-less
         y_user[u] = mmWave_LoS_NLoS_channel[u] @ s_BS 
 
     # calculate communication rate of each user
-    rate[u,n] = np.log2(1 + (1 / N) * np.linalg.norm(y_user, axis=1) ** 2 / noise_power)
+    rate[u,n] = np.log2(1 + (1 / N) * np.linalg.norm(y_user[u,:]) ** 2 / noise_power)
 
     # received echos at BS
     y_BS = mono_LoS_channel @ s_BS + np.random.normal(0, noise_power, size = (env.number_of_antennas, N))
@@ -100,14 +108,23 @@ for n in range(TTI):
         nitta = np.matmul(y_BS, waveform[u, :])
         # estimate AoD
         aod[u] = np.argmax(np.abs(A @ nitta))/100*np.pi
+        # map the estimated aod to the closest beam in the codebook
+        current_beam[u] = np.argmax(env.codebook @ compute_ULA_response(env.number_of_antennas, aod[u]))
         # estimation error
-        error[n,u] = np.abs(aod[u] - AoD[u])
+        error[u,n] = np.abs(aod[u] - AoD[u])
 
-        if error[n,u] > beamwidth:
+        if error[u,n] > beamwidth:
             # update beam - use multiple beams
-            current_beam[u] = np.add(current_beam[u],[-1,0,1])
+            if np.max(current_beam[u])>=31:
+                current_beam[u] = np.add(current_beam[u],[-1,0])
+            elif np.min(current_beam[u])==0:
+                current_beam[u] = np.add(current_beam[u],[0,1])
+            else:
+                current_beam[u] = np.add(current_beam[u],[-1,0,1])
             # else keep the current beam
 
 
 average_rate = np.mean(rate, axis=0)
+
+SNR_dB = 10*np.log10(np.mean((env.Pt/env.N_UEs)* pathloss,axis=1) /noise_power)
 # %%

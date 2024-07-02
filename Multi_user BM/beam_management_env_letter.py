@@ -15,7 +15,7 @@ def bernoulli(p):
 class BeamManagementEnv(gym.Env):
     def __init__(self, N_f):
         self.N_f = N_f  # total number of channel uses
-        self.N_UEs = 1
+        self.N_UEs = 3
         self.r_h = []
         self.r_a = []
         self.r_p = []
@@ -28,7 +28,7 @@ class BeamManagementEnv(gym.Env):
         self.fc = 28e9  # carrier frequency (Hz)
         self.c = 3e8  # speed of light (m/s)
         self.lambda_ = self.c / self.fc  # wavelength (m)
-        self.Pt = 5  # in linear scale
+        self.Pt = 15  # in linear scale
         self.d_ULA = np.arange(self.number_of_antennas) * self.lambda_ / 2  # ULA with half-wavelength spacing
         self.codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
         self.current_slot = 0  # current slot/channel use
