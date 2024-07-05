@@ -1,3 +1,16 @@
+# Updated 2024-07-04
+Files in folder Multi_user BM are for the Centric project after 2024 March.
+The codes are for sensing-assisted communication considering a multi-user V2X scenario.
+
+motion.py - models vehicle's movement
+
+channel_functions.py - includes channel modeling functions, calculating best beam, calculating AoD and the associated steering vector
+
+beam_management_env_letter.py - gymnasium environment includes reinforcement learning environment, state, action
+
+hueristic_test.py - implements hueristic beam management according to the AoD estimates from echos as well as genie-aided rate 
+
+# V1
 This documents the various parts of the transfer learning task. 
 The documentation is subdivided into parts:
 
