@@ -65,9 +65,9 @@ class BeamManagementEnv(gym.Env):
 
             self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i])  # current array response
 
-            self.reflection_coefficient[i] = self.number_of_antennas * self.lambda_ * np.sqrt(100 * self.d[i]**2 / ((4*np.pi)**3) ) # reflection coefficient, 100 is the RCS of a vehicle
+            self.reflection_coefficient[i] = self.number_of_antennas * self.lambda_ * np.sqrt(100)/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 100 is the RCS of a vehicle
 
-            self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i])  # current LoS channel
+            self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
 
             self.R[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i], self.codebook[:, 0])  # current received power
         self.power_threshold = 1
@@ -122,7 +122,7 @@ class BeamManagementEnv(gym.Env):
             self.a_BS[i] = compute_ULA_response(self.number_of_antennas,
                                                 self.AoD[i])  # current array response
 
-            self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i])  # current LoS channel
+            self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
             self.current_beam[i] = np.argmax(np.abs(np.sqrt(self.Pt) * self.mmWave_LoS_NLoS_channel[i] @ self.codebook))
 
             self.R[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i], self.codebook[:, self.current_beam[i]])  # current received power
@@ -166,10 +166,10 @@ class BeamManagementEnv(gym.Env):
                                                 self.AoD[i])  # current array response
             if self.counter_slots_blocked[i] != 0:
                 self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i],
-                                                                        self.d[i], 0.0032)  # current NLoS channel
+                                                                        self.d[i], self.lambda_, 0.0032)  # current NLoS channel
             else:
                 self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i],
-                                                                        self.d[i]) # current LoS channel
+                                                                        self.d[i], self.lambda_) # current LoS channel
             self.R[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i],
                                                  self.codebook[:, self.current_beam[i]])
             self.previous_power[self.previous_counter][i] = self.R[i].copy()

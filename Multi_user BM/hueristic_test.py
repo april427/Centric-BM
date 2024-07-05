@@ -28,9 +28,9 @@ mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
 config = np.arange(N_UEs)
 r = np.zeros(N_UEs)
-edge_snr_db = 0
+edge_snr_db = -5
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
-Pt = N_UEs * (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
+Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50*np.sqrt(2))**2 / (env.lambda_ **2)
 y_user = np.zeros((N_UEs, N))
 y_BS = np.zeros((env.number_of_antennas, N))
 waveform = hadamard(N)
@@ -64,7 +64,7 @@ for i in range(N_UEs):
 
     a_BS[i] = compute_ULA_response(env.number_of_antennas, AoD[i])  # current array response
 
-    mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[i], d[i])  # current LoS channel
+    mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[i], d[i], env.lambda_)  # current LoS channel
 
     current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt) * mmWave_LoS_NLoS_channel[i] @ env.codebook))
     
@@ -88,7 +88,7 @@ for n in range(TTI):
         a_BS[u] = compute_ULA_response(env.number_of_antennas, AoD[u])
 
         # update LoS channel
-        mmWave_LoS_NLoS_channel[u] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[u], d[u])
+        mmWave_LoS_NLoS_channel[u] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[u], d[u], env.lambda_)
         pathloss[u,n] = np.linalg.norm(mmWave_LoS_NLoS_channel[u])
 
         mono_LoS_channel += np.sqrt(env.number_of_antennas) * env.reflection_coefficient[u] * np.outer(a_BS[u,:] , np.conj(a_BS[u,:]))
@@ -97,7 +97,7 @@ for n in range(TTI):
         genie_beam[n+1, u] = np.argmax(np.abs( env.codebook @ a_BS[u,:]))
         genie_s_BS += np.sqrt(Pt / N_UEs ) * np.outer((env.codebook[:,genie_beam[n+1,u]]), waveform[u, :])
         genie_y_user[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS
-        genie_rate[:,n] = np.mean(np.log2(1 +  np.abs(genie_y_user[u,:]) ** 2 / noise_power))
+        genie_rate[u,n] = np.log2(1 +  np.mean(np.abs(genie_y_user[u]) ** 2) / noise_power)
 
         # transmit signal
         if current_beam[n,u].size == 1:
@@ -114,7 +114,7 @@ for n in range(TTI):
 
     # calculate communication rate of each user
     if True: #current_beam[n,u].size == 1:
-        rate[:,n] = np.mean(np.log2(1 +  np.abs(y_user[u,:]) ** 2 / noise_power))
+        rate[:,n] = np.log2(1 +  np.mean(np.abs(y_user) ** 2 , axis = 1)/ noise_power)
     else:
         rate[:,n] = 0
     # received echos at BS
@@ -141,7 +141,6 @@ for n in range(TTI):
                 current_beam[n+1,u] = np.add(current_beam[n+1,u],[-1,0,1])
             # else keep the current beam
 
-    
 # TODO - exhaustive beam sweeping 
 
 average_rate = np.mean(rate, axis=1)
@@ -170,4 +169,5 @@ for i in range(N_UEs):
     
 plt.show()
 
+average_rate, genie_average_rate
 # %%
