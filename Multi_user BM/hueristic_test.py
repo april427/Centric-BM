@@ -16,7 +16,7 @@ episode_durations = []
 
 # %%
 # variable initialization
-N_UEs = 2#env.N_UEs
+N_UEs = env.N_UEs
 TTI = 10
 N = 16 # number of samples
 user_positions = np.zeros((TTI+1, N_UEs, 2))
@@ -28,7 +28,7 @@ mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
 config = np.arange(N_UEs)
 r = np.zeros(N_UEs)
-edge_snr_db = -5
+edge_snr_db = 0
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
 Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50*np.sqrt(2))**2 / (env.lambda_ **2)
 y_user = np.zeros((N_UEs, N))
@@ -40,8 +40,8 @@ beamwidth = 2*np.arcsin(1.2/env.number_of_antennas) # radians, consider 3 dB bea
 error = np.zeros((N_UEs, TTI)) # AoD estimation error
 pathloss = np.zeros((N_UEs, TTI)) # pathloss
 
-genie_beam = np.empty([TTI+1, N_UEs,], dtype=object)
-genie_s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
+genie_beam = np.empty([TTI, N_UEs,], dtype=object)
+
 genie_y_user = np.zeros((N_UEs, N))
 genie_rate = np.zeros((N_UEs,TTI))
 rx_snr_db = np.zeros((TTI, N_UEs))
@@ -67,12 +67,14 @@ for i in range(N_UEs):
     mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[i], d[i], env.lambda_)  # current LoS channel
 
     current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt) * mmWave_LoS_NLoS_channel[i] @ env.codebook))
-    
+
 
 # %%
 for n in range(TTI):
     s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
     mono_LoS_channel = np.zeros((env.number_of_antennas, env.number_of_antennas), dtype=np.complex128)
+    genie_s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
+
 
     for u in range(N_UEs):
         # update user position
@@ -94,10 +96,8 @@ for n in range(TTI):
         mono_LoS_channel += np.sqrt(env.number_of_antennas) * env.reflection_coefficient[u] * np.outer(a_BS[u,:] , np.conj(a_BS[u,:]))
 
         # benchmark - genie-aided - upper bound
-        genie_beam[n+1, u] = np.argmax(np.abs( env.codebook @ a_BS[u,:]))
-        genie_s_BS += np.sqrt(Pt / N_UEs ) * np.outer((env.codebook[:,genie_beam[n+1,u]]), waveform[u, :])
-        genie_y_user[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS
-        genie_rate[u,n] = np.log2(1 +  np.mean(np.abs(genie_y_user[u]) ** 2) / noise_power)
+        genie_beam[n, u] = np.argmax(np.abs( env.codebook @ a_BS[u,:]))
+        genie_s_BS += np.sqrt(Pt / N_UEs ) * np.outer((env.codebook[:,genie_beam[n,u]]), waveform[u, :])
 
         # transmit signal
         if current_beam[n,u].size == 1:
@@ -105,20 +105,24 @@ for n in range(TTI):
         else:
             transmit_beam = env.codebook[:, current_beam[n,u]].sum(axis=1)
         
-        s_BS += np.sqrt(Pt / N_UEs / np.size(waveform[u,:])) * np.outer((transmit_beam), waveform[u, :])
+        s_BS += np.sqrt(Pt / N_UEs / np.size(current_beam[n,u])) * np.outer((transmit_beam), waveform[u, :])
 
         # user received signal noise-less
         y_user[u] = mmWave_LoS_NLoS_channel[u] @ s_BS 
+        genie_y_user[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS
+
+    genie_rate[:,n] = np.log2(1 +  np.mean(np.abs(genie_y_user) ** 2, axis = 1) / noise_power)
 
     rx_snr_db[n,:] = np.mean(np.abs(genie_y_user)**2, axis=1) / noise_power
 
     # calculate communication rate of each user
-    if True: #current_beam[n,u].size == 1:
+    if current_beam[n,u].size == 1:
         rate[:,n] = np.log2(1 +  np.mean(np.abs(y_user) ** 2 , axis = 1)/ noise_power)
     else:
         rate[:,n] = 0
+
     # received echos at BS
-    y_BS = mono_LoS_channel @ s_BS + np.random.normal(0, noise_power, size = (env.number_of_antennas, N))
+    y_BS = mono_LoS_channel @ s_BS + (1/np.sqrt(2))*(np.random.normal(0, noise_power, size = (env.number_of_antennas, N)) + np.random.normal(0, noise_power, size = (env.number_of_antennas, N)))
     
     # Estimate AoDs from the echo
     # extract each user's signal
@@ -164,9 +168,9 @@ for i in range(N_UEs):
     plt.plot(ue_pos_x,ue_pos_y, marker="o")
     plt.quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=5, pivot="mid")
     plt.xlim(0,100)
-    plt.ylim(0,100)
+    plt.ylim(0,100)   
     # hold the plot
-    
+plt.legend(['UE1','','UE2','', 'UE3', ''])    
 plt.show()
 
 average_rate, genie_average_rate

@@ -48,9 +48,10 @@ $$
 The other indicator function $\mathbf{1}_{(B_{u,n} > 0)}$ implies that if the buffer is empty, transmitting is not needed anymore.
 
 ### ML model
-- Input: $\boldsymbol{Y}$, $\boldsymbol{B}= [B_1, \cdots, B_U]$, perhaps previous beam allocation $[\boldsymbol{f}_1, \cdots, \boldsymbol{f}_U]$.
+---
+- **Input**: Env: $\boldsymbol{Y}$, $\boldsymbol{B}= [B_1, \cdots, B_U]$, perhaps previous beam allocation $[\boldsymbol{f}_1, \cdots, \boldsymbol{f}_U]$, $\pi_{\theta}$
 
-- Output: $\lambda, f, P$ (user state, beams, and power)
+- **Output** $\lambda, f, P$ (user state, beams, and power)
 
-#### Next step
-- design the reward according to the objective function
+
+
