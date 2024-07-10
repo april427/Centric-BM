@@ -63,9 +63,9 @@ def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient
             a_BS (numpy.ndarray): The array response at the BS.
             d (float): The distance between the BS and the UE.
             blockage_coefficient (float): The blockage coefficient.  
-            1/np.sqrt(2)* complex(np.random.normal(0, 1), np.random.normal(0, 1)) * 
+             
     """
-    mmWave_LOS_channel = np.sqrt(M) * wavelength / (4 *np.pi * d) * blockage_coefficient * np.conj(a_BS).T
+    mmWave_LOS_channel = np.sqrt(M) * wavelength / (4 *np.pi * d) * blockage_coefficient * 1/np.sqrt(2)* complex(np.random.normal(0, 1), np.random.normal(0, 1)) * np.conj(a_BS).T
     return mmWave_LOS_channel
 
 def compute_realistic_LoS_channel(sce, carrier_frequency, direction, num_user):
