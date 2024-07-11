@@ -105,6 +105,27 @@ def compute_power_given_beam(Pt, mmWave_LOS_channel, selected_precoder, SNR_dB=3
 
     return np.abs(output)[0]
 
+def compute_communication_rate(noiseless_output, noise_power, N_UEs, N):
+    """
+        Compute the communication rate, consider inter user interference.
+        Args:
+            noiseless_output (numpy.ndarray): The noiseless output of the channel.
+            noise_power (float): The noise power.
+            N_UEs (int): The number of UEs.
+            N (int): The number of samples within one TTI.
+    """
+    # Generate complex Gaussian noise
+    noise = np.sqrt(noise_power / 2) * (np.random.normal(0, 1, size = (N_UEs, N)) + 1j* np.random.normal(0, 1, size = (N_UEs, N)))
+    rate = np.zeros((N_UEs, N))
+    total_power = np.sum(np.abs(noiseless_output)**2 , axis=0)
+    # Compute the communication rate
+    for i in range(N_UEs):
+        
+        rate[i] = np.log2(1 + np.abs(noiseless_output[i])**2 / ( total_power - np.abs(noiseless_output[i])**2 + np.abs(noise[i]) ** 2 ))
+    
+    rate = np.mean(rate, axis=1)
+    return rate
+
 # %%
 # #Constants
 # fc = 28e9  # carrier frequency (Hz)

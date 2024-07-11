@@ -15,7 +15,7 @@ episode_durations = []
 
 # %%
 # variable initialization
-N_UEs = 2#env.N_UEs
+N_UEs = 2 #env.N_UEs
 TTI = 10
 episode =  100
 N = 16 # number of samples
@@ -26,17 +26,17 @@ aod = np.zeros(N_UEs) # estimated value
 a_BS = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 config = np.arange(N_UEs)
-r = np.zeros(N_UEs)
-edge_snr_db = -10
+edge_snr_db = -5
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
 Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50*np.sqrt(2))**2 / (env.lambda_ **2)
+
 y_user = np.zeros((N_UEs, N)) + 1j
 y_BS = np.zeros((env.number_of_antennas, N)) + 1j
 waveform = hadamard(N)
 
 nitta = np.zeros((env.number_of_antennas)) + 1j # temperal variable for AoD estimation
 beamwidth = 2*np.arcsin(1.2/env.number_of_antennas) # radians, consider 3 dB beamwidth
-error = np.zeros((N_UEs, TTI))+ 1j # AoD estimation error
+error = np.zeros((N_UEs, TTI)) # AoD estimation error
 pathloss = np.zeros((N_UEs, TTI)) # pathloss
 
 genie_beam = np.empty([TTI, N_UEs,], dtype=object)
@@ -44,7 +44,7 @@ genie_beam = np.empty([TTI, N_UEs,], dtype=object)
 genie_y_user = np.zeros((N_UEs, N))+ 1j
 genie_rate = np.zeros((N_UEs,TTI))
 rx_snr_db = np.zeros((TTI, N_UEs))
-thermal_noise = np.zeros(N_UEs, dtype=complex)
+
 
 rate_all_episodes = []
 genie_rate_all_episodes = []
@@ -64,11 +64,11 @@ for l in range(episode):
     # initialize user positions in every episode
     for i in range(N_UEs):
         AoD[i] = np.random.rand() * np.pi /N_UEs + np.pi / N_UEs * config[i] #radians
-        r[i] = (2 * np.random.rand() - 1) * 50
-        user_positions[0][i][0] = 50 + r[i] * np.cos(AoD[i])
-        user_positions[0][i][1] = 50 + r[i] * np.sin(AoD[i])
+        r = (2 * np.random.rand() - 1) * 30
+        user_positions[0][i][0] = 50 + r * np.cos(AoD[i])
+        user_positions[0][i][1] = 50 + r * np.sin(AoD[i])
 
-        d[i] = np.absolute(r[i])
+        d[i] = np.absolute(r)
 
         a_BS[i] = compute_ULA_response(env.number_of_antennas, AoD[i])  # current array response
 
@@ -105,7 +105,6 @@ for l in range(episode):
             # benchmark - genie-aided - upper bound
             genie_beam[n, u] = np.argmax(np.abs( env.codebook @ (mmWave_LoS_NLoS_channel[u])))
             genie_s_BS += np.sqrt(Pt / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
-            #genie_s_BS += np.sqrt(Pt / N_UEs ) * np.outer(np.conj(mmWave_LoS_NLoS_channel[u])/np.linalg.norm(np.conj(mmWave_LoS_NLoS_channel)), waveform[u, :])
 
             # transmit signal
             if current_beam[n,u].size == 1:
@@ -119,20 +118,17 @@ for l in range(episode):
             y_user[u] = mmWave_LoS_NLoS_channel[u] @ s_BS 
             genie_y_user[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS
             
-            # received noise at a user
-            thermal_noise[u] = np.random.normal(0, noise_power/2) + 1j * np.random.normal(0, noise_power/2)
 
-            # calculate communication rate of each user
-            if current_beam[n,u].size == 1:
-                rate[u,n] = np.log2(1 +  np.mean(np.abs(y_user[u]) ** 2 )/ np.abs(thermal_noise[u])**2)
-            else:
-                rate[u,n] = 0
+        # calculate communication rate of each user
+        if True: #current_beam[n,u].size == 1:
+            rate[:,n] = compute_communication_rate(y_user, noise_power, N_UEs, N)
+        else:
+            rate[:,n] = 0
             
-
-        genie_rate[:,n] = np.log2(1 +  np.mean(np.abs(genie_y_user) ** 2, axis = 1) /  np.abs(thermal_noise)**2)
+        # genie-aided rate
+        genie_rate[:,n] = compute_communication_rate(genie_y_user, noise_power, N_UEs, N) #np.log2(1 +  np.mean(np.abs(genie_y_user) ** 2, axis = 1) /  np.abs(thermal_noise)**2)
 
         rx_snr_db[n,:] = np.mean(np.abs(genie_y_user)**2, axis=1) / noise_power
-
 
         # received echos at BS
         y_BS = mono_LoS_channel @ s_BS + (1/np.sqrt(2))*(np.random.normal(0, noise_power, size = (env.number_of_antennas, N)) + np.random.normal(0, noise_power, size = (env.number_of_antennas, N)))
