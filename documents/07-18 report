@@ -1,0 +1,8 @@
+## Last week comments
+- The objective function: the buffer penalty is repetitive with the communication part
+
+- Consider the benchmark and debug the code that I already have. 
+Consider what result should be presented.
+
+- The ML model: cardinality of the action space and calculation of the reward.
+

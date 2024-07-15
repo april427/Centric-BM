@@ -86,7 +86,7 @@ $$
 $$
 **Reward** is calculated according to the objective function. 
 
-![alt text](image.png)
+![is](image.png)
 
 
 - Collect tuples $(s_n, a_n, r_n, s_{n+1})$ 
@@ -97,9 +97,24 @@ $$
 Challenges: The action space is large and the state space is continuous. 
 - Discrete deterministic policy gradient (DDPG)
 
+---
+### Implementation
+- Genie-aided BM: The BS knows the channel response to each user. It selects the beam associated with the highest energy to serve the user.
+- Impirical BM: The BS estimates the AoDs of users from the echo. It decides CU or SU based on MSE of estimation. For an SU, the BS uses three adjacent beams to it. Particularly, the beams to an SU does not contain data stream.
+
+![alt text](image-1.png)
+*Current result: two users in the environment. "UE1" and "UE2" denote impirical BM. Multi-user interference is considered.* 
+Impirical BM has bad performance, while Genie-aided BM is strange.
 
 
+---
+## Comments
+- The objective function: the buffer penalty is repetitive with the communication part
 
+- Consider the benchmark and debug the code that I already have. 
+Consider what result should be presented.
+
+- The ML model: cardinality of the action space and calculation of the reward.
 
 
 

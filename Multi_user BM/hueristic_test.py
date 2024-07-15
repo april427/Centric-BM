@@ -18,7 +18,7 @@ episode_durations = []
 N_UEs = 2 #env.N_UEs
 TTI = 10
 episode =  100
-N = 16 # number of samples
+N = 32 # number of samples
 user_positions = np.zeros((TTI+1, N_UEs, 2))
 d = np.zeros(N_UEs)
 AoD = np.zeros(N_UEs) # real value
@@ -26,9 +26,9 @@ aod = np.zeros(N_UEs) # estimated value
 a_BS = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 config = np.arange(N_UEs)
-edge_snr_db = -5
+edge_snr_db = 0
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
-Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50*np.sqrt(2))**2 / (env.lambda_ **2)
+Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50)**2 / (env.lambda_ **2)
 
 y_user = np.zeros((N_UEs, N)) + 1j
 y_BS = np.zeros((env.number_of_antennas, N)) + 1j
@@ -38,13 +38,11 @@ nitta = np.zeros((env.number_of_antennas)) + 1j # temperal variable for AoD esti
 beamwidth = 2*np.arcsin(1.2/env.number_of_antennas) # radians, consider 3 dB beamwidth
 error = np.zeros((N_UEs, TTI)) # AoD estimation error
 pathloss = np.zeros((N_UEs, TTI)) # pathloss
-
+ 
 genie_beam = np.empty([TTI, N_UEs,], dtype=object)
 
 genie_y_user = np.zeros((N_UEs, N))+ 1j
-genie_rate = np.zeros((N_UEs,TTI))
-rx_snr_db = np.zeros((TTI, N_UEs))
-
+rx_snr = np.zeros((TTI, N_UEs))
 
 rate_all_episodes = []
 genie_rate_all_episodes = []
@@ -58,34 +56,35 @@ for m in range(100):
 # beam initialization using beam sweeping
 for l in range(episode):
     rate = np.zeros((N_UEs,TTI))
+    genie_rate = np.zeros((N_UEs,TTI))
     current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
     np.random.shuffle(config)
 
     # initialize user positions in every episode
     for i in range(N_UEs):
         AoD[i] = np.random.rand() * np.pi /N_UEs + np.pi / N_UEs * config[i] #radians
-        r = (2 * np.random.rand() - 1) * 30
+        r = (np.random.rand()) * 20
         user_positions[0][i][0] = 50 + r * np.cos(AoD[i])
         user_positions[0][i][1] = 50 + r * np.sin(AoD[i])
 
-        d[i] = np.absolute(r)
+        d[i] = np.linalg.norm(env.base_station_position - user_positions[0][i])
 
         a_BS[i] = compute_ULA_response(env.number_of_antennas, AoD[i])  # current array response
 
         mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[i], d[i], env.lambda_)  # current LoS channel
 
-        current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt) * mmWave_LoS_NLoS_channel[i] @ env.codebook))
+        current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt) * env.codebook@ mmWave_LoS_NLoS_channel[i]))
 
     # Moving users
     for n in range(TTI):
         s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
         mono_LoS_channel = np.zeros((env.number_of_antennas, env.number_of_antennas), dtype=np.complex128)
+        mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
         genie_s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
-
 
         for u in range(N_UEs):
             # update user position
-            user_positions[n+1,u] = update_position(user_positions[n,u], sample_velocity(), 5, config[u])
+            user_positions[n+1,u] = update_position(user_positions[n,u], sample_velocity() , 5, config[u])
 
             # update distance
             d[u] = np.linalg.norm(env.base_station_position - user_positions[n+1,u])
@@ -100,38 +99,40 @@ for l in range(episode):
             mmWave_LoS_NLoS_channel[u] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[u], d[u], env.lambda_)
             pathloss[u,n] = np.linalg.norm(mmWave_LoS_NLoS_channel[u])**2
 
-            mono_LoS_channel += env.number_of_antennas * env.reflection_coefficient[u] * np.outer(a_BS[u,:] , np.conj(a_BS[u,:]))
+            reflection_coefficient = env.lambda_ *10 / (4* np.pi)**(1.5) / d[u]**2  
+
+            mono_LoS_channel += env.number_of_antennas * reflection_coefficient * np.outer(a_BS[u,:] , np.conj(a_BS[u,:]))
 
             # benchmark - genie-aided - upper bound
-            genie_beam[n, u] = np.argmax(np.abs( env.codebook @ (mmWave_LoS_NLoS_channel[u])))
-            genie_s_BS += np.sqrt(Pt / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
+            genie_beam[n, u] = np.argmax(np.abs( np.sqrt(Pt/N_UEs)* env.codebook @ (mmWave_LoS_NLoS_channel[u])))
+
+            genie_s_BS += np.sqrt( Pt / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
 
             # transmit signal
             if current_beam[n,u].size == 1:
-                transmit_beam = env.codebook[:, current_beam[n,u]]
+                transmit_beam = env.codebook[current_beam[n,u],:]
             else:
-                transmit_beam = env.codebook[:, current_beam[n,u]].sum(axis=1)
+                transmit_beam = env.codebook[current_beam[n,u],:].sum(axis=0)
             
             s_BS += np.sqrt(Pt / N_UEs / np.size(current_beam[n,u])) * np.outer((transmit_beam), waveform[u, :])
 
-            # user received signal noise-less
-            y_user[u] = mmWave_LoS_NLoS_channel[u] @ s_BS 
-            genie_y_user[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS
-            
-
+        # user received signal noise-less
+        y_user = mmWave_LoS_NLoS_channel @ s_BS 
+        genie_y_user = mmWave_LoS_NLoS_channel @ genie_s_BS
+        
         # calculate communication rate of each user
-        if True: #current_beam[n,u].size == 1:
+        if current_beam[n,u].size == 1:
             rate[:,n] = compute_communication_rate(y_user, noise_power, N_UEs, N)
         else:
             rate[:,n] = 0
             
         # genie-aided rate
-        genie_rate[:,n] = compute_communication_rate(genie_y_user, noise_power, N_UEs, N) #np.log2(1 +  np.mean(np.abs(genie_y_user) ** 2, axis = 1) /  np.abs(thermal_noise)**2)
+        genie_rate[:,n] = compute_communication_rate(genie_y_user, noise_power, N_UEs, N) 
 
-        rx_snr_db[n,:] = np.mean(np.abs(genie_y_user)**2, axis=1) / noise_power
+        rx_snr[n,:] = np.mean(np.abs(genie_y_user)**2, axis=1) / noise_power
 
         # received echos at BS
-        y_BS = mono_LoS_channel @ s_BS + (1/np.sqrt(2))*(np.random.normal(0, noise_power, size = (env.number_of_antennas, N)) + np.random.normal(0, noise_power, size = (env.number_of_antennas, N)))
+        y_BS = mono_LoS_channel @ s_BS + (1/np.sqrt(2)) * ( np.random.normal(0, noise_power, size = (env.number_of_antennas, N)) + 1j * np.random.normal(0, noise_power, size = (env.number_of_antennas, N)))
         
         # Estimate AoDs from the echo
         # extract each user's signal
@@ -142,14 +143,18 @@ for l in range(episode):
             # map the estimated aod to the closest beam in the codebook
             current_beam[n+1, u] = np.argmax(env.codebook @ compute_ULA_response(env.number_of_antennas, aod[u]))
             # estimation error
-            error[u,n] = np.abs(aod[u] - AoD[u])
+            error[u,n] = np.abs(aod[u] - AoD[u])/np.pi
 
             if error[u,n] > beamwidth:
                 # update beam - use multiple beams
-                if np.max(current_beam[n+1, u])>=31:
-                    current_beam[n+1,u] = np.add(current_beam[n+1,u],[-1,0])
+                if np.max(current_beam[n+1, u])==31:
+                    current_beam[n+1,u] = np.add(current_beam[n+1,u],[-2,-1,0])
                 elif np.min(current_beam[n+1,u])==0:
-                    current_beam[n+1,u] = np.add(current_beam[n+1,u],[0,1])
+                    current_beam[n+1,u] = np.add(current_beam[n+1,u],[0,1,2])
+                # elif np.max(current_beam[n+1,u])==30:
+                #     current_beam[n+1,u] = np.add(current_beam[n+1,u],[-2,-1,0,1])
+                # elif np.min(current_beam[n+1,u])==1:
+                #     current_beam[n+1,u] = np.add(current_beam[n+1,u],[-1,0,1,2])
                 else:
                     current_beam[n+1,u] = np.add(current_beam[n+1,u],[-1,0,1])
                 # else keep the current beam
@@ -157,9 +162,8 @@ for l in range(episode):
     rate_all_episodes.append(rate)
     genie_rate_all_episodes.append(genie_rate)
 
-
 SNR_dB = 10*np.log10(np.mean((Pt/N_UEs)* pathloss,axis=1) /noise_power)
-rx_snr_db = 10*np.log10(np.mean(rx_snr_db, axis=0))
+rx_snr = 10*np.log10(np.mean(rx_snr, axis=0))
 
 nmse = np.mean((error/np.pi)**2, axis = 1)
 

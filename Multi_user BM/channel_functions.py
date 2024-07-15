@@ -56,7 +56,7 @@ def compute_ULA_response(M, AoD):
 def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient=1):
     """
         Compute mmWave LoS channel. Dimension is (1,M)
-        Consider Rayleigh block fading.
+        Consider Rayleigh block fading. * 1/np.sqrt(2)* complex(np.random.normal(0, 1), np.random.normal(0, 1))
 
         Args:  
             M (int): The number of antenna elements in the ULA.
@@ -65,7 +65,7 @@ def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient
             blockage_coefficient (float): The blockage coefficient.  
              
     """
-    mmWave_LOS_channel = np.sqrt(M) * wavelength / (4 *np.pi * d) * blockage_coefficient * 1/np.sqrt(2)* complex(np.random.normal(0, 1), np.random.normal(0, 1)) * np.conj(a_BS).T
+    mmWave_LOS_channel = np.sqrt(M) * wavelength / (4 *np.pi * d) * blockage_coefficient  * np.conj(a_BS).T
     return mmWave_LOS_channel
 
 def compute_realistic_LoS_channel(sce, carrier_frequency, direction, num_user):
