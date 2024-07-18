@@ -54,10 +54,17 @@ from sionna.channel.utils import subcarrier_frequencies, cir_to_ofdm_channel
 from sionna.constants import SPEED_OF_LIGHT
 
 # %%
+
+import sionna
+from sionna.rt import load_scene, PlanarArray, Transmitter, Receiver, Camera
+from sionna.rt.utils import r_hat
+from sionna.ofdm import ResourceGrid
+from sionna.channel.utils import subcarrier_frequencies, cir_to_ofdm_channel
+from sionna.constants import SPEED_OF_LIGHT
+
 scene = load_scene(sionna.rt.scene.simple_street_canyon_with_cars)
-scene.add(Camera("cam"), position=[0, 0, 0], look_at=[0, 0, 0])
-if colab_compat:
-    scene.render(camera="cam", num_samples=512);
-    raise ExitCell
+scene.add(Camera("cam", position=[50,0,130], look_at=[10,0,0]))
 scene.preview()
-# %%
+
+scene.objects
+

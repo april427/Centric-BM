@@ -1,6 +1,9 @@
+# %%
 import numpy as np
-import matplotlib.pyplot as plt
 import random
+import matplotlib.pyplot as plt
+
+# %%
 
 def update_position(position, velocity, dt, config):
     """Update UE position given velocity and timestep, and reverse direction if outside square area"""
@@ -23,10 +26,12 @@ def update_position(position, velocity, dt, config):
 
 def sample_velocity():
     """Sample velocity from exponential and normal distributions"""
-    # sc = np.random.randint(1,5)
-    # sc2 = np.random.randint(1, 3)
-    linear_velocity = np.random.exponential(scale=1) # sample linear velocity from exponential distribution
-    angular_velocity = np.random.normal(loc=0, scale=1) # sample angular velocity from normal distribution
+    
+    linear_velocity = np.random.normal(loc = 10, scale=1) 
+    if linear_velocity < 0:
+        linear_velocity = 0
+    # sample linear velocity from exponential distribution
+    angular_velocity = np.random.normal(loc=0, scale=0.01) # sample angular velocity from normal distribution
     return np.array([linear_velocity, angular_velocity])
 
 # #Example usage
