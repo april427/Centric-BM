@@ -25,10 +25,7 @@ def dft_codebook(n, m):
     """
     dft_matrix = np.ones((m, m)) * complex(1, 0)
     for i in range(1, m+1):
-        for j in range(m):
-            dft_matrix[j][i-1] = np.exp(-1j * math.pi * j * (2 * i - 1 - m)/m)
-        dft_matrix[:, i-1] = 1/np.sqrt(n) * dft_matrix[:, i-1]
-
+        dft_matrix[i-1,:] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i - 1 - m)/m) for j in range(n)])
     return dft_matrix
 
 def compute_AoD_at_BS(BS_pos, UE_pos):
@@ -105,7 +102,7 @@ def compute_power_given_beam(Pt, mmWave_LOS_channel, selected_precoder, SNR_dB=3
 
     return np.abs(output)[0]
 
-def compute_communication_rate(noiseless_output, noise_power, N_UEs, N):
+def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     """
         Compute the communication rate, consider inter user interference.
         Args:
@@ -116,15 +113,14 @@ def compute_communication_rate(noiseless_output, noise_power, N_UEs, N):
     """
     # Generate complex Gaussian noise
     noise = np.sqrt(noise_power / 2) * (np.random.normal(0, 1, size = (N_UEs, N)) + 1j* np.random.normal(0, 1, size = (N_UEs, N)))
-    rate = np.zeros((N_UEs, N))
-    total_power = np.sum(np.abs(noiseless_output)**2 , axis=0)
-    # Compute the communication rate
-    for i in range(N_UEs):
-        
-        rate[i] = np.log2(1 + np.abs(noiseless_output[i])**2 / ( total_power - np.abs(noiseless_output[i])**2 + np.abs(noise[i]) ** 2 ))
     
+    interference = noiseless_output - signal
+    # Compute the communication rate
+    rate = np.log2(1 + np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
+
     rate = np.mean(rate, axis=1)
     return rate
+
 
 # %%
 # #Constants

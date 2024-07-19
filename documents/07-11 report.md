@@ -42,11 +42,11 @@ There were two problems:
 The objective function is
 $$
 \begin{alignat}{2}
-&\arg \max_{\lambda, \boldsymbol{f}, P} && \sum_{n=1}^{N} \sum_{u=1}^U \left(\lambda_{u,n}\mathbf{1}_{(B_{u,n} > 0)} R_{u,n} + (1-\lambda_{u,n}) (1- \text{var}^{no}(\hat{\varphi}_{q,n})) - \frac{B_{u,n-1} - R_{u,n}}{B_{u,0}} \right) \\
+&\arg \max_{\lambda, \boldsymbol{f}, P} && \sum_{n=1}^{N} \sum_{u=1}^U \left(\lambda_{u,n}\mathbf{1}_{(B_{u,n} > 0)} R_{u,n} + (1-\lambda_{u,n}) (1- \text{var}^{no}(\hat{\varphi}_{q,n}))  \right) \\
 &\mathrm{subject~to} ~~ &&\sum_{u=1}^U P_{u,n} \leq P \nonumber \\
 & &&\lambda_{u,n} \in\{0,1\} ~~ \text{user's state: 1=CU, 0= SU}\nonumber\\
 & && \text{var}^{no}(\hat{\varphi}_{q,n}) ~~ \text{normalized MSE,} ~~~ \text{var} (\hat{\varphi}_{q,n}) \propto \frac{\sigma_{\omega}^2}{\kappa^2 P_{q,n} \beta^2_{q,n} \big|\boldsymbol{a}^H (\varphi_q) \boldsymbol{f}_{q,n}\big|^2 \Delta T } \nonumber \\
-& && B_{u,n} = B_{u,n-1} - R_{u, n-1}
+%& && B_{u,n} = B_{u,n-1} - R_{u, n-1}
 \end{alignat}
 $$
 

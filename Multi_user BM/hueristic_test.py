@@ -15,8 +15,8 @@ episode_durations = []
 # %%
 # variable initialization
 N_UEs = 2 #env.N_UEs
-TTI = 50
-episode =  10
+TTI = 100
+episode =  100
 N = 32 # number of samples
 user_positions = np.zeros((TTI+1, N_UEs, 2))
 d = np.zeros(N_UEs)
@@ -34,7 +34,7 @@ cross_pos = np.array([[27, 80], [30, 70]])
 road_matrix = road(cross_pos)
 single_lane_width = 5
 
-dt = 0.01 # time step 10 ms
+dt = 0.001 # time step 10 ms
 
 y_user = np.zeros((N_UEs, N)) + 1j
 y_BS = np.zeros((env.number_of_antennas, N)) + 1j
@@ -70,12 +70,12 @@ for nPt in range(np.size(Pt)):
         rate = np.zeros((N_UEs,TTI))
         genie_rate = np.zeros((N_UEs,TTI))
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
-        #np.random.shuffle(config)
-
+        
         config = np.empty([N_UEs, 2], dtype = int)
         
-        user_positions[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width)
         # initialize user positions in every episode
+        user_positions[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width)
+        
         for i in range(N_UEs):
             
             AoD[i] = compute_AoD_at_BS(env.base_station_position, user_positions[0][i])
@@ -86,14 +86,16 @@ for nPt in range(np.size(Pt)):
 
             mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[i], d[i], env.lambda_)  # current LoS channel
 
-            current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt[nPt]) * env.codebook@ mmWave_LoS_NLoS_channel[i]))
+            current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt[nPt]) * env.codebook @ mmWave_LoS_NLoS_channel[i]))
 
         # Moving users
         for n in range(TTI):
-            s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
-            mono_LoS_channel = np.zeros((env.number_of_antennas, env.number_of_antennas), dtype=np.complex128)
+            s_BS = np.zeros(( N_UEs, env.number_of_antennas, N), dtype = complex)
+            mono_LoS_channel = np.zeros((env.number_of_antennas, env.number_of_antennas), dtype=complex)
             mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
-            genie_s_BS = np.zeros((env.number_of_antennas, N)).astype(complex)
+            genie_s_BS = np.zeros((N_UEs, env.number_of_antennas, N), dtype = complex)
+            genie_user_signal = np.zeros((N_UEs, N), dtype = complex)
+            user_signal = np.zeros((N_UEs, N), dtype = complex)
 
             for u in range(N_UEs):
                 # update user position
@@ -112,14 +114,17 @@ for nPt in range(np.size(Pt)):
                 mmWave_LoS_NLoS_channel[u] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[u], d[u], env.lambda_)
                 pathloss[u,n] = np.linalg.norm(mmWave_LoS_NLoS_channel[u])**2
 
-                reflection_coefficient = env.lambda_ *10 / (4* np.pi)**(1.5) / d[u]**2  
+                reflection_coefficient = env.lambda_ * 0.001 / (4* np.pi)**(1.5) / d[u]**2  
 
-                mono_LoS_channel += env.number_of_antennas * reflection_coefficient * np.outer(a_BS[u,:] , np.conj(a_BS[u,:]))
+                mono_LoS_channel += compute_mono_static_channel(env.number_of_antennas, AoD[u], reflection_coefficient)
 
                 # benchmark - genie-aided - upper bound
                 genie_beam[n, u] = np.argmax(np.abs( np.sqrt(Pt[nPt]/N_UEs)* env.codebook @ (mmWave_LoS_NLoS_channel[u])))
 
-                genie_s_BS += np.sqrt( Pt[nPt] / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
+                genie_s_BS[u,:,:] = np.sqrt( Pt[nPt] / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
+
+                # target signal for user
+                genie_user_signal[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS[u]
 
                 # transmit signal
                 if current_beam[n,u].size == 1:
@@ -127,22 +132,23 @@ for nPt in range(np.size(Pt)):
                 else:
                     transmit_beam = env.codebook[current_beam[n,u],:].sum(axis=0)
                 
-                s_BS += np.sqrt(Pt[nPt] / N_UEs / np.size(current_beam[n,u])) * np.outer((transmit_beam), waveform[u, :])
+                s_BS[u,:,:] = np.sqrt(Pt[nPt] / N_UEs / np.size(current_beam[n,u])) * np.outer((transmit_beam), waveform[u, :])
 
-            # user received signal noise-less
-            y_user = mmWave_LoS_NLoS_channel @ s_BS 
-            genie_y_user = mmWave_LoS_NLoS_channel @ genie_s_BS
+                user_signal[u] = mmWave_LoS_NLoS_channel[u] @ s_BS[u]
+
+            # user received signal noise-less including interference
+            y_user = mmWave_LoS_NLoS_channel @ np.sum(s_BS, axis=0) 
+            genie_y_user = mmWave_LoS_NLoS_channel @ np.sum(genie_s_BS, axis=0)
             
             # calculate communication rate of each user
             if True: #current_beam[n,u].size == 1:
-                rate[:,n] = compute_communication_rate(y_user, noise_power, N_UEs, N)
+                rate[:,n] = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N)
             else:
                 rate[:,n] = 0
-                
-            # genie-aided rate
-            genie_rate[:,n] = compute_communication_rate(genie_y_user, noise_power, N_UEs, N) 
 
-            #rx_snr[n,:] = np.mean(np.abs(genie_y_user)**2, axis=1) / noise_power
+            s_BS = np.sum(s_BS,axis=0)    
+            # genie-aided rate
+            genie_rate[:,n] = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N) 
 
             # received echos at BS
             y_BS = mono_LoS_channel @ s_BS + (1/np.sqrt(2)) * ( np.random.normal(0, noise_power, size = (env.number_of_antennas, N)) + 1j * np.random.normal(0, noise_power, size = (env.number_of_antennas, N)))
