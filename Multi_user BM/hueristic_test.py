@@ -25,7 +25,7 @@ aod = np.zeros(N_UEs) # estimated value
 a_BS = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 
-edge_snr_db = np.array([0])
+edge_snr_db = np.array([5])
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
 Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50)**2 / (env.lambda_ **2)
 
@@ -34,7 +34,7 @@ cross_pos = np.array([[27, 80], [30, 70]])
 road_matrix = road(cross_pos)
 single_lane_width = 5
 
-dt = 0.001 # time step 10 ms
+dt = 0.005 # time step 5 ms
 
 y_user = np.zeros((N_UEs, N)) + 1j
 y_BS = np.zeros((env.number_of_antennas, N)) + 1j
@@ -52,9 +52,6 @@ rx_snr = np.zeros((TTI, N_UEs))
 SNR_user = np.zeros((np.size(Pt),N_UEs))
 SNR_echo = np.zeros((np.size(Pt),N_UEs))
 
-rate_all_episodes = []
-genie_rate_all_episodes = []
-
  # Used for AoD estimation
 A = np.zeros((100,env.number_of_antennas),dtype=complex)
 for m in range(100):
@@ -63,7 +60,8 @@ for m in range(100):
 # %%
 # beam initialization using beam sweeping
 for nPt in range(np.size(Pt)): 
-
+    rate_all_episodes = []
+    genie_rate_all_episodes = []
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
 
     for l in range(episode):
@@ -151,7 +149,7 @@ for nPt in range(np.size(Pt)):
             genie_rate[:,n] = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N) 
 
             # received echos at BS
-            y_BS = mono_LoS_channel @ s_BS + (1/np.sqrt(2)) * ( np.random.normal(0, noise_power, size = (env.number_of_antennas, N)) + 1j * np.random.normal(0, noise_power, size = (env.number_of_antennas, N)))
+            y_BS = mono_LoS_channel @ s_BS +  ( np.random.normal(0, noise_power/2, size = (env.number_of_antennas, N)) + 1j * np.random.normal(0, noise_power/2, size = (env.number_of_antennas, N)))
             
             # Estimate AoDs from the echo
             # extract each user's signal
@@ -160,33 +158,39 @@ for nPt in range(np.size(Pt)):
                 # estimate AoD
                 aod[u] = np.argmax(np.abs(A @ nitta))/100*np.pi
                 # map the estimated aod to the closest beam in the codebook
-                current_beam[n+1, u] = np.argmax(env.codebook @ compute_ULA_response(env.number_of_antennas, aod[u]))
+                current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
                 # estimation error
-                error[l,u,n] = np.abs(aod[u] - AoD[u])/np.pi
+                error[l,u,n] = np.abs(aod[u] - AoD[u])
 
                 if error[l,u,n] > beamwidth:
-                    # update beam - use multiple beams
-                    if np.max(current_beam[n+1, u])==31:
-                        current_beam[n+1,u] = np.add(current_beam[n+1,u],[-2,-1,0])
-                    elif np.min(current_beam[n+1,u])==0:
-                        current_beam[n+1,u] = np.add(current_beam[n+1,u],[0,1,2])
-                    # elif np.max(current_beam[n+1,u])==30:
-                    #     current_beam[n+1,u] = np.add(current_beam[n+1,u],[-2,-1,0,1])
-                    # elif np.min(current_beam[n+1,u])==1:
-                    #     current_beam[n+1,u] = np.add(current_beam[n+1,u],[-1,0,1,2])
-                    else:
-                        current_beam[n+1,u] = np.add(current_beam[n+1,u],[-1,0,1])
-                    # else keep the current beam
+                    beam_index = np.mod( np.add(current_beam[n, u], [-1,0,1]), 31 )
+                    current_beam[n+1,u] = beam_index[beam_index >= 0]
+                # else keep the current beam
+                else:   
+                    current_beam[n+1,u] = current_beam[n,u]
 
         rate_all_episodes.append(rate)
         genie_rate_all_episodes.append(genie_rate)
 
     SNR_user[nPt] = 10*np.log10(np.mean((Pt[nPt]/N_UEs)* pathloss,axis=1) /noise_power)
     SNR_echo[nPt] = 10*np.log10(((Pt[nPt]/N_UEs)* reflection_coefficient) /noise_power)
-    #rx_snr = 10*np.log10(np.mean(rx_snr, axis=0))
 
-    nmse[nPt] = np.mean(np.mean((error)**2, axis = 2), axis = 0)
-    
+    nmse[nPt] = np.mean(np.mean((error/np.pi)**2, axis = 2), axis = 0)
+    # %% Plot rate CDF
+    rate_all_episodes = np.array(rate_all_episodes)
+    genie_rate_all_episodes = np.array(genie_rate_all_episodes)
+    for i in range (N_UEs):
+        rate_cdf = np.sort(rate_all_episodes[:,i,:].flatten())
+        yvals = np.arange(len(rate_cdf))/float(len(rate_cdf)-1)
+        plt.plot(rate_cdf, yvals)
+
+        genie_rate_cdf = np.sort(genie_rate_all_episodes[:,i,:].flatten())
+        yvals = np.arange(len(genie_rate_cdf))/float(len(genie_rate_cdf)-1)
+        plt.plot(genie_rate_cdf, yvals)
+
+    plt.xlabel('Rate (bps/Hz)')
+    plt.ylabel('CDF')
+    plt.legend(['UE1-Empirical','UE1-Genie','UE2-Empirical','UE2-Genie'])
 
 # %%
 plt.imshow(road_matrix.T)
@@ -208,27 +212,13 @@ for i in range(N_UEs):
 plt.legend(['UE1','','UE2','', 'UE3', ''])    
 plt.show()
 
-for i in range(N_UEs):
-    plt.plot(SNR_user[:,i], nmse[:,i])
-    plt.xlabel('User SNR_dB')
-    plt.ylabel('NMSE')
-    plt.show()
+if edge_snr_db.size > 1:
+    for i in range(N_UEs):
+        plt.plot(SNR_echo[:,i], nmse[:,i])
+        plt.xlabel('User SNR_dB')
+        plt.ylabel('NMSE')
+        plt.show()
 
 
-# %% Plot rate CDF
-rate_all_episodes = np.array(rate_all_episodes)
-genie_rate_all_episodes = np.array(genie_rate_all_episodes)
-for i in range (N_UEs):
-    rate_cdf = np.sort(rate_all_episodes[:,i,:].flatten())
-    yvals = np.arange(len(rate_cdf))/float(len(rate_cdf)-1)
-    plt.plot(rate_cdf, yvals)
 
-    genie_rate_cdf = np.sort(genie_rate_all_episodes[:,i,:].flatten())
-    yvals = np.arange(len(genie_rate_cdf))/float(len(genie_rate_cdf)-1)
-    plt.plot(genie_rate_cdf, yvals)
-
-
-plt.xlabel('Rate (bps/Hz)')
-plt.ylabel('CDF')
-plt.legend(['UE1-Empirical','UE1-Genie','UE2-Empirical','UE2-Genie'])
 # %%
