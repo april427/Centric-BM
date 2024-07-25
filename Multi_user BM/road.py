@@ -40,13 +40,13 @@ def set_direction(user_pos, cross_pos, single_lane_width, N_cross=4):
 
     x = cross_center[np.argmin(dis)] # closest cross center
 
-    if (user_pos[0] - (x[0] - single_lane_width) < -0.1*single_lane_width) and (abs(user_pos[1] - x[1]) < single_lane_width):
+    if (user_pos[0] - (x[0] - single_lane_width) < 0*single_lane_width) and (abs(user_pos[1] - x[1]) < single_lane_width):
         config = 0      # move to x axis positive
-    elif (user_pos[0] - (x[0] + single_lane_width) > 0.1*single_lane_width) and (abs(user_pos[1] - x[1]) < single_lane_width):
+    elif (user_pos[0] - (x[0] + single_lane_width) > 0*single_lane_width) and (abs(user_pos[1] - x[1]) < single_lane_width):
         config = 1      # move to x axis negative
-    elif (user_pos[1] - (x[1] - single_lane_width) < -0.1*single_lane_width) and abs(user_pos[0] - x[0]) < single_lane_width:
+    elif (user_pos[1] - (x[1] - single_lane_width) < 0*single_lane_width) and abs(user_pos[0] - x[0]) < single_lane_width:
         config = 2    # move to y axis positive
-    elif (user_pos[1] - (x[1] + single_lane_width) > 0.1*single_lane_width) and abs(user_pos[0] - x[0]) < single_lane_width:
+    elif (user_pos[1] - (x[1] + single_lane_width) > 0*single_lane_width) and abs(user_pos[0] - x[0]) < single_lane_width:
         config = 3   # move to y axis negative
     else:
         config = 4  # make a turn
@@ -63,10 +63,11 @@ def user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width):
     cross_center = np.array(list(itertools.product(cross_pos[0], cross_pos[1])))
 
     A = np.where(road_matrix == 1)
-    indices = np.random.choice(len(A[1]), N_UEs, replace=False)
+    
     for i in range(N_UEs):
+        indices = np.random.choice(np.arange(i*len(A[1])/N_UEs, (i+1)*len(A[1])/N_UEs-1, dtype=int), replace=False)
         if_turned[i] = False
-        user_pos[i,:] = A[0][indices[i]], A[1][indices[i]]
+        user_pos[i,:] = [A[0][indices], A[1][indices]]
         config[i,0] = set_direction(user_pos[i,:], cross_center, single_lane_width)
         config[i,1] = config[i,0] if config[i,0] != 4 else 2
     return user_pos, config, if_turned
@@ -75,7 +76,7 @@ def user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width):
 def make_a_turn(position, displacement, config):
     """Make a turn at the intersection"""
     direction = np.array([[-1,-1], [1,1], [1,-1], [-1,1]])
-    if config[0] == 0:
+    if config[1] == 0:
         a = np.random.choice([1,2,4])
         if a != 4:
             position[0] = position[0] + direction[a,0] * displacement/2
@@ -83,9 +84,8 @@ def make_a_turn(position, displacement, config):
             config[1] = 2 if direction[a,1] == -1 else 3
         else:
             position[0] = position[0] + displacement
-            config[1] = config[0]
 
-    elif config[0] == 1:
+    elif config[1] == 1:
         a = np.random.choice([0,3,4])
         if a != 4:
             position[0] = position[0] + direction[a,0] * displacement/2
@@ -93,9 +93,8 @@ def make_a_turn(position, displacement, config):
             config[1] = 2 if direction[a,1] == -1 else 3
         else:
             position[0] = position[0] - displacement
-            config[1] = config[0]
 
-    elif config[0] == 2:
+    elif config[1] == 2:
         a = np.random.choice([1,3,4])
         if a != 4:
             position[0] = position[0] + direction[a,0] * displacement/2
@@ -103,9 +102,8 @@ def make_a_turn(position, displacement, config):
             config[1] = 0 if direction[a,0] == 1 else 1
         else:
             position[1] = position[1] + displacement
-            config[1] = config[0]
 
-    elif config[0] == 3:
+    elif config[1] == 3:
         a = np.random.choice([0,2,4])
         if a != 4:
             position[0] = position[0] + direction[a,0] * displacement/2
@@ -113,10 +111,7 @@ def make_a_turn(position, displacement, config):
             config[1] = 0 if direction[a,0] == 1 else 1
         else:
             position[1] = position[1] - displacement
-            config[1] = config[0]
-    else:
-        config[1] = 2
-        position[1] = position[1] + displacement
+
     return position, config
 
 def update_positions(position, cross_pos, velocity, dt, single_lane_width, config, if_turned=False):

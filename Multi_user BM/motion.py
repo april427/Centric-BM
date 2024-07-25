@@ -27,7 +27,7 @@ def update_position(position, velocity, dt, config):
 def sample_velocity():
     """Sample velocity from exponential and normal distributions"""
     
-    linear_velocity = np.random.normal(loc = 10, scale=1) 
+    linear_velocity = np.random.normal(loc = 30, scale=3) 
     if linear_velocity < 0:
         linear_velocity = 0
     # sample linear velocity from exponential distribution

@@ -118,8 +118,33 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     # Compute the communication rate
     rate = np.log2(1 + np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
 
+    # Compute SINR
+    sinr = np.mean(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ), axis=1)
+
     rate = np.mean(rate, axis=1)
-    return rate
+    return rate, sinr
+
+def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
+    """
+        Estimate AoDs from the echo.
+        Args:
+            y_BS (numpy.ndarray): The received signal at the BS.
+            waveform (numpy.ndarray): The waveform.
+            N_UEs (int): The number of UEs.
+            N (int): The number of samples within one TTI.
+            N_fft (int): The number of samples in the FFT.
+            env (Environment): The environment.
+    """
+    AoD_est = np.zeros(N_UEs)
+    for u in range(N_UEs):
+        nitta = (1/N)*np.matmul(y_BS, waveform[u, :])
+        # estimate AoD
+        w_padded = np.concatenate((nitta, np.zeros(N_fft - number_of_antennas)))
+        w_fft_dB = 10*np.log10(np.abs(np.fft.fftshift(np.fft.fft(w_padded)))**2) # magnitude of fft in dB
+        # Map the FFT bins to angles in radians
+        theta_bins = np.arccos(np.linspace(-1, 1, N_fft)) # in radians
+        AoD_est[u] = np.pi - theta_bins[np.argmax(w_fft_dB)]
+    return AoD_est
 
 
 # %%
