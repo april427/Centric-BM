@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
-import gym
+import gymnasium as gym
 import argparse
 from normalization import Normalization, RewardScaling
 from replaybuffer import ReplayBuffer

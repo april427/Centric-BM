@@ -44,31 +44,32 @@ mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 genie_beam = np.empty([TTI, N_UEs,], dtype=object)
 
 config = np.empty([N_UEs, 2], dtype = int)
-        
-# initialize user positions in every episode
-user_positions[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width)
-d = np.linalg.norm(env.base_station_position - user_positions[0], axis = 1)
-
-edge_snr_db = np.array([-5,0,5,10])
+edge_snr_db = np.array([-5,0,5,10])        
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
-Pt = 10 **(edge_snr_db / 10) * (4* np.pi * np.max(d))**2 / (env.lambda_ **2)
 
-SNR_user = np.zeros((np.size(Pt),episode, N_UEs))
-SNR_echo = np.zeros((np.size(Pt),episode, N_UEs))
-SNR_echo_numerical = np.zeros((np.size(Pt),episode, N_UEs))
-nmse = np.zeros((np.size(Pt), N_UEs))
-nmse_theo = np.zeros((np.size(Pt), N_UEs))
+
+SNR_user = np.zeros((np.size(edge_snr_db),episode, N_UEs))
+SNR_echo = np.zeros((np.size(edge_snr_db),episode, N_UEs))
+SNR_echo_numerical = np.zeros((np.size(edge_snr_db),episode, N_UEs))
+nmse = np.zeros((np.size(edge_snr_db), N_UEs))
+nmse_theo = np.zeros((np.size(edge_snr_db), N_UEs))
 
  # Used for AoD estimation
 N_fft = 1024
 
 # %%
-for nPt in range(np.size(Pt)): 
+for nPt in range(np.size(edge_snr_db)): 
     genie_sinr_user = []
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
     variance = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
 
     for l in range(episode):
+        # initialize user positions in every episode
+        user_positions[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width)
+        d = np.linalg.norm(env.base_station_position - user_positions[0], axis = 1)
+
+        Pt = N_UEs* 10 **(edge_snr_db[nPt] / 10) * (4* np.pi * np.max(d))**2 / (env.lambda_ **2)
+
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
         
         for i in range(N_UEs):
@@ -79,7 +80,7 @@ for nPt in range(np.size(Pt)):
 
             mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(env.number_of_antennas, a_BS[i], d[i], env.lambda_)  # current LoS channel
 
-            current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt[nPt]) * env.codebook @ mmWave_LoS_NLoS_channel[i]))
+            current_beam[0,i] = np.argmax(np.abs(np.sqrt(Pt) * env.codebook @ mmWave_LoS_NLoS_channel[i]))
 
         # Moving users
         for n in range(TTI):
@@ -91,7 +92,7 @@ for nPt in range(np.size(Pt)):
 
             for u in range(N_UEs):
                 # update user position
-                user_positions[n+1, u,:], config[u,:], if_turned[u] = update_positions(user_positions[n,u,:], cross_pos, sample_velocity(), dt, single_lane_width, config[u,:], if_turned[u]) 
+                user_positions[n+1, u,:], config[u,:], if_turned[u] = update_positions(user_positions[n,u,:], cross_pos, 0, dt, single_lane_width, config[u,:], if_turned[u]) 
 
                 # update distance
                 d[u] = np.linalg.norm(env.base_station_position - user_positions[n+1,u])
@@ -111,9 +112,9 @@ for nPt in range(np.size(Pt)):
                 mono_LoS_channel += compute_mono_static_channel(env.number_of_antennas, AoD[u], reflection_coefficient)
 
                 # benchmark - genie-aided - upper bound
-                genie_beam[n, u] = np.argmax(np.abs( np.sqrt(Pt[nPt]/N_UEs)* env.codebook @ (mmWave_LoS_NLoS_channel[u])))
+                genie_beam[n, u] = np.argmax(np.abs( np.sqrt(Pt/N_UEs)* env.codebook @ (mmWave_LoS_NLoS_channel[u])))
 
-                genie_s_BS[u,:,:] = np.sqrt( Pt[nPt] / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
+                genie_s_BS[u,:,:] = np.sqrt( Pt / N_UEs ) * np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
 
                 # transmit signal
                 if current_beam[n,u].size == 1:
@@ -122,7 +123,7 @@ for nPt in range(np.size(Pt)):
                 else:
                     transmit_beam = env.codebook[current_beam[n,u],:].sum(axis=0)
                 
-                s_BS[u,:,:] = np.sqrt(Pt[nPt] / N_UEs / np.size(current_beam[n,u])) * np.outer((transmit_beam), waveform[u, :])
+                s_BS[u,:,:] = np.sqrt(Pt / N_UEs / np.size(current_beam[n,u])) * np.outer((transmit_beam), waveform[u, :])
 
             s_BS = np.sum(s_BS,axis=0)
 
@@ -137,21 +138,13 @@ for nPt in range(np.size(Pt)):
             error[l,:,n] = np.abs(aod - AoD)
             
             for u in range(N_UEs):
-                # nitta = (1/N)*np.matmul(y_BS, waveform[u, :])
-                # # estimate AoD
-                # w_padded = np.concatenate((nitta, np.zeros(N_fft - env.number_of_antennas)))
-                # w_fft_dB = 10*np.log10(np.abs(np.fft.fftshift(np.fft.fft(w_padded)))**2) # magnitude of fft in dB
-                # # Map the FFT bins to angles in radians
-                # theta_bins = np.arccos(np.linspace(-1, 1, N_fft)) # in radians
-                # aod[u] = np.pi - theta_bins[np.argmax(w_fft_dB)]
 
                 # map the estimated aod to the closest beam in the codebook
                 current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
                 
-
                 # CLRB
                 derivative_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.sin(AoD[u])) for i in range(env.number_of_antennas)])
-                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[nPt]/N_UEs)* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
+                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
 
                 if error[l,u,n] > beamwidth:
                     #beam_index = np.mod( np.add(current_beam[n+1, u], [-1,0,1]), 31 )
@@ -159,8 +152,8 @@ for nPt in range(np.size(Pt)):
                     current_beam[n+1,u] = beam_index[beam_index>=0]
 
 
-        SNR_user[nPt, l, :] = 10*np.log10(np.mean((Pt[nPt]/N_UEs)* pathloss,axis=1) /noise_power)
-        SNR_echo[nPt, l, :] = 10*np.log10(((Pt[nPt]/N_UEs)* env.number_of_antennas**2 * reflection_coefficient**2) /noise_power)   
+        SNR_user[nPt, l, :] = 10*np.log10(np.mean((Pt/N_UEs)* pathloss,axis=1) /noise_power)
+        SNR_echo[nPt, l, :] = 10*np.log10(((Pt/N_UEs)* env.number_of_antennas**2 * reflection_coefficient**2) /noise_power)   
         SNR_echo_numerical[nPt, l, :] = 10*np.log10( np.linalg.norm(y_BS_noiseless, 'fro') /np.linalg.norm(Noise, 'fro') )
     
     nmse[nPt] = np.mean(np.mean((error)**2, axis = 2), axis = 0)
@@ -189,7 +182,7 @@ plt.show()
 # %%
 for i in range(N_UEs):
     plt.semilogy(np.mean(SNR_echo[:,i], axis=1), nmse[:,i])
-    plt.semilogy(np.mean(SNR_echo[:,i], axis=1), nmse_theo[:,i])
+    #plt.semilogy(np.mean(SNR_echo[:,i], axis=1), nmse_theo[:,i])
     plt.xlabel('Echo SNR_dB')
     plt.ylabel('NMSE')
     plt.legend(['Simulation', 'Theoretical'])

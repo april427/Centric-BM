@@ -112,7 +112,7 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
             N (int): The number of samples within one TTI.
     """
     # Generate complex Gaussian noise
-    noise = np.sqrt(noise_power / 2) * (np.random.normal(0, 1, size = (N_UEs, N)) + 1j* np.random.normal(0, 1, size = (N_UEs, N)))
+    noise = (np.random.normal(0, noise_power/2, size = (N_UEs, N)) + 1j* np.random.normal(0, noise_power/2, size = (N_UEs, N)))
     
     interference = noiseless_output - signal
     # Compute the communication rate
