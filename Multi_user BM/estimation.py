@@ -14,8 +14,8 @@ episode_durations = []
 
 # %%
 # variable initialization
-N_UEs = 2 #env.N_UEs
-TTI = 1
+N_UEs = 1 #env.N_UEs
+TTI = 10
 episode =  1000
 N = 64 # number of samples in one TTI
 user_positions = np.zeros((TTI+1, N_UEs, 2))
@@ -69,7 +69,6 @@ for nPt in range(np.size(edge_snr_db)):
         d = np.linalg.norm(env.base_station_position - user_positions[0], axis = 1)
 
         Pt = N_UEs* 10 **(edge_snr_db[nPt] / 10) * (4* np.pi * np.max(d))**2 / (env.lambda_ **2)
-
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
         
         for i in range(N_UEs):
@@ -143,8 +142,8 @@ for nPt in range(np.size(edge_snr_db)):
                 current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
                 
                 # CLRB
-                derivative_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.sin(AoD[u])) for i in range(env.number_of_antennas)])
-                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
+                derivative2_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.cos(AoD[u]) - (np.pi*i * np.sin(AoD[u]))**2 ) for i in range(env.number_of_antennas)])
+                variance[l,u,n] = 1/2/ N**2 / abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
 
                 if error[l,u,n] > beamwidth:
                     #beam_index = np.mod( np.add(current_beam[n+1, u], [-1,0,1]), 31 )
@@ -182,7 +181,7 @@ plt.show()
 # %%
 for i in range(N_UEs):
     plt.semilogy(np.mean(SNR_echo[:,i], axis=1), nmse[:,i])
-    #plt.semilogy(np.mean(SNR_echo[:,i], axis=1), nmse_theo[:,i])
+    plt.semilogy(np.mean(SNR_echo[:,i], axis=1), nmse_theo[:,i])
     plt.xlabel('Echo SNR_dB')
     plt.ylabel('NMSE')
     plt.legend(['Simulation', 'Theoretical'])
@@ -215,4 +214,22 @@ ax.set_thetamin(-90) # only show top half
 ax.set_thetamax(90)
 ax.set_ylim([-30, 1]) # because there's no noise, only go down 30 dB
 plt.show()
+
+
+# %%
+theta = np.linspace(-np.pi/2, np.pi/2, 100)
+variance = np.zeros(len(theta))
+bf_gain = np.zeros(len(theta))
+for ind, aodd in enumerate(theta):
+    a_BS = compute_ULA_response(env.number_of_antennas, aodd)
+    beam_index = np.argmax(np.abs(env.codebook @ a_BS))
+    transmit_beam = env.codebook[beam_index,:]
+    # Perform desired operations with a_BS
+    derivative2_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(aodd))*(1j * np.pi * i * np.cos(aodd) - (np.pi*i * np.sin(aodd))**2 ) for i in range(env.number_of_antennas)])
+    variance[ind] = 1/2/ N**2 / abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * np.dot(a_BS, transmit_beam ) )**2 / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS) + np.dot(a_BS, derivative2_a_BS))
+    bf_gain[ind] = 1/ abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * np.dot(a_BS, transmit_beam ) )**2
+plt.plot(theta*180/np.pi, variance)
+plt.plot(theta*180/np.pi, bf_gain)
+#plt.plot(theta*180/np.pi, variance/bf_gain)
+plt.legend(['Variance', 'BF gain'])
 # %%
