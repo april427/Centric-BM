@@ -137,7 +137,7 @@ def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
     """
     AoD_est = np.zeros(N_UEs)
     for u in range(N_UEs):
-        nitta = (1/N)*np.matmul(y_BS, waveform[u, :])
+        nitta = np.matmul(y_BS, waveform[u, :])
         # estimate AoD
         w_padded = np.concatenate((nitta, np.zeros(N_fft - number_of_antennas)))
         w_fft_dB = 10*np.log10(np.abs(np.fft.fftshift(np.fft.fft(w_padded)))**2) # magnitude of fft in dB

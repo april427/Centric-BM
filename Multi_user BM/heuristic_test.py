@@ -30,12 +30,7 @@ edge_snr_db = np.array([10])
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
 Pt = 10 **(edge_snr_db / 10) * (4* np.pi * 50)**2 / (env.lambda_ **2)
 
-## fixed map
-cross_pos = np.array([[27, 80], [30, 70]])
-road_matrix = road(cross_pos)
-single_lane_width = 5
-
-dt = 0.05 # time step 10 ms
+# fixed map is imported from env_letter
 
 y_user = np.zeros((N_UEs, N)) + 1j
 y_BS = np.zeros((env.number_of_antennas, N)) + 1j
@@ -78,7 +73,7 @@ for nPt in range(np.size(Pt)):
         config = np.empty([N_UEs, 2], dtype = int)
         
         # initialize user positions in every episode
-        user_positions[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width)
+        user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.road_matrix, env.cross_pos, N_UEs, env.single_lane_width)
         
         for i in range(N_UEs):
             
@@ -103,7 +98,7 @@ for nPt in range(np.size(Pt)):
 
             for u in range(N_UEs):
                 # update user position
-                user_positions[n+1, u,:], config[u,:], if_turned[u] = update_positions(user_positions[n,u,:], cross_pos, sample_velocity(), dt, single_lane_width, config[u,:], if_turned[u]) 
+                user_positions[n+1, u,:], config[u,:], if_turned[u] = update_positions(user_positions[n,u,:], env.cross_pos, sample_velocity(), env.dt, env.single_lane_width, config[u,:], if_turned[u]) 
 
                 # update distance
                 d[u] = np.linalg.norm(env.base_station_position - user_positions[n+1,u])
@@ -188,7 +183,7 @@ for nPt in range(np.size(Pt)):
         genie_sinr_user.append(10*np.log10(genie_sinr))
 
         SNR_user[nPt, l, :] = 10*np.log10(np.mean((Pt[nPt]/N_UEs)* pathloss,axis=1) /noise_power)
-        SNR_echo[nPt, l, :] = 10*np.log10(((Pt[nPt]/N_UEs)* env.number_of_antennas**2 * reflection_coefficient**2) /noise_power)
+        SNR_echo[nPt, l, :] = 10*np.log10(((Pt[nPt]/N_UEs)* env.number_of_antennas**2 * reflection_coefficient**2) /(noise_power*env.number_of_antennas))
     nmse[nPt, :, :] = np.mean((error)**2, axis = 2)
     var_aod[nPt, :,:] = np.mean(variance, axis = 2)
 
@@ -238,7 +233,7 @@ ax.set_ylim([-30, 1]) # because there's no noise, only go down 30 dB
 plt.show()
 
 # %%
-plt.imshow(road_matrix.T)
+plt.imshow(env.road_matrix.T)
 
 for i in range(N_UEs):
     ue_pos_x = user_positions[:,i,0]

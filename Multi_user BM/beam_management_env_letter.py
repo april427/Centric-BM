@@ -4,6 +4,8 @@ from gymnasium.envs import register
 from gymnasium import spaces
 from motion import *
 import random
+from road import *
+
 random.seed(1)
 np.random.seed(1)
 
@@ -19,12 +21,14 @@ class BeamManagementEnv(gym.Env):
         self.r_h = []
         self.r_a = []
         self.r_p = []
+        self.N_samples = 64 # number of sample per TTI
+        self.number_of_antennas = 32  # number of antennas at the ULA BS
         self.th = np.zeros((1000,))
         self.th_episode = np.zeros((1000,))
         self.config = np.zeros((self.N_UEs,))
-        self.action_space = spaces.Discrete(9)
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(12,))
-        self.number_of_antennas = 32  # number of antennas at the ULA BS
+        self.action_space = spaces.Discrete(self.N_UEs * 5)
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.number_of_antennas, self.N_samples))
+
         self.fc = 28e9  # carrier frequency (Hz)
         self.c = 3e8  # speed of light (m/s)
         self.lambda_ = self.c / self.fc  # wavelength (m)
@@ -34,11 +38,11 @@ class BeamManagementEnv(gym.Env):
         self.current_slot = 0  # current slot/channel use
         self.current_beam = np.zeros((self.N_UEs,)).astype(int)  # current beam direction
         self.current_traffic = np.zeros(
-            (self.N_UEs, 2))  # current downlink and uplink traffic #DL1/UL1/DL2/UL2/DL3/UL3
+            (self.N_UEs, ))  # current downlink #DL1/UL1/DL2/UL2/DL3/UL3
         self.total_traffic = np.zeros(
-            (self.N_UEs, 2))  # total downlink and uplink traffic
+            (self.N_UEs, ))  # total downlink traffic
         self.failure_counter = np.zeros(
-            (self.N_UEs, 2))  # Consecutive failures (packet lost due to buffer full or bad beam)
+            (self.N_UEs, ))  # Consecutive failures (packet lost due to SU type or bad beam)
         self.previous_beam = np.zeros((5, self.N_UEs,)).astype(int)  # current beam direction
         self.previous_power = np.zeros((5, self.N_UEs))
         self.counter_slots_blocked = np.zeros((self.N_UEs, )).astype(int) #Counter for slots blockages
@@ -48,16 +52,23 @@ class BeamManagementEnv(gym.Env):
         self.base_station_position = np.array([50, 50])  # [x_bs, y_bs, z_bs]
         self.scenario_dimensions = np.array([0, 0, 100, 100])  # [x_min, y_min, x_max, y_max]
         self.user_positions = np.zeros((self.N_UEs, 2))
+        self.dt = 0.01  # time step 10 ms
 
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
         self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
         self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, 1, self.number_of_antennas)) + 1j
+        self.mono_LoS_channel = np.zeros(( self.number_of_antennas, self.number_of_antennas)) + 1j
         self.R = np.zeros((self.N_UEs,)) # user communication rate
         self.reflection_coefficient = np.zeros((self.N_UEs,))
+        
+        # define the road traffic scenario
+        self.cross_pos = np.array([[27, 80], [30, 70]])
+        self.road_matrix = road(self.cross_pos)
+        self.single_lane_width = 5
+        self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+
         for i in range(self.N_UEs):
-            self.user_positions[i][0] = 0
-            self.user_positions[i][1] = 80 / (i + 1)
             self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
                 i])  # euclidean distance between the BS and the UEs
 
@@ -65,11 +76,12 @@ class BeamManagementEnv(gym.Env):
 
             self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i])  # current array response
 
-            self.reflection_coefficient[i] = self.number_of_antennas * self.lambda_ * np.sqrt(100)/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 100 is the RCS of a vehicle
+            self.reflection_coefficient[i] = self.lambda_ * 5/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of a vehicle
 
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
 
-            self.R[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i], self.codebook[:, 0])  # current received power
+            self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
+
         self.power_threshold = 1
         self.seed = 1
 
@@ -83,36 +95,23 @@ class BeamManagementEnv(gym.Env):
         self.done = False
         self.current_beam = np.zeros((self.N_UEs,)).astype(int)
         self.current_traffic = np.zeros(
-            (self.N_UEs, 2))  # current downlink and uplink traffic #DL1/UL1/DL2/UL2/DL3/UL3
+            (self.N_UEs, 1))  # current downlink traffic #DL1/UL1/DL2/UL2/DL3/UL3
         # self.total_traffic = np.zeros(
-        #     (self.N_UEs, 2))  # total downlink and uplink traffic
+        #     (self.N_UEs, 1))  # total downlink traffic
         # self.lost_traffic = np.zeros(
-        #     (self.N_UEs, 2))  # Traffic lost
-        self.total_traffic_episode = np.zeros((self.N_UEs, 2))  # total downlink and uplink traffic per episode
-        self.lost_traffic_episode = np.zeros((self.N_UEs, 2))  # traffic lost per episode
+        #     (self.N_UEs, 1))  # Traffic lost
+        self.total_traffic_episode = np.zeros((self.N_UEs, 1))  # total downlink traffic per episode
+        self.lost_traffic_episode = np.zeros((self.N_UEs, 1))  # traffic lost per episode
         self.failure_counter = np.zeros(
-            (self.N_UEs, 2))  # Consecutive failures (packet lost due to buffer full or bad beam)
-        # self.failure_type = np.zeros(3)
+            (self.N_UEs, 1))  # Consecutive failures (packet lost due to SU type or bad beam)
         self.previous_beam = np.zeros((5, self.N_UEs,)).astype(int)  # current beam direction
         self.previous_traffic = np.zeros(
-            (5, self.N_UEs, 2))  # current downlink and uplink traffic #DL1/UL1/DL2/UL2/DL3/UL3
+            (5, self.N_UEs, 1))  # current downlink and uplink traffic #DL1/UL1/DL2/UL2/DL3/UL3
         self.previous_power = np.zeros((5, self.N_UEs))
         self.previous_counter = 0
 
         for i in range(self.N_UEs):
-            self.config[i] = np.random.randint(4)
-            if self.config[i] == 0:
-                self.user_positions[i][0] = 0
-                self.user_positions[i][1] = 80 / (i + 1)
-            elif self.config[i] == 1:
-                self.user_positions[i][0] = 100
-                self.user_positions[i][1] = 80 / (i + 1)
-            elif self.config[i] == 2:
-                self.user_positions[i][0] = 80 / (i + 1)
-                self.user_positions[i][1] = 0
-            else:
-                self.user_positions[i][0] = 80 / (i + 1)
-                self.user_positions[i][1] = 100
+            self.user_positions[i,:], self.config[i,:], self.if_turned[i] = update_positions(self.user_positions[i,:], self.cross_pos, sample_velocity(), self.dt, self.single_lane_width, self.config[i,:], self.if_turned[i]) 
 
             self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
                 i])  # euclidean distance between the BS and the UEs
@@ -125,8 +124,6 @@ class BeamManagementEnv(gym.Env):
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
             self.current_beam[i] = np.argmax(np.abs(np.sqrt(self.Pt) * self.mmWave_LoS_NLoS_channel[i] @ self.codebook))
 
-            self.R[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i], self.codebook[:, self.current_beam[i]])  # current received power
-            self.counter_slots_blocked[i] = 0
         return self._get_state()
 
     def step(self, action): 
