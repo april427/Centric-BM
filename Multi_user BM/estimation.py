@@ -15,7 +15,7 @@ episode_durations = []
 # %%
 # variable initialization
 N_UEs = 1 #env.N_UEs
-TTI = 1000
+TTI = 100
 episode =  1
 N = 512 # number of samples in one TTI
 user_positions = np.zeros((TTI+1, N_UEs, 2))
@@ -44,7 +44,7 @@ mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 genie_beam = np.empty([TTI, N_UEs,], dtype=object)
 
 config = np.empty([N_UEs, 2], dtype = int)
-edge_snr_db = np.array([-5,5,15,25,35])        
+edge_snr_db = np.array([-5,5,15,25,35,45,55])        
 noise_power = 1 #Pt/N_UEs / (50*np.sqrt(2)) ** 2 * 10 **(-edge_snr_db / 10)
 
 
@@ -56,7 +56,7 @@ nmse_theo = np.zeros((np.size(edge_snr_db), N_UEs))
 nmse_alternative = np.zeros((np.size(edge_snr_db), N_UEs))
 
  # Used for AoD estimation
-N_fft = 1024*256
+N_fft = 1024*128
 
 # initialize user positions
 user_positions[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width)
@@ -148,8 +148,8 @@ for nPt in range(np.size(edge_snr_db)):
                 
                 # CLRB
                 derivative2_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.cos(AoD[u]) - (np.pi*i * np.sin(AoD[u]))**2 ) for i in range(env.number_of_antennas)])
-                variance[l,u,n] = 1/ (2*N) / (abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * np.dot(a_BS[u], transmit_beam ) )**2) / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
-                #variance2[l,u,n] = (2*N) / (abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * np.dot(a_BS[u], transmit_beam ) )**2)
+                variance[l,u,n] = env.number_of_antennas/ (2*N) / (np.abs(np.sqrt(Pt/N_UEs)* reflection_coefficient * np.dot(a_BS[u], transmit_beam ) )**2) / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
+                variance2[l,u,n] = N * np.abs(reflection_coefficient * np.dot(a_BS[u], transmit_beam ) )**2
 
 
                 if error[l,u,n] > beamwidth:

@@ -112,17 +112,17 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
             N (int): The number of samples within one TTI.
     """
     # Generate complex Gaussian noise
-    noise = (np.random.normal(0, noise_power/2, size = (N_UEs, N)) + 1j* np.random.normal(0, noise_power/2, size = (N_UEs, N)))
+    noise = (np.random.normal(0, np.sqrt(noise_power/2), size = (N_UEs, N)) + 1j* np.random.normal(0, np.sqrt(noise_power/2), size = (N_UEs, N)))
     
     interference = noiseless_output - signal
     # Compute the communication rate
     rate = np.log2(1 + np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
 
     # Compute SINR
-    sinr = np.mean(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ), axis=1)
+    sinr = 10*np.log10(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
 
     rate = np.mean(rate, axis=1)
-    return rate, sinr
+    return rate, np.mean(sinr,axis=1)
 
 def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
     """

@@ -36,14 +36,14 @@ class BeamManagementEnv(gym.Env):
         self.d_ULA = np.arange(self.number_of_antennas) * self.lambda_ / 2  # ULA with half-wavelength spacing
         self.codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
         self.current_slot = 0  # current slot/channel use
-        self.current_beam = np.zeros((self.N_UEs,)).astype(int)  # current beam direction
+        self.current_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.current_traffic = np.zeros(
-            (self.N_UEs, ))  # current downlink #DL1/UL1/DL2/UL2/DL3/UL3
+            (self.N_UEs, ))  # current downlink 
         self.total_traffic = np.zeros(
             (self.N_UEs, ))  # total downlink traffic
         self.failure_counter = np.zeros(
             (self.N_UEs, ))  # Consecutive failures (packet lost due to SU type or bad beam)
-        self.previous_beam = np.zeros((5, self.N_UEs,)).astype(int)  # current beam direction
+        self.previous_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.previous_power = np.zeros((5, self.N_UEs))
         self.counter_slots_blocked = np.zeros((self.N_UEs, )).astype(int) #Counter for slots blockages
         self.previous_counter = 0
@@ -57,10 +57,10 @@ class BeamManagementEnv(gym.Env):
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
         self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
-        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, 1, self.number_of_antennas)) + 1j
-        self.mono_LoS_channel = np.zeros(( self.number_of_antennas, self.number_of_antennas)) + 1j
-        self.R = np.zeros((self.N_UEs,)) # user communication rate
+        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
+        self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) + 1j
         self.reflection_coefficient = np.zeros((self.N_UEs,))
+        self.R = np.zeros((self.N_UEs,)) # user communication rate
         
         # define the road traffic scenario
         self.cross_pos = np.array([[27, 80], [30, 70]])
@@ -81,11 +81,13 @@ class BeamManagementEnv(gym.Env):
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
 
             self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
-
+            self.current_beam[i] = np.argmax(np.abs(np.sqrt(self.Pt) * self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
+        
         self.power_threshold = 1
         self.seed = 1
 
     def reset(self):
+        # initiate an episode
         self.r_h = []
         self.r_a = []
         self.r_p = []
@@ -93,284 +95,105 @@ class BeamManagementEnv(gym.Env):
         self.th_episode = np.zeros((1000,))
         self.current_slot = 0
         self.done = False
-        self.current_beam = np.zeros((self.N_UEs,)).astype(int)
+        self.current_beam = np.empty([self.N_UEs,], dtype=object)
         self.current_traffic = np.zeros(
-            (self.N_UEs, 1))  # current downlink traffic #DL1/UL1/DL2/UL2/DL3/UL3
-        # self.total_traffic = np.zeros(
-        #     (self.N_UEs, 1))  # total downlink traffic
-        # self.lost_traffic = np.zeros(
-        #     (self.N_UEs, 1))  # Traffic lost
+            (self.N_UEs, 1))  # current downlink traffic 
         self.total_traffic_episode = np.zeros((self.N_UEs, 1))  # total downlink traffic per episode
         self.lost_traffic_episode = np.zeros((self.N_UEs, 1))  # traffic lost per episode
         self.failure_counter = np.zeros(
             (self.N_UEs, 1))  # Consecutive failures (packet lost due to SU type or bad beam)
-        self.previous_beam = np.zeros((5, self.N_UEs,)).astype(int)  # current beam direction
+        self.previous_beam = np.empty([self.N_UEs,], dtype=object)  # previsou beam direction
         self.previous_traffic = np.zeros(
-            (5, self.N_UEs, 1))  # current downlink and uplink traffic #DL1/UL1/DL2/UL2/DL3/UL3
+            (5, self.N_UEs, 1))  # current downlink and uplink traffic 
         self.previous_power = np.zeros((5, self.N_UEs))
         self.previous_counter = 0
 
+        self.d = np.zeros((self.N_UEs,))
+        self.AoD = np.zeros((self.N_UEs,))
+        self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
+        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
+        self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) + 1j
+        self.reflection_coefficient = np.zeros((self.N_UEs,))
+
+        self.user_positions[0,:,:], self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+
         for i in range(self.N_UEs):
-            self.user_positions[i,:], self.config[i,:], self.if_turned[i] = update_positions(self.user_positions[i,:], self.cross_pos, sample_velocity(), self.dt, self.single_lane_width, self.config[i,:], self.if_turned[i]) 
 
             self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
                 i])  # euclidean distance between the BS and the UEs
 
             self.AoD[i] = compute_AoD_at_BS(self.base_station_position, self.user_positions[i])  # current AoD
 
-            self.a_BS[i] = compute_ULA_response(self.number_of_antennas,
-                                                self.AoD[i])  # current array response
+            self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i])  # current array response
+
+            self.reflection_coefficient[i] = self.lambda_ * 5/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of a vehicle
 
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
-            self.current_beam[i] = np.argmax(np.abs(np.sqrt(self.Pt) * self.mmWave_LoS_NLoS_channel[i] @ self.codebook))
+
+            self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
+            self.current_beam[i] = np.argmax(np.abs(np.sqrt(self.Pt) * self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
+        
+        # TODO - the received echo signal at the BS    
 
         return self._get_state()
 
     def step(self, action): 
         '''
-        TODO - excute function
+        Execute function
         '''
-        # print("action: " + str(action))
+        print("action: " + str(action))
         reward = 0
         done = False
-        best_power_index = np.zeros((self.N_UEs,)).astype(int)
-        best_power = np.zeros((self.N_UEs,))
+        
+        self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) +1j
+        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
+
         packet = np.zeros((self.N_UEs,)).astype(float)
         was_dropped = np.zeros((self.N_UEs, 2))
         drop = 0
         for i in range(self.N_UEs):
             for j in range(2):
-                self.previous_traffic[self.previous_counter][i][j] = self.current_traffic[i][j].copy() / self.dl_buffer_size
-            self.previous_beam[self.previous_counter][i] = self.current_beam[i].copy()
+                self.previous_traffic[i][j] = self.current_traffic[i][j].copy() / self.dl_buffer_size
 
-        for i in range(self.N_UEs):
+            self.previous_beam[i] = self.current_beam[i].copy()
+            
+            # update position
+            self.user_positions[i,:], self.config[i,:], self.if_turned[i] = update_positions(self.user_positions[i,:], self.cross_pos, sample_velocity(), self.dt, self.single_lane_width, self.config[i,:], self.if_turned[i])
 
-            # In every slot, a blockage might occur
-            # When genie-aided comment this
-            if self.counter_slots_blocked[i] == 0:
-                if bernoulli(0.3):
-                    self.counter_slots_blocked[i] = np.random.randint(1, 6)
-
-            velocity = sample_velocity()
-            self.user_positions[i] = update_position(self.user_positions[i], velocity, 0.1, self.config[i])
-
-            self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
-                i])  # euclidean distance between the BS and the UEs
+            self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[i])  
 
             self.AoD[i] = compute_AoD_at_BS(self.base_station_position, self.user_positions[i])  # current AoD
 
-            self.a_BS[i] = compute_ULA_response(self.number_of_antennas,
-                                                self.AoD[i])  # current array response
-            if self.counter_slots_blocked[i] != 0:
-                self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i],
-                                                                        self.d[i], self.lambda_, 0.0032)  # current NLoS channel
+            self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i]) 
+
+            self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)
+
+            self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
+            
+            # set the transmitted signal according to the action
+            if action == 0: 
+                self.user_type[i] = 0
+                self.current_beam[i] = self.previous_beam[i]
+            elif action == 1:
+                self.user_type[i] = 1
+                self.current_beam[i] = np.min(self.previous_beam[i])+[-2, -1, 0]
+            elif action == 2:
+                self.user_type[i] = 1
+                self.current_beam[i] = np.min(self.previous_beam[i])+[-1, 0, 1]
+            elif action == 3:
+                self.user_type[i] = 1
+                self.current_beam[i] = np.max(self.previous_beam[i])+[-1, 0, 1]
+            elif action == 4:
+                self.user_type[i] = 1
+                self.current_beam[i] = np.max(self.previous_beam[i])+[0, 1, 2]
+            
+            if self.current_beam[i].size == 1:
+                transmit_beam = self.codebook[self.current_beam[i]]
             else:
-                self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i],
-                                                                        self.d[i], self.lambda_) # current LoS channel
-            self.R[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i],
-                                                 self.codebook[:, self.current_beam[i]])
-            self.previous_power[self.previous_counter][i] = self.R[i].copy()
-            best_power_index[i] = np.argmax(np.abs(np.sqrt(self.Pt) * self.mmWave_LoS_NLoS_channel[i] @ self.codebook))
-            best_power[i] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[i],
-                                                     self.codebook[:, best_power_index[i]])
+                transmit_beam = self.codebook[self.current_beam[i]].sum(axis=0)
+            
+            
 
-            # In every slot, a new packet might arrive for DL or UL traffic according to a Bernouilli random variable
-            if i == 0:
-                packet[i] = bernoulli(0.6)
-            elif i == 1:
-                packet[i] = bernoulli(0.4)
-            else:
-                packet[i] = bernoulli(0.3)
-
-            if packet[i]:
-                if bernoulli(0.5):  # If 1, downlink packet arrived
-                    self.current_traffic[i][0] += 1  # Donwlink packet arrived
-                    self.total_traffic[i][0] += 1
-                    self.total_traffic_episode[i][0] += 1
-                else:
-                    self.current_traffic[i][1] += 1  # Uplink packet arrived
-                    self.total_traffic[i][1] += 1
-                    self.total_traffic_episode[i][1] += 1
-                    # Define weights for each component
-
-        already_checked = False
-        for i in range(self.N_UEs):
-            # When genie-aided uncomment
-            # self.R[i] = best_power[i]
-            if not already_checked and (action == 0 or action == 3 or action == 6):
-                already_checked = True
-                if action == 0:
-                    UE = 0
-                elif action == 3:
-                    UE = 1
-                elif action == 6:
-                    UE = 2
-                selected = self.current_beam[UE]
-                for j in range(3):
-                    if j < 1:
-                        neigh_beam = (self.current_beam[UE] - (j + 1)) % len(self.codebook)
-                        if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                                    self.codebook[:, neigh_beam]) > compute_power_given_beam(self.Pt,
-                                                                                                             self.mmWave_LoS_NLoS_channel[
-                                                                                                                 UE],
-                                                                                                             self.codebook[
-                                                                                                             :,
-                                                                                                             selected]):
-                            selected = neigh_beam
-                    elif j > 1:
-                        neigh_beam = (self.current_beam[UE] + (j - 1)) % len(self.codebook)
-                        if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                                    self.codebook[:, neigh_beam]) > compute_power_given_beam(self.Pt,
-                                                                                                             self.mmWave_LoS_NLoS_channel[
-                                                                                                                 UE],
-                                                                                                             self.codebook[
-                                                                                                             :,
-                                                                                                             selected]):
-                            selected = neigh_beam
-                if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                            self.codebook[:, selected]) > compute_power_given_beam(self.Pt,
-                                                                                                   self.mmWave_LoS_NLoS_channel[
-                                                                                                       UE],
-                                                                                                   self.codebook[:,
-                                                                                                   self.current_beam[
-                                                                                                       UE]]):
-                    self.current_beam[UE] = selected
-                    self.R[UE] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                                          self.codebook[:, self.current_beam[UE]])
-                    reward += 3
-                else:
-                    reward -= 1
-
-            if i == 0 and action == 1 and self.R[0] == best_power[0] and self.current_traffic[i][0] != 0 and self.counter_slots_blocked[i] == 0:
-                self.current_traffic[i][0] -= 1
-                self.th[self.current_slot] += 1
-                self.th_episode[self.current_slot] += 1
-            elif i == 0 and action == 1 and (self.R[0] != best_power[0] or self.counter_slots_blocked[0] != 0) and self.current_traffic[i][0] != 0:
-                self.lost_traffic[i][0] += 1
-                self.lost_traffic_episode[i][0] += 1
-                if self.R[0] != best_power[0]:
-                    self.failure_type[1] += 1
-                elif self.counter_slots_blocked[0] != 0:
-                    self.failure_type[2] += 1
-
-                self.current_traffic[i][0] -= 1
-                drop += 1
-                if self.counter_slots_blocked[0] != 0:
-                    reward -= 1
-            if i == 0 and action == 2 and self.R[0] == best_power[0] and self.current_traffic[i][1] != 0 and self.counter_slots_blocked[i] == 0:
-                self.current_traffic[i][1] -= 1
-                self.th[self.current_slot] += 1
-                self.th_episode[self.current_slot] += 1
-            elif i == 0 and action == 2 and (self.R[0] != best_power[0] or self.counter_slots_blocked[0] != 0) and self.current_traffic[i][1] != 0:
-                self.lost_traffic[i][1] += 1
-                self.lost_traffic_episode[i][1] += 1
-                if self.R[0] != best_power[0]:
-                    self.failure_type[1] += 1
-                elif self.counter_slots_blocked[0] != 0:
-                    self.failure_type[2] += 1
-                self.current_traffic[i][1] -= 1
-                drop += 1
-                if self.counter_slots_blocked[0] != 0:
-                    reward -= 1
-
-            if i == 1 and action == 4 and self.R[1] == best_power[1] and self.current_traffic[i][0] != 0 and self.counter_slots_blocked[i] == 0:
-                self.current_traffic[i][0] -= 1
-                self.th[self.current_slot] += 1
-                self.th_episode[self.current_slot] += 1
-            elif i == 1 and action == 4 and (self.R[1] != best_power[1] or self.counter_slots_blocked[1] != 0) and self.current_traffic[i][0] != 0:
-                self.lost_traffic[i][0] += 1
-                self.lost_traffic_episode[i][0] += 1
-                if self.R[1] != best_power[1]:
-                    self.failure_type[1] += 1
-                elif self.counter_slots_blocked[1] != 0:
-                    self.failure_type[2] += 1
-                self.current_traffic[i][0] -= 1
-                drop += 1
-                if self.counter_slots_blocked[1] != 0:
-                    reward -= 1
-
-            if i == 1 and action == 5 and self.R[1] == best_power[1] and self.current_traffic[i][1] != 0 and self.counter_slots_blocked[i] == 0:
-                self.current_traffic[i][1] -= 1
-                self.th[self.current_slot] += 1
-                self.th_episode[self.current_slot] += 1
-            elif i == 1 and action == 5 and (self.R[1] != best_power[1] or self.counter_slots_blocked[1] != 0) and self.current_traffic[i][1] != 0:
-                self.lost_traffic[i][1] += 1
-                self.lost_traffic_episode[i][1] += 1
-                if self.R[1] != best_power[1]:
-                    self.failure_type[1] += 1
-                elif self.counter_slots_blocked[1] != 0:
-                    self.failure_type[2] += 1
-                self.current_traffic[i][1] -= 1
-                drop += 1
-                if self.counter_slots_blocked[1] != 0:
-                    reward -= 1
-
-            if i == 2 and action == 7 and self.R[2] == best_power[2] and self.current_traffic[i][0] != 0 and self.counter_slots_blocked[i] == 0:
-                self.current_traffic[i][0] -= 1
-                self.th[self.current_slot] += 1
-                self.th_episode[self.current_slot] += 1
-            elif i == 2 and action == 7 and (self.R[2] != best_power[2] or self.counter_slots_blocked[2] != 0) and self.current_traffic[i][0] != 0:
-                self.lost_traffic[i][0] += 1
-                self.lost_traffic_episode[i][0] += 1
-                if self.R[2] != best_power[2]:
-                    self.failure_type[1] += 1
-                elif self.counter_slots_blocked[2] != 0:
-                    self.failure_type[2] += 1
-                self.current_traffic[i][0] -= 1
-                drop += 1
-                if self.counter_slots_blocked[2] != 0:
-                    reward -= 1
-
-            if i == 2 and action == 8 and self.R[2] == best_power[2] and self.current_traffic[i][1] != 0 and self.counter_slots_blocked[i] == 0:
-                self.current_traffic[i][1] -= 1
-                self.th[self.current_slot] += 1
-                self.th_episode[self.current_slot] += 1
-            elif i == 2 and action == 8 and (self.R[2] != best_power[2] or self.counter_slots_blocked[2] != 0) and self.current_traffic[i][1] != 0:
-                self.lost_traffic[i][1] += 1
-                self.lost_traffic_episode[i][1] += 1
-                if self.R[2] != best_power[2]:
-                    self.failure_type[1] += 1
-                elif self.counter_slots_blocked[2] != 0:
-                    self.failure_type[2] += 1
-                self.current_traffic[i][1] -= 1
-                drop += 1
-                if self.counter_slots_blocked[2] != 0:
-                    reward -= 1
-
-            if self.current_traffic[i][0] > self.dl_buffer_size:
-                self.lost_traffic[i][0] += 1
-                self.lost_traffic_episode[i][0] += 1
-                self.failure_type[0] += 1
-                self.current_traffic[i][0] = self.dl_buffer_size
-                drop += 1
-                was_dropped[i][0] += 1
-            if self.current_traffic[i][1] > self.ul_buffer_size:
-                self.lost_traffic[i][1] += 1
-                self.lost_traffic_episode[i][1] += 1
-                self.failure_type[0] += 1
-                self.current_traffic[i][1] = self.ul_buffer_size
-                drop += 1
-                was_dropped[i][1] += 1
-
-        for l in range(self.N_UEs):
-            if self.counter_slots_blocked[l] != 0:
-                self.counter_slots_blocked[l] -= 1
-            for m in range(2):
-                if self.current_traffic[l][m] < self.dl_buffer_size and was_dropped[l][m] == 0:
-                    reward += 1/6
-        reward -= drop/4
-        self.r_p.append(drop)
-        self.r_h.append(reward)
-        # print("Reward:" + str(reward))
-        # print("Actions: " + str(action))
-        self.current_slot += 1
-        self.previous_counter += 1
-        
-        if self.previous_counter == 5:
-            self.previous_counter = 0
-        if self.current_slot == self.N_f:
-            done = True
-            print(self.current_traffic)
         return self._get_state(), reward, done, {'ue_position': self.user_positions.copy(),
                                                  'bs_position': self.base_station_position.copy(),
                                                  'lost_traffic': self.lost_traffic.copy(),
@@ -380,6 +203,7 @@ class BeamManagementEnv(gym.Env):
                                                  'failure_type': self.failure_type.copy(),
                                                  'tx_packets': self.th.copy(),
                                                  'tx_packets_episode': self.th_episode.copy()}
+
 
     def _get_state(self):
         return (self.current_beam[0] / (self.number_of_antennas - 1),
