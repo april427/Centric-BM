@@ -85,7 +85,7 @@ def compute_mono_static_channel(M, AoD, reflection_coefficient):
     mono_LoS_channel = M * reflection_coefficient * np.outer(a_BS, np.conj(a_BS))
     return mono_LoS_channel
 
-
+"""
 def compute_power_given_beam(Pt, mmWave_LOS_channel, selected_precoder, SNR_dB=30):
     # Compute signal power
     signal_power = np.abs(np.sqrt(Pt) * mmWave_LOS_channel @ selected_precoder) ** 2
@@ -101,6 +101,7 @@ def compute_power_given_beam(Pt, mmWave_LOS_channel, selected_precoder, SNR_dB=3
     output = np.sqrt(Pt) * mmWave_LOS_channel @ selected_precoder 
 
     return np.abs(output)[0]
+"""
 
 def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     """
@@ -146,6 +147,33 @@ def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
         AoD_est[u] = np.pi - theta_bins[np.argmax(w_fft_dB)]
     return AoD_est
 
+def dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs):
+    """
+        Compute dynamic power allocation.
+        Args:
+            d (float): The distance between the BS and the UE.
+            xi (float): The blockage coefficient.
+            Pt_mW (float): The total transmit power in mW.
+        
+    """
+    Pt_mW = np.sum(Pt)
+    counter = -1
+    sorted_user = np.argsort(d)
+    weak_ue_ind = sorted_user[counter]
+    if ue_type[weak_ue_ind] == 1: # CU
+        Pt[weak_ue_ind] = threshold[1] / xi[weak_ue_ind]
+    else: # SU
+        Pt[weak_ue_ind] = threshold[0] / xi[weak_ue_ind]
+    for u in range(N_UEs):
+        Pt[u] = Pt[weak_ue_ind] * xi[u]/xi[weak_ue_ind]
+    while np.sum(Pt) - Pt_mW > 0 :
+        Pt[sorted_user[counter]] = 0
+        if counter == -N_UEs:
+            Pt[sorted_user[counter]] = Pt_mW
+            break
+        counter -= 1
+    
+    return Pt
 
 # %%
 # #Constants

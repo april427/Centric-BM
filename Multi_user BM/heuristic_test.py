@@ -28,13 +28,14 @@ mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 
 edge_snr_db = np.array([30])
 noise_power = 10**((-109+109) /10) # -109 dBm/Hz in mW
-Pt_mW =  np.array([10**((-10+109) /10)]) # 20 dBm in mW, SNR of 1 user = 33 dB
+Pt_mW =  np.array([10**((0+109) /10)]) # 20 dBm in mW, SNR of 1 user = 33 dB
 
 # fixed map is imported from env_letter
 
 y_user = np.zeros((N_UEs, N)) + 1j
 y_BS = np.zeros((env.number_of_antennas, N)) + 1j
 waveform = hadamard(N)
+waveform[[0, -1],:] = waveform[[-1,0],:]
 
 nitta = np.zeros((env.number_of_antennas)) + 1j # temperal variable for AoD estimation
 beamwidth = 2*np.arcsin(1.2/env.number_of_antennas) # radians, consider 3 dB beamwidth
@@ -67,7 +68,6 @@ for nPt in range(np.size(Pt_mW)):
     genie_sinr_user = []
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
     variance = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
-    Pt = Pt_mW[nPt] / N_UEs * np.ones(N_UEs) 
 
     for l in range(episode):
         rate = np.zeros((N_UEs,TTI))
@@ -102,6 +102,7 @@ for nPt in range(np.size(Pt_mW)):
             genie_s_BS = np.zeros((N_UEs, env.number_of_antennas, N), dtype = complex)
             genie_user_signal = np.zeros((N_UEs, N), dtype = complex)
             user_signal = np.zeros((N_UEs, N), dtype = complex)
+            Pt = Pt_mW[nPt] / N_UEs * np.ones(N_UEs) 
 
             for u in range(N_UEs):
                 # update user position
@@ -143,21 +144,7 @@ for nPt in range(np.size(Pt_mW)):
 
             # Allocate power
             if if_dynamic:
-                counter = -1
-                sorted_user = np.argsort(d)
-                weak_ue_ind = sorted_user[counter]
-                if ue_type[weak_ue_ind] == 1: # CU
-                    Pt[weak_ue_ind] = threshold[1] / xi[weak_ue_ind]
-                else: # SU
-                    Pt[weak_ue_ind] = threshold[0] / xi[weak_ue_ind]
-                for u in range(N_UEs):
-                    Pt[u] = Pt[weak_ue_ind] * xi[u]/xi[weak_ue_ind]
-                while np.sum(Pt) - Pt_mW[nPt] > 0 :
-                    Pt[sorted_user[counter]] = 0
-                    if counter == -N_UEs:
-                        Pt[sorted_user[counter]] = Pt_mW[nPt]
-                        break
-                    counter -= 1
+                Pt = dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs)
             
             for u in range(N_UEs):
                 genie_s_BS[u,] = np.sqrt(Pt[u]/np.size(current_beam[n,u])) * genie_s_BS[u,]
@@ -199,7 +186,7 @@ for nPt in range(np.size(Pt_mW)):
 
                 # CLRB
                 derivative_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.sin(AoD[u])) for i in range(env.number_of_antennas)])
-                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[nPt]/N_UEs)* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
+                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[u])* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
 
                 if error[l,u,n] > 2*beamwidth:
                     # beam_index = np.insert(np.array(current_beam[n,u]), 0, [np.min(current_beam[n,u])-1, np.max(current_beam[n,u])+1])
