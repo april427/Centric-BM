@@ -166,12 +166,16 @@ def dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs):
         Pt[weak_ue_ind] = threshold[0] / xi[weak_ue_ind]
     for u in range(N_UEs):
         Pt[u] = Pt[weak_ue_ind] * xi[u]/xi[weak_ue_ind]
-    while np.sum(Pt) - Pt_mW > 0 :
-        Pt[sorted_user[counter]] = 0
-        if counter == -N_UEs:
-            Pt[sorted_user[counter]] = Pt_mW
-            break
-        counter -= 1
+    
+    if np.sum(Pt) - Pt_mW < 0:
+        Pt = Pt + (Pt_mW - np.sum(Pt)) / N_UEs # equal allocation of the remaining power
+    else:
+        while np.sum(Pt) - Pt_mW > 0 :
+            Pt[sorted_user[counter]] = 0
+            if counter == -N_UEs:
+                Pt[sorted_user[counter]] = Pt_mW
+                break
+            counter -= 1
     
     return Pt
 

@@ -6,7 +6,7 @@ import gymnasium as gym
 from scipy.linalg import hadamard
 import matplotlib.pyplot as plt
 from road import *
-from itertools import groupby
+from plot_functions import *
 
 from beam_management_env_letter import BeamManagementEnv
 
@@ -66,6 +66,8 @@ for nPt in range(np.size(Pt_mW)):
     genie_rate_all_episodes = []
     sinr_user = []
     genie_sinr_user = []
+    SU_count = []
+    CU_count = []
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
     variance = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
 
@@ -76,6 +78,8 @@ for nPt in range(np.size(Pt_mW)):
         genie_sinr = np.zeros((N_UEs,TTI))
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
         user_positions = np.zeros((TTI+1, N_UEs, 2))
+        user_count_sensing = np.zeros(TTI)
+        user_count_commun = np.zeros(TTI)
 
         config = np.empty([N_UEs, 2], dtype = int)
         
@@ -165,9 +169,8 @@ for nPt in range(np.size(Pt_mW)):
 
             # calculate communication rate of each user
             rate[:,n], sinr[:,n] = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N)
-            for u in range(N_UEs):
-                if ue_type[u] ==0:
-                    rate[u,n] = 0
+            
+            user_count_commun[n] += np.sum((rate[:,n] >= 4) * ue_type )  
 
             s_BS = np.sum(s_BS,axis=0)    
             
@@ -178,16 +181,17 @@ for nPt in range(np.size(Pt_mW)):
             aod = estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, env.number_of_antennas)
             # estimation error
             error[l,:,n] = np.abs(aod - AoD)
-            # extract each user's signal
+            user_count_sensing[n] += np.sum((error[l,:,n] <= beamwidth) * (1-ue_type))
+
             for u in range(N_UEs):
-                
-                # map the estimated aod to the closest beam in the codebook
-                current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
 
                 # CLRB
                 derivative_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.sin(AoD[u])) for i in range(env.number_of_antennas)])
                 variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[u])* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
 
+
+                # map the estimated aod to the closest beam in the codebook
+                current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
                 if error[l,u,n] > 2*beamwidth:
                     # beam_index = np.insert(np.array(current_beam[n,u]), 0, [np.min(current_beam[n,u])-1, np.max(current_beam[n,u])+1])
                     # beam_index = np.unique(np.mod( beam_index, 31 ))
@@ -200,8 +204,10 @@ for nPt in range(np.size(Pt_mW)):
 
         rate_all_episodes.append(rate)
         genie_rate_all_episodes.append(genie_rate)
-        sinr_user.append(10*np.log10(sinr))
-        genie_sinr_user.append(10*np.log10(genie_sinr))
+        sinr_user.append(sinr)
+        genie_sinr_user.append(genie_sinr)
+        SU_count.append(user_count_sensing)
+        CU_count.append(user_count_commun)
 
         SNR_user[nPt, l, :] = 10*np.log10(np.mean(Pt[u]* pathloss,axis=1) /noise_power)
         SNR_echo[nPt, l, :] = 10*np.log10( np.mean((Pt[u]* env.number_of_antennas**2 * reflection_coefficient**2)) /(noise_power*env.number_of_antennas))
@@ -224,72 +230,19 @@ for nPt in range(np.size(Pt_mW)):
     plt.xlabel('Rate (bps/Hz)')
     plt.ylabel('CDF')
     plt.legend(['UE1-Empirical','UE1-Genie','UE2-Empirical','UE2-Genie','UE3-Empirical','UE3-Genie',])
+    plt.show()
+
+    CU_count_cdf = np.sort(np.array(CU_count).flatten())
+    yvals = np.arange(len(CU_count_cdf))/float(len(CU_count_cdf)-1)
+    plt.plot(CU_count_cdf, yvals, '--')
 
 # %%
 # plot beam pattern
-N_fft = 1024
-beams = [9]
-w = y_BS[:,0]#env.codebook[beams,:].sum(axis=0) # sum of 3 beams
-w_padded = np.concatenate((w, np.zeros(N_fft - env.number_of_antennas)))
-w_fft_dB = 10*np.log10(np.abs(np.fft.fftshift(np.fft.fft(w_padded)))**2) # magnitude of fft in dB
-w_fft_dB -= np.max(w_fft_dB) # normalize to 0 dB at peak
-
-# Map the FFT bins to angles in radians
-theta_bins = np.arcsin(np.linspace(-1, 1, N_fft)) # in radians
-
-# find max so we can add it to plot
-top_three_indices = np.argsort(w_fft_dB)[-np.size(beams):]
-theta_max = theta_bins[top_three_indices]
-#theta_max = theta_bins[np.argmax(w_fft_dB)]
-
-fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-ax.plot(theta_bins, w_fft_dB) # MAKE SURE TO USE RADIAN FOR POLAR
-ax.plot([theta_max], [w_fft_dB[top_three_indices]],'ro')
-ax.text(theta_max - 0.1, w_fft_dB[top_three_indices] - 4, np.round(theta_max * 180 / np.pi))
-ax.set_theta_zero_location('N') # make 0 degrees point up
-ax.set_theta_direction(-1) # increase clockwise
-ax.set_rlabel_position(55)  # Move grid labels away from other labels
-ax.set_thetamin(-90) # only show top half
-ax.set_thetamax(90)
-ax.set_ylim([-30, 1]) # because there's no noise, only go down 30 dB
-plt.show()
+plot_beam_pattern(y_BS, env.number_of_antennas)
+plot_road_trraffic(env.road_matrix, N_UEs, user_positions)
+plot_nmse_vs_snr(SNR_echo, nmse, var_aod)
 
 # %%
-plt.imshow(env.road_matrix.T)
-
-for i in range(N_UEs):
-    ue_pos_x = user_positions[:,i,0]
-    ue_pos_y = user_positions[:,i,1]
-    du = np.diff(ue_pos_x)
-    dv = np.diff(ue_pos_y)
-    pos_x = ue_pos_x[:-1] + du/2
-    pos_y = ue_pos_y[:-1] + dv/2
-    norm = np.sqrt(du**2+dv**2) 
-
-    plt.plot(ue_pos_x,ue_pos_y, marker="o")
-    plt.quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=5, pivot="mid")
-    plt.xlim(0,100)
-    plt.ylim(0,100)   
-    # hold the plot
-plt.legend(['UE1','','UE2','', 'UE3', ''])    
-plt.show()
-
-# %%
-
-temp = np.ceil(SNR_echo.flatten())
-temp_nmse = nmse.flatten()
-temp_var = var_aod.flatten()/np.pi**2
-temp_list = list(zip(temp, temp_nmse, temp_var))
-temp_list.sort(key = lambda x: x[0])
-snr_grouped = [np.mean([x[0] for x in g]) for k, g in groupby(temp_list, lambda x: x[0])]
-nmse_grouped = [np.mean([x[1] for x in g]) for k, g in groupby(temp_list, lambda x: x[0])]
-var_grouped = [np.mean([x[2] for x in g]) for k, g in groupby(temp_list, lambda x: x[0])]
-plt.semilogy(snr_grouped, nmse_grouped)
-#plt.semilogy(snr_grouped, var_grouped)
-plt.xlabel('Echo SNR_dB')
-plt.ylabel('NMSE')
-plt.legend(['NMSE','Variance'])
-plt.show()
-
-
-# %%
+CU_count_cdf = np.sort(np.array(CU_count).flatten())
+yvals = np.arange(len(CU_count_cdf))/float(len(CU_count_cdf)-1)
+plt.plot(CU_count_cdf, yvals, '--')
