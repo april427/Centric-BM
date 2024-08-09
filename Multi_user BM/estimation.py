@@ -69,6 +69,7 @@ xi = np.zeros(N_UEs)
 threshold = [1e-5, 2**4 -1] # [SU, CU] threshold
 ue_type = np.zeros(N_UEs)
 if_dynamic = False # dynamic power allocation
+Ratio = np.zeros((np.size(edge_snr_db), N_UEs))
 
 # %%
 for nPt in range(np.size(edge_snr_db)): 
@@ -76,11 +77,14 @@ for nPt in range(np.size(edge_snr_db)):
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
     variance = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
     variance2 = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
+    ratio = np.zeros((episode, N_UEs, TTI)) # ratio of z_BS to variance
     Pt = Pt_mW[nPt] / N_UEs *np.ones(N_UEs)
 
     for l in range(episode):
 
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
+        transmit_beam = np.zeros((N_UEs, env.number_of_antennas)) + 1j
+        transmit_beam_multi = np.zeros((N_UEs, env.number_of_antennas)) + 1j
         
         for i in range(N_UEs):
             
@@ -127,11 +131,11 @@ for nPt in range(np.size(edge_snr_db)):
                 genie_s_BS[u,:,:] = np.outer((env.codebook[genie_beam[n,u],:]), waveform[u, :])
 
                 # transmit signal
-                transmit_beam = env.codebook[genie_beam[n,u],:]
+                transmit_beam[u,] = env.codebook[genie_beam[n,u],:]
                     
-                transmit_beam_multi = env.codebook[(genie_beam[n,u]+[-1,0,1]),:].sum(axis=0)
+                transmit_beam_multi[u,] = env.codebook[(genie_beam[n,u]+[-1,0,1]),:].sum(axis=0)
                 
-                s_BS[u,:,:] = np.outer(transmit_beam, waveform[u, :])
+                s_BS[u,:,:] = np.outer(transmit_beam[u,], waveform[u, :])
 
             for u in range(N_UEs):
                 s_BS[u,] = np.sqrt(Pt[u]/np.size(current_beam[n,u]) )* s_BS[u,]
@@ -149,16 +153,20 @@ for nPt in range(np.size(edge_snr_db)):
             
             for u in range(N_UEs):
 
+                #beamforming output
+                z_BS = np.sum(np.abs(transmit_beam[u,] @ y_BS)**2)
+
                 # map the estimated aod to the closest beam in the codebook
                 current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
                 
                 # CLRB
                 derivative2_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.cos(AoD[u]) - (np.pi*i * np.sin(AoD[u]))**2 ) for i in range(env.number_of_antennas)])
 
-                variance[l,u,n] = env.number_of_antennas/ (2*N) / (np.abs(np.sqrt(Pt[u])* reflection_coefficient * np.dot(a_BS[u], transmit_beam ) )**2) / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
+                variance[l,u,n] = env.number_of_antennas/ (2*N) / (np.abs(np.sqrt(Pt[u])* reflection_coefficient * np.dot(a_BS[u], transmit_beam[u,] ) )**2) / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
                 
-                variance2[l,u,n] = env.number_of_antennas/ (2*N) / (np.abs(np.sqrt(Pt[u]/np.size(transmit_beam_multi))* reflection_coefficient * np.dot(a_BS[u], transmit_beam_multi ) )**2) / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
+                variance2[l,u,n] = env.number_of_antennas/ (2*N) / (np.abs(np.sqrt(Pt[u]/np.size(transmit_beam_multi[u,]))* reflection_coefficient * np.dot(a_BS[u], transmit_beam_multi[u,] ) )**2) / ( np.linalg.norm(derivative2_a_BS)**2 + np.dot( derivative2_a_BS, a_BS[u]) + np.dot(a_BS[u], derivative2_a_BS))
 
+                ratio[l,u,n] = variance[l,u,n]/z_BS
 
                 if error[l,u,n] > beamwidth:
                     #beam_index = np.mod( np.add(current_beam[n+1, u], [-1,0,1]), 31 )
@@ -174,6 +182,7 @@ for nPt in range(np.size(edge_snr_db)):
     nmse_theo[nPt] = np.mean(np.mean(np.sqrt(variance), axis=2), axis = 0) # standard deviation in degree
     nmse_alternative[nPt] = np.sqrt(np.mean(np.mean(variance2, axis=2), axis = 0))
 
+    Ratio[nPt] = np.mean(np.mean(ratio, axis=2), axis = 0)
 # %%
 plt.imshow(road_matrix.T)
 

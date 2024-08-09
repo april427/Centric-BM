@@ -147,7 +147,7 @@ def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
         AoD_est[u] = np.pi - theta_bins[np.argmax(w_fft_dB)]
     return AoD_est
 
-def dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs):
+def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapool):
     """
         Compute dynamic power allocation.
         Args:
@@ -156,7 +156,7 @@ def dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs):
             Pt_mW (float): The total transmit power in mW.
         
     """
-    Pt_mW = np.sum(Pt)
+    
     counter = -1
     sorted_user = np.argsort(d)
     weak_ue_ind = sorted_user[counter]
@@ -167,8 +167,11 @@ def dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs):
     for u in range(N_UEs):
         Pt[u] = Pt[weak_ue_ind] * xi[u]/xi[weak_ue_ind]
     
+    Pt = Pt * (datapool != 0)
+
     if np.sum(Pt) - Pt_mW < 0:
-        Pt = Pt + (Pt_mW - np.sum(Pt)) / N_UEs # equal allocation of the remaining power
+
+        Pt = Pt + (Pt_mW - np.sum(Pt))*(datapool != 0) / (np.count_nonzero(datapool)) # equal allocation of the remaining power
     else:
         while np.sum(Pt) - Pt_mW > 0 :
             Pt[sorted_user[counter]] = 0

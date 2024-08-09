@@ -37,6 +37,9 @@ def plot_road_trraffic(road_matrix, N_UEs, user_positions):
     for i in range(N_UEs):
         ue_pos_x = user_positions[:,i,0]
         ue_pos_y = user_positions[:,i,1]
+        ind = np.where(ue_pos_x == 0) and np.where(ue_pos_y == 0)
+        ue_pos_x = np.delete(ue_pos_x, ind)
+        ue_pos_y = np.delete(ue_pos_y, ind)
         du = np.diff(ue_pos_x)
         dv = np.diff(ue_pos_y)
         pos_x = ue_pos_x[:-1] + du/2

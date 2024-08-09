@@ -1,6 +1,5 @@
 # %%
 from channel_functions import *
-#from motion import *
 import numpy as np
 import gymnasium as gym
 from scipy.linalg import hadamard
