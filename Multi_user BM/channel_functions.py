@@ -177,10 +177,20 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
             Pt[sorted_user[counter]] = 0
             if counter == -N_UEs:
                 Pt[sorted_user[counter]] = Pt_mW
-                break
+                return True
             counter -= 1
     
     return Pt
+
+# ausiliary functions
+def base(b,n, N_UEs):
+    size = math.ceil(math.log(max(1,n),b))
+    convert_result = [place
+        for i in range(size,-1,-1)
+        if (place := n//b**i%b) or i<size] or [0]
+    if len(convert_result) < N_UEs:
+        convert_result = [0]*(N_UEs-len(convert_result)) + convert_result
+    return convert_result
 
 # %%
 # #Constants

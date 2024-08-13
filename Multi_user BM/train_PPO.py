@@ -1,6 +1,4 @@
 import os
-import glob
-import time
 from datetime import datetime
 
 import torch
@@ -110,6 +108,7 @@ def train():
     print("--------------------------------------------------------------------------------------------")
     print("state space dimension : ", state_dim)
     print("action space dimension : ", action_dim)
+    print("has continuous action space : ", has_continuous_action_space)
     print("--------------------------------------------------------------------------------------------")
     if has_continuous_action_space:
         print("Initializing a continuous action space policy")

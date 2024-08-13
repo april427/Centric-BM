@@ -149,7 +149,7 @@ for nPt in range(np.size(Pt_mW)):
 
             # Allocate power
             if if_dynamic:
-                Pt = dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs, datapool)
+                Pt = dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapool)
             
             for u in range(N_UEs):
                 genie_s_BS[u,] = np.sqrt(Pt[u]/np.size(current_beam[n,u])) * genie_s_BS[u,]

@@ -222,31 +222,14 @@ class BeamManagementEnv(gym.Env):
                 for j in range(3):
                     if j < 1:
                         neigh_beam = (self.current_beam[UE] - (j + 1)) % len(self.codebook)
-                        if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                                    self.codebook[:, neigh_beam]) > compute_power_given_beam(self.Pt,
-                                                                                                             self.mmWave_LoS_NLoS_channel[
-                                                                                                                 UE],
-                                                                                                             self.codebook[
-                                                                                                             :,
-                                                                                                             selected]):
+                        if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE], self.codebook[:, neigh_beam]) > compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[ UE], self.codebook[:,selected]):
                             selected = neigh_beam
                     elif j > 1:
                         neigh_beam = (self.current_beam[UE] + (j - 1)) % len(self.codebook)
-                        if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                                    self.codebook[:, neigh_beam]) > compute_power_given_beam(self.Pt,
-                                                                                                             self.mmWave_LoS_NLoS_channel[
-                                                                                                                 UE],
-                                                                                                             self.codebook[
-                                                                                                             :,
-                                                                                                             selected]):
+                        if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE], self.codebook[:, neigh_beam]) > compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE], self.codebook[:,selected]):
                             selected = neigh_beam
                 if compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
-                                            self.codebook[:, selected]) > compute_power_given_beam(self.Pt,
-                                                                                                   self.mmWave_LoS_NLoS_channel[
-                                                                                                       UE],
-                                                                                                   self.codebook[:,
-                                                                                                   self.current_beam[
-                                                                                                       UE]]):
+                                            self.codebook[:, selected]) > compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE], self.codebook[:, self.current_beam[UE]]):
                     self.current_beam[UE] = selected
                     self.R[UE] = compute_power_given_beam(self.Pt, self.mmWave_LoS_NLoS_channel[UE],
                                                           self.codebook[:, self.current_beam[UE]])

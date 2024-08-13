@@ -85,6 +85,7 @@ for nPt in range(np.size(Pt_mW)):
         # initialize user positions in every episode
         user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.road_matrix, env.cross_pos, N_UEs, env.single_lane_width)
         
+        
         for i in range(N_UEs):
             
             AoD[i] = compute_AoD_at_BS(env.base_station_position, user_positions[0][i])
@@ -147,7 +148,7 @@ for nPt in range(np.size(Pt_mW)):
 
             # Allocate power
             if if_dynamic:
-                Pt = dynamic_power_allocation(d, xi, Pt, ue_type, threshold, N_UEs)
+                Pt = dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapool=np.ones(N_UEs))
             
             for u in range(N_UEs):
                 genie_s_BS[u,] = np.sqrt(Pt[u]/np.size(current_beam[n,u])) * genie_s_BS[u,]

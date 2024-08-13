@@ -19,24 +19,9 @@ def test():
 
     ################## hyperparameters ##################
 
-    # env_name = "CartPole-v1"
-    # has_continuous_action_space = False
-    # max_ep_len = 400
-    # action_std = None
-
-    # env_name = "LunarLander-v2"
-    # has_continuous_action_space = False
-    # max_ep_len = 300
-    # action_std = None
-
-    # env_name = "BipedalWalker-v2"
-    # has_continuous_action_space = True
-    # max_ep_len = 1500           # max timesteps in one episode
-    # action_std = 0.1            # set same std for action distribution which was used while saving
-
     env_name = "BeamManagementEnv-v1"
     has_continuous_action_space = False
-    max_ep_len = 1000           # max timesteps in one episode
+    max_ep_len = 100           # max timesteps in one episode
     action_std = 0.1            # set same std for action distribution which was used while saving
 
     render = False              # render environment on screen
@@ -124,17 +109,17 @@ def test():
     env.close()
 
     print("============================================================================================")
-    print("Total lost traffic DL and UL: " + str(sum(info['lost_traffic'])))
-    print("Total traffic DL and UL: " + str(sum(info['total_traffic'])))
-    print("Total lost traffic DL and UL for 3 users:\n" + str(info['lost_traffic'] / info['total_traffic']))
-    print("Average PER: " + str(np.mean(info['lost_traffic'] / info['total_traffic'])))
-    print("Total Throughput: " + str(1 - sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
-    print("(%) of failure types (Buffer, Beam, Blockage) over failed traffic: " + str(
-        info['failure_type'] / sum(info['failure_type'])))
-    print("(%) of failure types (Buffer, Beam, Blockage) over total traffic: " + str(
-        info['failure_type'] / sum(sum(info['total_traffic']))))
-    print("(%) of drops over the total traffic: " + str(sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
-    print("Lost packets by type: " + str(info['failure_type']))
+    # print("Total lost traffic DL and UL: " + str(sum(info['lost_traffic'])))
+    # print("Total traffic DL and UL: " + str(sum(info['total_traffic'])))
+    # print("Total lost traffic DL and UL for 3 users:\n" + str(info['lost_traffic'] / info['total_traffic']))
+    # print("Average PER: " + str(np.mean(info['lost_traffic'] / info['total_traffic'])))
+    # print("Total Throughput: " + str(1 - sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
+    # print("(%) of failure types (Buffer, Beam, Blockage) over failed traffic: " + str(
+    #     info['failure_type'] / sum(info['failure_type'])))
+    # print("(%) of failure types (Buffer, Beam, Blockage) over total traffic: " + str(
+    #     info['failure_type'] / sum(sum(info['total_traffic']))))
+    # print("(%) of drops over the total traffic: " + str(sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
+    # print("Lost packets by type: " + str(info['failure_type']))
     print("============================================================================================")
 
     # np.savetxt('results_beam_tracking/reward_episode_PPO_cttc', reward_episode)

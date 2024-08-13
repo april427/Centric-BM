@@ -3,6 +3,8 @@ import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
 
+from ding.model.common import FCEncoder, RegressionHead, DiscreteHead
+
 ################################## set device ##################################
 print("============================================================================================")
 # set device to cpu or cuda
@@ -38,39 +40,75 @@ class RolloutBuffer:
 class ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim, has_continuous_action_space, action_std_init):
         super(ActorCritic, self).__init__()
-
         self.has_continuous_action_space = has_continuous_action_space
-
-        if has_continuous_action_space:
-            self.action_dim = action_dim
-            self.action_var = torch.full((action_dim,), action_std_init * action_std_init).to(device)
-        # actor
-        if has_continuous_action_space:
-            self.actor = nn.Sequential(
+        if True:
+            
+            if has_continuous_action_space:
+                self.action_dim = action_dim
+                self.action_var = torch.full((action_dim,), action_std_init * action_std_init).to(device)
+            # actor
+            if has_continuous_action_space:
+                self.actor = nn.Sequential(
+                    nn.Linear(state_dim, 64),
+                    nn.Tanh(),
+                    nn.Linear(64, 64),
+                    nn.Tanh(),
+                    nn.Linear(64, action_dim),
+                    nn.Tanh()
+                )
+            else:
+                self.actor = nn.Sequential(
+                    nn.Linear(state_dim, 64),
+                    nn.Tanh(),
+                    nn.Linear(64, 64),
+                    nn.Tanh(),
+                    nn.Linear(64, action_dim),
+                    nn.Softmax(dim=-1)
+                )
+            # critic
+            self.critic = nn.Sequential(
                 nn.Linear(state_dim, 64),
                 nn.Tanh(),
                 nn.Linear(64, 64),
                 nn.Tanh(),
-                nn.Linear(64, action_dim),
-                nn.Tanh()
+                nn.Linear(64, 1)
             )
         else:
-            self.actor = nn.Sequential(
-                nn.Linear(state_dim, 64),
-                nn.Tanh(),
-                nn.Linear(64, 64),
-                nn.Tanh(),
-                nn.Linear(64, action_dim),
-                nn.Softmax(dim=-1)
-            )
-        # critic
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, 64),
-            nn.Tanh(),
-            nn.Linear(64, 64),
-            nn.Tanh(),
-            nn.Linear(64, 1)
-        )
+            
+            share_encoder: bool = True,
+            encoder_hidden_size_list: SequenceType = [128, 128, 64],
+            actor_head_hidden_size: int = 64,
+            actor_head_layer_num: int = 1,
+            critic_head_hidden_size: int = 64,
+            critic_head_layer_num: int = 1,
+            activation: Optional[nn.Module] = nn.ReLU(),
+            norm_type: Optional[str] = None,
+            encoder: Optional[torch.nn.Module] = None,
+            
+            ## implement actor 
+            self.state_dim, self.action_dim = state_dim, action_dim
+            def new_encoder(outsize):
+                return FCEncoder(state_dim, hidden_size_list=encoder_hidden_size_list, activation=activation, norm_type=norm_type)
+            
+            self.actor_encoder = nn.ModuleList([new_encoder(actor_head_hidden_size) for _ in range(action_dim)])
+            self.critic_encoder = new_encoder(critic_head_hidden_size)
+
+            ## Head Type
+            self.critic_head = RegressionHead(critic_head_hidden_size, 1, critic_head_layer_num, activation=activation,norm_type=norm_type)
+
+            actor_head_cls = DiscreteHead
+            self.actor_head = nn.ModuleList(
+                    [
+                        actor_head_cls(
+                            actor_head_hidden_size, ii, actor_head_layer_num, activation=activation, norm_type=norm_type
+                        ) for ii in action_dim
+                    ]
+                )
+            self.actor = [self.actor_encoder, self.actor_head]
+            self.critic = [self.critic_encoder, self.critic_head]
+            self.actor = nn.ModuleList(self.actor)
+            self.critic = nn.ModuleList(self.critic)
+        
 
     def set_action_std(self, new_action_std):
         if self.has_continuous_action_space:
