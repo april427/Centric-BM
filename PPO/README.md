@@ -1,9 +1,4 @@
-This documents the various parts of the transfer learning task. 
-The documentation is subdivided into parts:
 
-
-# Proximal Policy Optimization for Integrated Sensing and Communication in mmWave Systems
-​
 
 ## Introduction​
 This repo contains the source code for the paper *Proximal Policy Optimization for Integrated Sensing and Communication in mmWave Systems* (https://arxiv.org/pdf/2306.15429).
@@ -84,9 +79,12 @@ In a mmWave ISAC vehicular network, a multi-antenna BS serves multiple moving si
 |Number of time slots |$𝐾$| 1000 |
 |Number of training episodes |$𝐸_{train}$| 3000000 |
 |Number of testing episodes |$𝐸_{test}$| 10000|
-​
 
-## Any other suggestions. ​
+
+**Results**
+![](pdf_per.png){width=30%}![](slot_dist.png){width=30%} ![](drop_dist.png){width=30%}
+
+<!--## Any other suggestions. --> ​
 
 ### Citation
 ```bibtex
