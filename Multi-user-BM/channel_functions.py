@@ -177,7 +177,7 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
             Pt[sorted_user[counter]] = 0
             if counter == -N_UEs:
                 Pt[sorted_user[counter]] = Pt_mW
-                return True
+                return Pt
             counter -= 1
     
     return Pt

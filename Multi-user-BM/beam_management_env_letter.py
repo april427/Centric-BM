@@ -6,6 +6,7 @@ import random
 from scipy.linalg import hadamard
 from road import *
 
+
 random.seed(1)
 np.random.seed(1)
 
@@ -15,22 +16,21 @@ def bernoulli(p):
 
 
 class BeamManagementEnv(gym.Env):
-    def __init__(self, N_f):
-        self.N_f = N_f  # total number of channel uses
+    def __init__(self):
         self.N_UEs = 3
         self.N_samples = 128 # number of sample per TTI
         self.number_of_antennas = 32  # number of antennas at the ULA BS
         self.th = np.zeros((1000,))
         self.th_episode = np.zeros((1000,))
         self.config = np.zeros((self.N_UEs,))
-        self.action_space = spaces.Discrete(5**self.N_UEs) #gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) #spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)
+        self.action_space = spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)#spaces.Discrete(5**self.N_UEs) ##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) #
         self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs * self.N_samples,))
         self.waveform = hadamard(self.N_samples)
 
         self.fc = 28e9  # carrier frequency (Hz)
         self.c = 3e8  # speed of light (m/s)
         self.lambda_ = self.c / self.fc  # wavelength (m)
-        self.Pt_mW = 10**(15/10)*10**(109/10)  # 15dbm in linear scale
+        self.Pt_mW = (10**(15/10))*(10**(109/10))  # 15dbm in linear scale
         self.noise_power = 10**(-109/10)*10**(109/10)  # -109 dbm in linear scale, 10**(109/10) is normalization
 
         self.d_ULA = np.arange(self.number_of_antennas) * self.lambda_ / 2  # ULA with half-wavelength spacing
@@ -88,7 +88,7 @@ class BeamManagementEnv(gym.Env):
         
         self.power_threshold = 2*np.arcsin(1.2/self.number_of_antennas)*1e9 # beamwidth*1e9 
         self.R_threshold = 4
-        self.seed = 1
+    
 
     def reset(self):
         # self.th = np.zeros((1000,))
@@ -176,14 +176,12 @@ class BeamManagementEnv(gym.Env):
         drop = 0
 
         #action = (abs(action)*5).astype(int)
-        action = base(5, action, self.N_UEs)
+        action = base(5, action, self.N_UEs) #125
 
         self.previous_beam = self.current_beam.copy()
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
 
         for i in range(self.N_UEs):
-
-            #self.previous_beam[i] = self.current_beam[i].copy()
             
             # update position
             self.user_positions[i,:], self.config[i,:], self.if_turned[i] = update_positions(self.user_positions[i,:], self.cross_pos, sample_velocity(), self.dt, self.single_lane_width, self.config[i,:], self.if_turned[i])
@@ -256,10 +254,10 @@ class BeamManagementEnv(gym.Env):
         self.datapool[self.datapool < 0] = 0
 
         #reward for communication
-        reward += np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        reward = np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
 
         #SU
-        reward += np.sum(np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
+        #reward += np.sum(np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
 
         if np.sum(self.datapool) == 0:
             done = True

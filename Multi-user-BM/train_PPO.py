@@ -49,13 +49,13 @@ def train():
 
     print("training environment name : " + env_name)
 
-    env = gym.make(env_name, N_f=1000)
+    env = gym.make(env_name)
 
     # state space dimension
     state_dim = env.observation_space.shape[0]
 
     # action space dimension
-    if has_continuous_action_space:
+    if has_continuous_action_space or isinstance(env.action_space, gym.spaces.MultiDiscrete):
         action_dim = env.action_space.shape[0]
     else:
         action_dim = env.action_space.n

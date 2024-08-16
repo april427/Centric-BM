@@ -15,8 +15,8 @@ episode_durations = []
 # %%
 # variable initialization
 N_UEs = 3 #env.N_UEs
-TTI = 100
-episode =  100
+TTI = 50 
+episode =  400
 N = 64 # number of samples
 
 d = np.zeros(N_UEs)
@@ -27,7 +27,7 @@ mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 
 edge_snr_db = np.array([30])
 noise_power = 10**((-109+109) /10) # -109 dBm/Hz in mW
-Pt_mW =  np.array([10**((0+109) /10)]) # 20 dBm in mW, SNR of 1 user = 33 dB
+Pt_mW =  np.array([10**((10+109) /10)]) # 20 dBm in mW, SNR of 1 user = 33 dB
 
 # fixed map is imported from env_letter
 
@@ -70,6 +70,7 @@ for nPt in range(np.size(Pt_mW)):
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
     variance = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
     transmission_time = np.zeros(episode)
+    packet_dropped = np.zeros(episode)
 
     for l in range(episode):
         rate = np.zeros((N_UEs,TTI))
@@ -108,6 +109,7 @@ for nPt in range(np.size(Pt_mW)):
             genie_user_signal = np.zeros((N_UEs, N), dtype = complex)
             user_signal = np.zeros((N_UEs, N), dtype = complex)
             Pt = Pt_mW[nPt] / N_UEs * np.ones(N_UEs) 
+            transmit_beam = np.zeros((N_UEs, env.number_of_antennas), dtype = complex)
 
             for u in range(N_UEs):
                 # update user position
@@ -137,15 +139,15 @@ for nPt in range(np.size(Pt_mW)):
 
                 # transmit signal
                 if current_beam[n,u].size == 1:
-                    transmit_beam = env.codebook[current_beam[n,u],:]
-                    xi[u] = np.abs(transmit_beam @ mmWave_LoS_NLoS_channel[u])**2 # for power allocation
+                    transmit_beam[u,] = env.codebook[current_beam[n,u],:]
+                    xi[u] = np.abs(transmit_beam[u,] @ mmWave_LoS_NLoS_channel[u])**2 # for power allocation
                     ue_type[u] = 1
                 else:
-                    transmit_beam = env.codebook[current_beam[n,u],:].sum(axis=0)
-                    xi[u] = reflection_coefficient**2 * N * np.abs(a_BS[u] @ transmit_beam)**2 # for power allocation
+                    transmit_beam[u,] = env.codebook[current_beam[n,u],:].sum(axis=0)
+                    xi[u] = reflection_coefficient**2 * N * np.abs(a_BS[u] @ transmit_beam[u,])**2 # for power allocation
                     ue_type[u] = 0
                 
-                s_BS[u,:,:] = np.outer(transmit_beam, waveform[u, :])
+                s_BS[u,:,:] = np.outer(transmit_beam[u,], waveform[u, :])
 
             # Allocate power
             if if_dynamic:
@@ -187,16 +189,19 @@ for nPt in range(np.size(Pt_mW)):
             error[l,:,n] = np.abs(aod - AoD)
             user_count_sensing[n] += np.sum((error[l,:,n] <= beamwidth) * (1-ue_type))
 
+            echo_bf = np.sum(np.abs(np.conj(transmit_beam) @ y_BS)**2, axis = 1)
+
             for u in range(N_UEs):
 
                 # CLRB
                 derivative_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.sin(AoD[u])) for i in range(env.number_of_antennas)])
-                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[u])* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
+
+                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[u])* reflection_coefficient * env.number_of_antennas * np.dot(a_BS[u], transmit_beam[u,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
 
 
                 # map the estimated aod to the closest beam in the codebook
                 current_beam[n+1, u] = np.argmax(np.abs(env.codebook @ np.conj(compute_ULA_response(env.number_of_antennas, aod[u]))))
-                if np.sqrt(variance[l,u,n] > 2*beamwidth):#error[l,u,n] > 2*beamwidth:
+                if np.sqrt(variance[l,u,n]) > 2*beamwidth: #error[l,u,n] > 2*beamwidth: #echo_bf[u]< beamwidth*1e4: 
                     # beam_index = np.insert(np.array(current_beam[n,u]), 0, [np.min(current_beam[n,u])-1, np.max(current_beam[n,u])+1])
                     # beam_index = np.unique(np.mod( beam_index, 31 ))
                     #beam_index = np.mod( np.add(np.min(current_beam[n, u]), [-1,0,1]), 31 ) # use the previous AoD
@@ -205,6 +210,8 @@ for nPt in range(np.size(Pt_mW)):
                 # else keep the current beam
                 else:   
                     current_beam[n+1,u] = current_beam[n,u]
+            
+        packet_dropped[l] = np.sum(datapool)
 
         transmission_time[l] = n
 
@@ -223,10 +230,18 @@ transmission_time_cdf = np.sort(transmission_time)
 yvals = np.arange(len(transmission_time))/float(len(transmission_time)-1)
 plt.plot(transmission_time_cdf, yvals, '--')
 
+packet_dropped_cdf = np.sort(packet_dropped)
+yvals = np.arange(len(packet_dropped))/float(len(packet_dropped)-1)
+plt.plot(packet_dropped_cdf, yvals, '-')
+plt.legend(['Transmission time', 'Packet dropped'])
+plt.ylabel('CDF')
+plt.show()
+
 # %%
 # # plot beam pattern
 # plot_beam_pattern(y_BS, env.number_of_antennas)
 plot_road_trraffic(env.road_matrix, N_UEs, user_positions)
+
 # plot_nmse_vs_snr(SNR_echo, nmse, var_aod)
 
 

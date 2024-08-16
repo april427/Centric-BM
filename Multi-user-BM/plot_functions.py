@@ -1,3 +1,4 @@
+# %%
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import groupby
@@ -33,6 +34,7 @@ def plot_beam_pattern(y_BS, number_of_antennas):
 
 def plot_road_trraffic(road_matrix, N_UEs, user_positions):
     plt.imshow(road_matrix.T)
+    plt.plot(50,50, 'ro')
 
     for i in range(N_UEs):
         ue_pos_x = user_positions[:,i,0]
@@ -51,7 +53,7 @@ def plot_road_trraffic(road_matrix, N_UEs, user_positions):
         plt.xlim(0,100)
         plt.ylim(0,100)   
         # hold the plot
-    plt.legend(['UE1','','UE2','', 'UE3', ''])    
+    plt.legend(['BS'])    
     plt.show()
 
 def plot_nmse_vs_snr(SNR_echo, nmse, var_aod):
@@ -71,3 +73,18 @@ def plot_nmse_vs_snr(SNR_echo, nmse, var_aod):
     plt.legend(['NMSE','Variance'])
     plt.show()
 
+# %%
+def plot_column_from_csv(file_path, column_name):
+    data = np.genfromtxt(file_path, delimiter=',', names=True)
+    column_data = data[column_name]
+    window_size = 10
+    moving_avg = np.convolve(column_data, np.ones(window_size)/window_size, mode='valid')
+    plt.plot(moving_avg)
+    plt.show()
+    plt.plot(column_data)
+    plt.xlabel('Index')
+    plt.ylabel(column_name)
+    plt.show()
+
+#plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_14.csv', 'reward')
+# %%
