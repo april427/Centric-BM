@@ -7,6 +7,8 @@ import numpy as np
 import gymnasium as gym
 from beam_management_env_letter import BeamManagementEnv
 
+from torch.utils.tensorboard import SummaryWriter
+
 from PPO import PPO
 
 
@@ -19,7 +21,7 @@ def train():
 
     has_continuous_action_space = False  # continuous action space; else discrete
 
-    max_ep_len = 1000  # max timesteps in one episode
+    max_ep_len = 100  # max timesteps in one episode (TTIs in a frame)
     max_training_timesteps = int(3e6)  # break training loop if timeteps > max_training_timesteps
 
     print_freq = max_ep_len * 10  # print avg reward in the interval (in num timesteps)
@@ -55,8 +57,10 @@ def train():
     state_dim = env.observation_space.shape[0]
 
     # action space dimension
-    if has_continuous_action_space or isinstance(env.action_space, gym.spaces.MultiDiscrete):
+    if has_continuous_action_space:
         action_dim = env.action_space.shape[0]
+    elif isinstance(env.action_space, gym.spaces.MultiDiscrete):
+        action_dim = env.action_space.nvec.sum()
     else:
         action_dim = env.action_space.n
 
@@ -97,6 +101,11 @@ def train():
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
     print("save checkpoint path : " + checkpoint_path)
     #####################################################
+
+    ##################### TB writer #####################
+    writer = SummaryWriter(f"runs/{'PPO_' + env_name}_run_{run_num}")
+    #####################################################
+
 
     ############# print all hyperparameters #############
     print("--------------------------------------------------------------------------------------------")
@@ -163,11 +172,14 @@ def train():
     time_step = 0
     i_episode = 0
 
+    transmit_packets = np.zeros((max_training_timesteps))
+
     # training loop
     while time_step <= max_training_timesteps:
 
         state = env.reset()
         current_ep_reward = 0
+        total_packets = np.sum(env.datapool)
 
         for t in range(1, max_ep_len + 1):
 
@@ -208,8 +220,7 @@ def train():
                 print_avg_reward = print_running_reward / print_running_episodes
                 print_avg_reward = round(print_avg_reward, 2)
 
-                print("Episode : {} \t\t Timestep : {} \t\t Average Reward : {}".format(i_episode, time_step,
-                                                                                        print_avg_reward))
+                print("Episode : {} \t\t Timestep : {} \t\t Average Reward : {}".format(i_episode, time_step, print_avg_reward))
 
                 print_running_reward = 0
                 print_running_episodes = 0
@@ -226,6 +237,11 @@ def train():
             # break; if the episode is over
             if done:
                 break
+        
+
+        writer.add_scalar("Transmit packets", total_packets - np.sum(env.datapool), i_episode)
+        writer.add_scalar("Average sensing slots", np.sum(env.counter_sensing_slots)/(total_packets-np.sum(env.datapool)), i_episode)
+        writer.add_scalar("Episode reward", current_ep_reward, i_episode)
 
         print_running_reward += current_ep_reward
         print_running_episodes += 1

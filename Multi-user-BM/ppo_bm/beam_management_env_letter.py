@@ -17,13 +17,13 @@ def bernoulli(p):
 
 class BeamManagementEnv(gym.Env):
     def __init__(self):
-        self.N_UEs = 3
+        self.N_UEs = 2
         self.N_samples = 128 # number of sample per TTI
         self.number_of_antennas = 32  # number of antennas at the ULA BS
         self.th = np.zeros((1000,))
-        self.th_episode = np.zeros((1000,))
+        self.num_steps = 100 # number of steps per episode
         self.config = np.zeros((self.N_UEs,))
-        self.action_space = spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)#spaces.Discrete(5**self.N_UEs) ##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) #
+        self.action_space = spaces.Discrete(5**self.N_UEs) #spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
         self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs * self.N_samples,))
         self.waveform = hadamard(self.N_samples)
 
@@ -45,8 +45,7 @@ class BeamManagementEnv(gym.Env):
             (self.N_UEs, ))  # number of packets of each UE in the buffer
         self.previous_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.previous_power = np.zeros((5, self.N_UEs))
-        self.counter_slots_blocked = np.zeros((self.N_UEs, )).astype(int) #Counter for slots blockages
-        self.previous_counter = 0
+        self.counter_sensing_slots = np.zeros((self.N_UEs, )).astype(int) #Counter for sensing slots
         self.failure_type = np.zeros(3)
         self.done = False  # flag indicating whether the episode is over
         self.base_station_position = np.array([50, 50])  # [x_bs, y_bs, z_bs]
@@ -90,9 +89,10 @@ class BeamManagementEnv(gym.Env):
         self.R_threshold = 4
     
 
-    def reset(self):
+    def reset(self, seed=None):
+        super().reset(seed=seed)
         # self.th = np.zeros((1000,))
-        self.th_episode = np.zeros((1000,))
+        #self.th_episode = np.zeros((1000,))
         self.current_slot = 0
         self.done = False
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
@@ -100,13 +100,11 @@ class BeamManagementEnv(gym.Env):
             (self.N_UEs, 1))  # current downlink traffic 
         self.total_traffic_episode = np.zeros((self.N_UEs, 1))  # total downlink traffic per episode
         self.lost_traffic_episode = np.zeros((self.N_UEs, 1))  # traffic lost per episode
-        self.failure_counter = np.zeros(
-            (self.N_UEs, 1))  # Consecutive failures (packet lost due to SU type or bad beam)
+        self.counter_sensing_slots = np.zeros((self.N_UEs, 1))  # counter for sensing slots   
         self.previous_beam = np.empty([self.N_UEs,], dtype=object)  # previsou beam direction
         self.previous_traffic = np.zeros(
             (5, self.N_UEs, 1))  # current downlink and uplink traffic 
         self.previous_power = np.zeros((5, self.N_UEs))
-        self.previous_counter = 0
 
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
@@ -115,8 +113,12 @@ class BeamManagementEnv(gym.Env):
         self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) + 1j
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
-        self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
-        self.datapool = np.ones((self.N_UEs,))*10
+        self.user_positions = np.array([[24.,61.],[95.,30.]])
+        self.config = np.array([[2,2],[1,1]])
+        self.if_turned = np.array([False, False])
+
+        #self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+        self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
 
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
         xi = np.zeros((self.N_UEs,))
@@ -175,8 +177,7 @@ class BeamManagementEnv(gym.Env):
         was_dropped = np.zeros((self.N_UEs, 2))
         drop = 0
 
-        #action = (abs(action)*5).astype(int)
-        action = base(5, action, self.N_UEs) #125
+        action = base(5, action, self.N_UEs) # bruteforce discrete action space
 
         self.previous_beam = self.current_beam.copy()
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
@@ -199,19 +200,26 @@ class BeamManagementEnv(gym.Env):
             # set the transmitted signal according to the action
             if action[i] == 0: 
                 self.ue_type[i] = 1
-                self.current_beam[i,] = self.previous_beam[i]
+                if self.previous_beam[i].size == 1:
+                    self.current_beam[i,] = self.previous_beam[i]
+                else:
+                    self.current_beam[i,] = self.previous_beam[i,1]
             elif action[i] == 1:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], 31)
+                self.counter_sensing_slots[i] += 1
             elif action[i] == 2:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], 31)
+                self.counter_sensing_slots[i] += 1
             elif action[i] == 3:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[-1, 0, 1], 31)
+                self.counter_sensing_slots[i] += 1
             elif action[i] == 4:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0, 1, 2], 31)
+                self.counter_sensing_slots[i] += 1
             else:
                 raise ValueError('Invalid action')
             
@@ -223,14 +231,14 @@ class BeamManagementEnv(gym.Env):
                 xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ transmit_beam[i,])**2
 
         # allocation power
-        #Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
+        Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
 
         user_signal = np.zeros((self.N_UEs, self.N_samples)) + 1j
         for i in range(self.N_UEs):
             s_BS[i,] = np.sqrt(Pt[i]/self.current_beam[i].size) * np.outer(transmit_beam[i,], self.waveform[i])
 
             # user targeted signal
-            user_signal[i] = self.mmWave_LoS_NLoS_channel[i] @ s_BS[i,:,:] 
+            user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,:,:] 
 
         # compute the user received signal, noiseless
         y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
@@ -245,16 +253,16 @@ class BeamManagementEnv(gym.Env):
             self.echo_bf[i,] = np.abs(transmit_beam[i,:] @ y_BS)**2
         
         # compute the rate at the user
-        self.R = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
+        self.R, _ = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
         # SU user does not have traffic
         self.R = self.R * self.ue_type
 
         #update buffer
-        self.datapool = self.datapool - (self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        self.datapool = self.datapool - ((self.R - self.R_threshold*np.ones(self.N_UEs)) > 0)
         self.datapool[self.datapool < 0] = 0
 
         #reward for communication
-        reward = np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        reward = 2*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
 
         #SU
         #reward += np.sum(np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
@@ -265,7 +273,9 @@ class BeamManagementEnv(gym.Env):
         return self._get_state(), reward, done, {'ue_position': self.user_positions.copy(),
                                                  'bs_position': self.base_station_position.copy(),
                                                  'current_beam': self.current_beam.copy(),
-                                                 'buffer': self.datapool.copy()}
+                                                 'buffer': self.datapool.copy(),
+                                                 'num_sensing_slots': self.counter_sensing_slots.copy()
+                                                 }
 
 
     def _get_state(self):

@@ -1,9 +1,9 @@
 
 
 ## Introduction​
-This repo contains the source code for the paper *Proximal Policy Optimization for Integrated Sensing and Communication in mmWave Systems* (https://arxiv.org/pdf/2306.15429).
+This repo contains the source code for the paper *Proximal Policy Optimization for Integrated Sensing and Communication in mmWave Systems*.
+It uses PPO algorithm for optimizing the resource management in a multi-user V2X network.
 
-The paper considers a vehicular network setup consisting of a multi-antenna base station and multiple single-antenna vehiculars. The base station, acting as the agent, applies the PPO to manage the beam and time slot resources in order to minimize the packet error rate performance.
 ​
 
 ## Description (Simulation Environment and AI Algorithm)​
@@ -17,7 +17,7 @@ The paper considers a vehicular network setup consisting of a multi-antenna base
 **Code Description:**
 
 1. beam_management_env_letter.py 
-This wrapper clarifies the ISAC environment. The preset parameter values are shown in the Table. *make*, *reset*, *step* and *render* are modified associated with the mobile vehicular network.
+This wrapper clarifies the ISAC environment. The preset parameter values are shown in the Table. *make()*, *reset()*, *step()* and *render()* are modified associated with the mobile vehicular network.
 
 2. PPO.py  
 This wrapper contains the main class for the PPO algorithm. 
@@ -25,13 +25,13 @@ actor_critic class defines the actor and critic neural networks.
 PPO class clarifies functions that are needed for PPO algorithm, such as, sample_action, evaluate, and save trajectory to the buffer. 
 
 3. Train_PPO.py
-This wrapper takes PPO agent and environment as input and train the PPO agent's actor_critic network.
+This wrapper takes PPO agent and environment as input and train the PPO agent's actor_critic network. The training results are written into /PPO_Logs/ folder.
 
 **PPO algorithm**
-PPO algorithm is a actor-critic algorithm. It does not rely on Markov assumption and the knowledge of the whole state. 
+PPO algorithm is an actor-critic algorithm. It does not rely on Markov assumption and the knowledge of the whole state. 
 
 Compared to the actor 2 critic (A2C) algorithm, PPO does not have a high variance because it limits the size of each update through optimizing a surrogate objective function. 
-The surrogate objective function is
+<!-- The surrogate objective function is
 $$
 L^{CLIP}(\theta) = \mathrm{E}_t\left[ \min \big(r_t(\theta) \hat{A}_t, \text{clip} (r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \big)\right]
 $$
@@ -50,6 +50,7 @@ The value function estimates the expected cumulative reward from the current sta
 $$
 \phi = \arg\max_{\phi} |V_{\phi}(s_t) - (r_t + \gamma V_{\phi}(s_{t+1}))|^2
 $$
+-->
 
 ## Potential Applications​
 The repo provides a framework of resource management, such as, time, frequency, beam and power, for a multi-user MISO scenario.  
@@ -57,7 +58,13 @@ The repo provides a framework of resource management, such as, time, frequency, 
 
 ## Example Usage​
 
-In a mmWave ISAC vehicular network, a multi-antenna BS serves multiple moving single-antenna vehicles. The BS allocates the time slots of sensing, uplink or downlink for users considering data buffer status and users' beam optimization. As shown from the paper, by using the PPO framework, the packet loss probability is decreased compared to random allocation or X-TDMA.
+In a mmWave ISAC vehicular network, a multi-antenna BS serves multiple moving single-antenna vehicles. 
+The BS allocates the time slots of sensing, uplink or downlink to the most suitable user considering data buffer status and users' beam in order to minimize the long term packet error rate. As shown from the paper, by using the PPO framework, the packet loss probability is decreased compared to random allocation or X-TDMA.
+
+**Baseline**
+- Genie-aided (benchmark): This agent knows exactly when blockages are occurring and always has the best beam for the user in a TDMA fashion. This will be the benchmark for the proposed solution. 
+- Random: The policy of the agent is to allocate slots uniformly at random among all possible actions.
+- X-TDMA (X Time Division Multiple Access) is a slot allocation policy where slots are divided into sensing (S), uplink (UL), and downlink (DL) categories. The value of X represents the number of consecutive UL/DL slots pair before transitioning to the next sensing slot. These patterns are allocated for every user 𝑢 in a round-robin fashion.
 
 **Simulation Environment**
 | Parameter |Symbol | Value | 
@@ -82,7 +89,9 @@ In a mmWave ISAC vehicular network, a multi-antenna BS serves multiple moving si
 
 
 **Results**
-![](pdf_per.png){width=30%}![](slot_dist.png){width=30%} ![](drop_dist.png){width=30%}
+![](pdf_per.png){width=33%}![](slot_dist.png){width=33%} ![](drop_dist.png){width=33%}
+
+
 
 <!--## Any other suggestions. --> ​
 

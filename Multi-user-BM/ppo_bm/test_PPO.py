@@ -46,6 +46,8 @@ def test():
     # action space dimension
     if has_continuous_action_space:
         action_dim = env.action_space.shape[0]
+    elif isinstance(env.action_space, gym.spaces.MultiDiscrete):
+        action_dim = env.action_space.nvec.sum()
     else:
         action_dim = env.action_space.n
 

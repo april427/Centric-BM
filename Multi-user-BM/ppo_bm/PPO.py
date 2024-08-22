@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
+import numpy as np
 
 #from ding.model.common import FCEncoder, RegressionHead, DiscreteHead
 
@@ -16,6 +17,36 @@ if (torch.cuda.is_available()):
 else:
     print("Device set to : cpu")
 print("============================================================================================")
+
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
+class Transpose(nn.Module):
+    def __init__(self, permutation):
+        super().__init__()
+        self.permutation = permutation
+
+    def forward(self, x):
+        return x.permute(self.permutation)
+    
+class CategoricalMasked(Categorical):
+    def __init__(self, probs=None, logits=None, validate_args=None, masks=[]):
+        self.masks = masks
+        if len(self.masks) == 0:
+            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
+        else:
+            self.masks = masks.type(torch.BoolTensor).to(device)
+            logits = torch.where(self.masks, logits, torch.tensor(-1e8).to(device))
+            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
+
+    def entropy(self):
+        if len(self.masks) == 0:
+            return super(CategoricalMasked, self).entropy()
+        p_log_p = self.logits * self.probs
+        p_log_p = torch.where(self.masks, p_log_p, torch.tensor(0.0).to(device))
+        return -p_log_p.sum(-1)
 
 
 ################################## PPO Policy ##################################
@@ -74,41 +105,18 @@ class ActorCritic(nn.Module):
                 nn.Linear(64, 1)
             )
         else:
-            
-            share_encoder: bool = True,
-            encoder_hidden_size_list: SequenceType = [128, 128, 64],
-            actor_head_hidden_size: int = 64,
-            actor_head_layer_num: int = 1,
-            critic_head_hidden_size: int = 64,
-            critic_head_layer_num: int = 1,
-            activation: Optional[nn.Module] = nn.ReLU(),
-            norm_type: Optional[str] = None,
-            encoder: Optional[torch.nn.Module] = None,
-            
-            ## implement actor 
-            self.state_dim, self.action_dim = state_dim, action_dim
-            def new_encoder(outsize):
-                return FCEncoder(state_dim, hidden_size_list=encoder_hidden_size_list, activation=activation, norm_type=norm_type)
-            
-            self.actor_encoder = nn.ModuleList([new_encoder(actor_head_hidden_size) for _ in range(action_dim)])
-            self.critic_encoder = new_encoder(critic_head_hidden_size)
-
-            ## Head Type
-            self.critic_head = RegressionHead(critic_head_hidden_size, 1, critic_head_layer_num, activation=activation,norm_type=norm_type)
-
-            actor_head_cls = DiscreteHead
-            self.actor_head = nn.ModuleList(
-                    [
-                        actor_head_cls(
-                            actor_head_hidden_size, ii, actor_head_layer_num, activation=activation, norm_type=norm_type
-                        ) for ii in action_dim
-                    ]
-                )
-            self.actor = [self.actor_encoder, self.actor_head]
-            self.critic = [self.critic_encoder, self.critic_head]
-            self.actor = nn.ModuleList(self.actor)
-            self.critic = nn.ModuleList(self.critic)
-        
+            self.network = nn.Sequential(
+                Transpose((0, 3, 1, 2)),
+                layer_init(nn.Conv2d(27, 16, kernel_size=3, stride=2)),
+                nn.ReLU(),
+                layer_init(nn.Conv2d(16, 32, kernel_size=2)),
+                nn.ReLU(),
+                nn.Flatten(),
+                layer_init(nn.Linear(32 * 3 * 3, 128)),
+                nn.ReLU(),
+            )
+            self.actor = layer_init(nn.Linear(128, action_dim), std=0.01)
+            self.critic = layer_init(nn.Linear(128, 1), std=1)
 
     def set_action_std(self, new_action_std):
         if self.has_continuous_action_space:
@@ -157,12 +165,29 @@ class ActorCritic(nn.Module):
         state_values = self.critic(state)
 
         return action_logprobs, state_values, dist_entropy
+    
+    #################MultiCategorical################
+    def get_value(self, x):
+        return self.critic(self.network(x))
 
+    def get_action_and_value(self, x, action_nvec, action=None):
+        hidden = self.network(x)
+        logits = self.actor(hidden)
+        split_logits = torch.split(logits, action_nvec.tolist(), dim=1)
+        multi_categoricals = [
+            Categorical(logits=logits) for logits in split_logits
+        ]
+        if action is None:
+            action = torch.stack([categorical.sample() for categorical in multi_categoricals])
+        logprob = torch.stack([categorical.log_prob(a) for a, categorical in zip(action, multi_categoricals)])
+        entropy = torch.stack([categorical.entropy() for categorical in multi_categoricals])
+        return action.T, logprob.sum(0), entropy.sum(0), self.critic(hidden)
+    #################--------------------################
 
 class PPO:
     def __init__(self, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clip,
                  has_continuous_action_space, action_std_init=0.6):
-
+        self.action_nvec = np.ones(3)*5
         self.has_continuous_action_space = has_continuous_action_space
 
         if has_continuous_action_space:
@@ -228,6 +253,7 @@ class PPO:
             with torch.no_grad():
                 state = torch.FloatTensor(state).to(device)
                 action, action_logprob, state_val = self.policy_old.act(state)
+                #action, action_logprob, _, state_val= self.policy_old.get_action_and_value(state, self.action_nvec, action=None)
 
             self.buffer.states.append(state)
             self.buffer.actions.append(action)
@@ -287,6 +313,62 @@ class PPO:
 
         # clear buffer
         self.buffer.clear()
+
+    #################MultiCategorical################
+    def update_md(self):
+        # Monte Carlo estimate of returns
+        rewards = []
+        discounted_reward = 0
+        for reward, is_terminal in zip(reversed(self.buffer.rewards), reversed(self.buffer.is_terminals)):
+            if is_terminal:
+                discounted_reward = 0
+            discounted_reward = reward + (self.gamma * discounted_reward)
+            rewards.insert(0, discounted_reward)
+
+        # Normalizing the rewards
+        rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-7)
+
+        # convert list to tensor
+        old_states = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(device)
+        old_actions = torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(device)
+        old_logprobs = torch.squeeze(torch.stack(self.buffer.logprobs, dim=0)).detach().to(device)
+        old_state_values = torch.squeeze(torch.stack(self.buffer.state_values, dim=0)).detach().to(device)
+
+        # calculate advantages
+        advantages = rewards.detach() - old_state_values.detach()
+
+        # Optimize policy for K epochs
+        for _ in range(self.K_epochs):
+            # Evaluating old actions and values
+            with torch.no_grad():
+                action, logprobs, dist_entropy, state_values = self.policy.get_action_and_value(old_states, np.ones(3)*5, old_actions)
+
+            # match state_values tensor dimensions with rewards tensor
+            state_values = torch.squeeze(state_values)
+
+            # Finding the ratio (pi_theta / pi_theta__old)
+            ratios = torch.exp(logprobs - old_logprobs.detach())
+
+            # Finding Surrogate Loss
+            surr1 = ratios * advantages
+            surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+
+            # final loss of clipped objective PPO
+            loss = -torch.min(surr1, surr2) + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+
+            # take gradient step
+            self.optimizer.zero_grad()
+            loss.mean().backward()
+            self.optimizer.step()
+
+        # Copy new weights into old policy
+        self.policy_old.load_state_dict(self.policy.state_dict())
+
+        # clear buffer
+        self.buffer.clear()
+    #################--------------------################
+    
 
     def save(self, checkpoint_path):
         torch.save(self.policy_old.state_dict(), checkpoint_path)
