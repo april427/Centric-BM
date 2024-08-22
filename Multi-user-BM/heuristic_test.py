@@ -1,20 +1,20 @@
 # %%
-from channel_functions import *
+from ppo_bm.channel_functions import *
 import numpy as np
 import gymnasium as gym
 from scipy.linalg import hadamard
 import matplotlib.pyplot as plt
-from road import *
+from ppo_bm.road import *
 from plot_functions import *
 
-from beam_management_env_letter import BeamManagementEnv
+from ppo_bm.beam_management_env_letter import BeamManagementEnv
 
-env = gym.make('BeamManagementEnv-v1', N_f=1000)
+env = gym.make('BeamManagementEnv-v1')
 episode_durations = []
 
 # %%
 # variable initialization
-N_UEs = 3 #env.N_UEs
+N_UEs = 2 #env.N_UEs
 TTI = 100
 episode =  100
 N = 64 # number of samples

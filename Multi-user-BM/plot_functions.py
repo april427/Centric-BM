@@ -77,7 +77,7 @@ def plot_nmse_vs_snr(SNR_echo, nmse, var_aod):
 def plot_column_from_csv(file_path, column_name):
     data = np.genfromtxt(file_path, delimiter=',', names=True)
     column_data = data[column_name]
-    window_size = 10
+    window_size = 100
     moving_avg = np.convolve(column_data, np.ones(window_size)/window_size, mode='valid')
     plt.plot(moving_avg)
     plt.show()
@@ -86,5 +86,6 @@ def plot_column_from_csv(file_path, column_name):
     plt.ylabel(column_name)
     plt.show()
 
-#plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_14.csv', 'reward')
+plot_column_from_csv('ppo_bm/PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_5.csv', 'reward')
 # %%
+
