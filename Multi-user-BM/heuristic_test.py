@@ -1,23 +1,23 @@
 # %%
-from ppo_bm.channel_functions import *
+from channel_functions import *
 import numpy as np
 import gymnasium as gym
 from scipy.linalg import hadamard
 import matplotlib.pyplot as plt
-from ppo_bm.road import *
+from road import *
 from plot_functions import *
 
-from ppo_bm.beam_management_env_letter import BeamManagementEnv
+from beam_management_env_letter import BeamManagementEnv
 
 env = gym.make('BeamManagementEnv-v1')
-episode_durations = []
+
 
 # %%
 # variable initialization
 N_UEs = 2 #env.N_UEs
-TTI = 100
+TTI = env.num_steps
 episode =  100
-N = 64 # number of samples
+N = env.N_samples # number of samples
 
 d = np.zeros(N_UEs)
 AoD = np.zeros(N_UEs) # real value
@@ -26,8 +26,8 @@ a_BS = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 mmWave_LoS_NLoS_channel = np.zeros((N_UEs, env.number_of_antennas)) + 1j
 
 edge_snr_db = np.array([30])
-noise_power = 10**((-109+109) /10) # -109 dBm/Hz in mW
-Pt_mW =  np.array([10**((0+109) /10)]) # 20 dBm in mW, SNR of 1 user = 33 dB
+noise_power =  env.noise_power # -109 dBm/Hz in mW
+Pt_mW =  env.Pt_mW  # 20 dBm in mW, SNR of 1 user = 33 dB
 
 # fixed map is imported from env_letter
 

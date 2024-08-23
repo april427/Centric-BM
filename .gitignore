@@ -5,3 +5,5 @@ __pycache__/
 PPO_logs/
 PPO_preTrained/
 runs/
+
+.DS_Store

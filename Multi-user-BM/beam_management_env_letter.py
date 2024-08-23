@@ -26,6 +26,7 @@ class BeamManagementEnv(gym.Env):
         self.action_space = spaces.Discrete(5**self.N_UEs) #spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
         self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs * self.N_samples,))
         self.waveform = hadamard(self.N_samples)
+        self.waveform[[0,-1],:] = self.waveform[[-1,0],:]
 
         self.fc = 28e9  # carrier frequency (Hz)
         self.c = 3e8  # speed of light (m/s)
@@ -173,10 +174,6 @@ class BeamManagementEnv(gym.Env):
         
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
 
-        packet = np.zeros((self.N_UEs,)).astype(float)
-        was_dropped = np.zeros((self.N_UEs, 2))
-        drop = 0
-
         action = base(5, action, self.N_UEs) # bruteforce discrete action space
 
         self.previous_beam = self.current_beam.copy()
@@ -203,7 +200,7 @@ class BeamManagementEnv(gym.Env):
                 if self.previous_beam[i].size == 1:
                     self.current_beam[i,] = self.previous_beam[i]
                 else:
-                    self.current_beam[i,] = self.previous_beam[i,1]
+                    self.current_beam[i,] = self.previous_beam[i][1]
             elif action[i] == 1:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], 31)

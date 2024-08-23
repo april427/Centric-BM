@@ -11,7 +11,7 @@ from beam_management_env_letter import BeamManagementEnv
 # import roboschool
 
 from PPO import PPO
-
+from torch.utils.tensorboard import SummaryWriter
 
 #################################### Testing ###################################
 def test():
@@ -27,7 +27,7 @@ def test():
     render = False              # render environment on screen
     frame_delay = 0             # if required; add delay b/w frames
 
-    total_test_episodes = 10000   # total num of testing episodes
+    total_test_episodes = 1000   # total num of testing episodes
 
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
@@ -38,7 +38,7 @@ def test():
 
     #####################################################
 
-    env = gym.make(env_name, N_f=1000)
+    env = gym.make(env_name)
 
     # state space dimension
     state_dim = env.observation_space.shape[0]
@@ -57,7 +57,11 @@ def test():
     # preTrained weights directory
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
-    run_num_pretrained = 0      #### set this to load a particular checkpoint num
+    
+    run_num_pretrained = 11      #### set this to load a particular checkpoint num
+
+    ############# write the test data into file#######
+    writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")
 
     directory = "PPO_preTrained" + '/' + env_name + '/'
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
@@ -69,7 +73,7 @@ def test():
     print("--------------------------------------------------------------------------------------------")
 
     test_running_reward = 0
-    mean_packet_rate_episode = []
+    transmitted_packet_rate = []
     th_episode = []
     reward_episode = []
     action_list = []
@@ -77,14 +81,11 @@ def test():
     for ep in range(1, total_test_episodes+1):
         ep_reward = 0
         state = env.reset()
-        counter = 0
+        total_num_packet = np.sum(env.datapool)
         reward_list = []
 
         for t in range(1, max_ep_len+1):
             action = ppo_agent.select_action(state)
-            if action == 0 or action == 3 or action == 6:
-                # print(action)
-                counter += 1
             # print(action)
             action_list.append(action)
             state, reward, done, info = env.step(action)
@@ -96,10 +97,12 @@ def test():
                 time.sleep(frame_delay)
 
             if done:
-                mean_packet_rate_episode.append(np.mean(info['lost_traffic_episode'] / info['total_traffic_episode']))
                 reward_episode.append(np.mean(reward_list))
-                th_episode.append(sum(info['tx_packets_episode']) / 1000)
-                break
+                print("all transmitted")
+
+        
+        writer.add_scalar("Packet transmission rate", (total_num_packet-np.sum(env.datapool))/total_num_packet, ep)
+        writer.add_scalar("Test reward", reward, ep)
 
         # clear buffer
         ppo_agent.buffer.clear()
