@@ -98,3 +98,8 @@ A packet is transmitted: reward = 2
 A proper set of sensing beams is selected, reward = 1
 
 Current state: the model does not converge.
+
+#### Results update
+<img src="image-9.png" width = "300">
+
+

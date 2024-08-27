@@ -13,6 +13,8 @@ from beam_management_env_letter import BeamManagementEnv
 from PPO import PPO
 from torch.utils.tensorboard import SummaryWriter
 
+import matplotlib.pyplot as plt
+
 #################################### Testing ###################################
 def test():
     print("============================================================================================")
@@ -36,6 +38,8 @@ def test():
     lr_actor = 0.0003           # learning rate for actor
     lr_critic = 0.001           # learning rate for critic
 
+    throughput = np.zeros((total_test_episodes))
+
     #####################################################
 
     env = gym.make(env_name)
@@ -58,10 +62,15 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 11      #### set this to load a particular checkpoint num
+    run_num_pretrained = 1     #### set this to load a particular checkpoint num
 
-    ############# write the test data into file#######
+    ############# write the test data into Tensorboard and csv #######
     writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")
+
+    log_dir = "PPO_logs" + '/' + env_name + '/'
+    log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
+    log_f = open(log_f_name, "w+")
+    log_f.write('episode,reward, total_packet_num, transmitted_packets\n')
 
     directory = "PPO_preTrained" + '/' + env_name + '/'
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
@@ -100,9 +109,12 @@ def test():
                 reward_episode.append(np.mean(reward_list))
                 print("all transmitted")
 
-        
-        writer.add_scalar("Packet transmission rate", (total_num_packet-np.sum(env.datapool))/total_num_packet, ep)
+        throughput[ep-1] = (total_num_packet-np.sum(env.datapool))/total_num_packet
+        writer.add_scalar("Packet transmission rate", throughput[ep-1], ep)
         writer.add_scalar("Test reward", reward, ep)
+
+        log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
+        logf.flush()
 
         # clear buffer
         ppo_agent.buffer.clear()
@@ -111,6 +123,7 @@ def test():
         print('Episode: {} \t\t Reward: {}'.format(ep, round(ep_reward, 2)))
         ep_reward = 0
 
+    log_f.close()
     env.close()
 
     print("============================================================================================")
@@ -126,6 +139,9 @@ def test():
     # print("(%) of drops over the total traffic: " + str(sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
     # print("Lost packets by type: " + str(info['failure_type']))
     print("============================================================================================")
+    throughput_cdf = np.sort(throughput)
+    yvals = np.arange(len(throughput))/float(len(throughput)-1)
+    plt.plot(throughput_cdf, yvals, '-')
 
     # np.savetxt('results_beam_tracking/reward_episode_PPO_cttc', reward_episode)
     # np.savetxt('results_beam_tracking/mean_packet_rate_episode_PPO_cttc', mean_packet_rate_episode)

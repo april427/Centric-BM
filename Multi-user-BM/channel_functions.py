@@ -3,10 +3,10 @@ import numpy as np
 import math
 #import tensorflow as tf
 
-from sionna.channel.tr38901 import Antenna, AntennaArray, CDL, UMi, UMa, RMa
-from sionna.channel import gen_single_sector_topology as gen_topology
-from sionna.channel import subcarrier_frequencies, cir_to_ofdm_channel, cir_to_time_channel
-from sionna.channel import ApplyOFDMChannel, ApplyTimeChannel, OFDMChannel
+#from sionna.channel.tr38901 import Antenna, AntennaArray, CDL, UMi, UMa, RMa
+#from sionna.channel import gen_single_sector_topology as gen_topology
+#from sionna.channel import subcarrier_frequencies, cir_to_ofdm_channel, cir_to_time_channel
+#from sionna.channel import ApplyOFDMChannel, ApplyTimeChannel, OFDMChannel
 
 
 # %%
@@ -121,9 +121,11 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
 
     # Compute SINR
     sinr = 10*np.log10(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
+    aa = np.mean(sinr,axis=1) 
+    aa[np.isinf(aa)] = -10
 
     rate = np.mean(rate, axis=1)
-    return rate, np.mean(sinr,axis=1)
+    return rate, aa
 
 def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
     """

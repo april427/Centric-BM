@@ -88,7 +88,7 @@ def train():
     #####################################################
 
     ################### checkpointing ###################
-    run_num_pretrained = 0  #### change this to prevent overwriting weights in same env_name folder
+    #run_num_pretrained = 0  #### change this to prevent overwriting weights in same env_name folder
 
     directory = "PPO_preTrained"
     if not os.path.exists(directory):
@@ -179,7 +179,7 @@ def train():
 
         state = env.reset()
         current_ep_reward = 0
-        total_packets = np.sum(env.datapool)
+        total_packets = np.sum(env.unwrapped.datapool)
 
         for t in range(1, max_ep_len + 1):
 
@@ -239,8 +239,8 @@ def train():
                 break
         
 
-        writer.add_scalar("Transmit packets", total_packets - np.sum(env.datapool), i_episode)
-        writer.add_scalar("Average sensing slots", np.sum(env.counter_sensing_slots)/(total_packets-np.sum(env.datapool)), i_episode)
+        writer.add_scalar("Transmit packets", total_packets - np.sum(env.unwrapped.datapool), i_episode)
+        writer.add_scalar("Average sensing slots", np.sum(env.unwrapped.counter_sensing_slots)/(total_packets-np.sum(env.unwrapped.datapool)), i_episode)
         writer.add_scalar("Episode reward", current_ep_reward, i_episode)
 
         print_running_reward += current_ep_reward

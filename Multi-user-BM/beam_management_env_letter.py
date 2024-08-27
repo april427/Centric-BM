@@ -49,16 +49,16 @@ class BeamManagementEnv(gym.Env):
         self.counter_sensing_slots = np.zeros((self.N_UEs, )).astype(int) #Counter for sensing slots
         self.failure_type = np.zeros(3)
         self.done = False  # flag indicating whether the episode is over
-        self.base_station_position = np.array([50, 50])  # [x_bs, y_bs, z_bs]
+        self.base_station_position = np.array([50, 50])  # BS position
         self.scenario_dimensions = np.array([0, 0, 100, 100])  # [x_min, y_min, x_max, y_max]
         self.user_positions = np.zeros((self.N_UEs, 2))
         self.dt = 0.01  # time step 10 ms
 
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
-        self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
-        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
-        self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) + 1j
+        self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
+        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
+        mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
         self.reflection_coefficient = np.zeros((self.N_UEs,))
         self.R = np.zeros((self.N_UEs,)) # user communication rate
         self.ue_type = np.zeros((self.N_UEs,)) # user type (SU or PU)
@@ -70,6 +70,8 @@ class BeamManagementEnv(gym.Env):
         self.road_matrix = road(self.cross_pos)
         self.single_lane_width = 5
         self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+
+        self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex)  # received signal at the BS
 
         for i in range(self.N_UEs):
             self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
@@ -83,7 +85,7 @@ class BeamManagementEnv(gym.Env):
 
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
 
-            self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
+            mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
             self.current_beam[i] = np.argmax(np.abs(self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
         
         self.power_threshold = 2*np.arcsin(1.2/self.number_of_antennas)*1e9 # beamwidth*1e9 
@@ -109,22 +111,23 @@ class BeamManagementEnv(gym.Env):
 
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
-        self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
-        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
-        self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) + 1j
+        self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
+        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas), dtype = complex) 
+        mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
-        self.user_positions = np.array([[24.,61.],[95.,30.]])
-        self.config = np.array([[2,2],[1,1]])
-        self.if_turned = np.array([False, False])
+        # self.user_positions = np.array([[24.,61.],[95.,30.]])
+        # self.config = np.array([[2,2],[1,1]])
+        # self.if_turned = np.array([False, False])
+        self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex) 
 
-        #self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+        self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
         self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
 
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
         xi = np.zeros((self.N_UEs,))
-        s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples)) + 1j
-        transmit_beam = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
+        s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples), dtype=complex) 
+        transmit_beam = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex)
 
         for i in range(self.N_UEs):
 
@@ -139,7 +142,7 @@ class BeamManagementEnv(gym.Env):
 
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
 
-            self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
+            mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
             self.current_beam[i] = np.argmax(np.abs(self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
         
             transmit_beam[i,] = self.codebook[self.current_beam[i],:]
@@ -151,9 +154,9 @@ class BeamManagementEnv(gym.Env):
         for i in range(self.N_UEs):
             s_BS[i,] = np.sqrt(Pt[i]/np.size(self.current_beam[i]) )* np.outer(transmit_beam[i,], self.waveform[i])
 
-        y_BS = self.mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
+        self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
-        self.echo_bf = np.abs(transmit_beam @ y_BS)**2
+        self.echo_bf = np.abs(transmit_beam @ self.y_BS)**2
 
         return self._get_state()
 
@@ -166,11 +169,11 @@ class BeamManagementEnv(gym.Env):
         reward = 0
         done = False
         xi = np.zeros((self.N_UEs,))
-        transmit_beam = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
-        s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples)) + 1j
+        transmit_beam = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
+        s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples), dtype=complex) 
         
-        self.mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas)) +1j
-        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas)) + 1j
+        mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
+        self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas), dtype = complex)
         
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
 
@@ -178,6 +181,9 @@ class BeamManagementEnv(gym.Env):
 
         self.previous_beam = self.current_beam.copy()
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
+        
+        # estimate AoD from y_BS the echo of the previous step TTI
+        aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
 
         for i in range(self.N_UEs):
             
@@ -188,19 +194,22 @@ class BeamManagementEnv(gym.Env):
 
             self.AoD[i] = compute_AoD_at_BS(self.base_station_position, self.user_positions[i])  # current AoD
 
+            self.reflection_coefficient[i] = self.lambda_ * 5/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of a vehicle
+
             self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i]) 
 
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)
 
-            self.mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
+            mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
             
             # set the transmitted signal according to the action
             if action[i] == 0: 
                 self.ue_type[i] = 1
-                if self.previous_beam[i].size == 1:
+                if self.previous_beam[i].size == 1: # CU in the previous step
                     self.current_beam[i,] = self.previous_beam[i]
-                else:
-                    self.current_beam[i,] = self.previous_beam[i][1]
+                else: # SU in the previous step
+                    index = (np.abs(np.conj(self.codebook[self.previous_beam[i],:]) @ self.y_BS)**2).sum(axis=1).argmax()
+                    self.current_beam[i,] = self.previous_beam[i][index]
             elif action[i] == 1:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], 31)
@@ -230,27 +239,26 @@ class BeamManagementEnv(gym.Env):
         # allocation power
         Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
 
-        user_signal = np.zeros((self.N_UEs, self.N_samples)) + 1j
+        user_signal = np.zeros((self.N_UEs, self.N_samples), dtype=complex) 
         for i in range(self.N_UEs):
             s_BS[i,] = np.sqrt(Pt[i]/self.current_beam[i].size) * np.outer(transmit_beam[i,], self.waveform[i])
 
             # user targeted signal
             user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,:,:] 
-
+ 
         # compute the user received signal, noiseless
         y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
 
-
         # compute the echo signal at the BS
-        y_BS = self.mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
+        self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
         # compute the beamforming output at the BS
         for i in range(self.N_UEs):
             # beamforming output
-            self.echo_bf[i,] = np.abs(transmit_beam[i,:] @ y_BS)**2
+            self.echo_bf[i,] = np.abs(np.conj(transmit_beam[i,:]) @ self.y_BS)**2
         
         # compute the rate at the user
-        self.R, _ = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
+        self.R, sinr = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
         # SU user does not have traffic
         self.R = self.R * self.ue_type
 
@@ -259,10 +267,16 @@ class BeamManagementEnv(gym.Env):
         self.datapool[self.datapool < 0] = 0
 
         #reward for communication
-        reward = 2*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        #reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
 
         #SU
         #reward += np.sum(np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
+
+        # reward uses beamforming output
+        #reward = np.sum(0.75 * np.mean(self.echo_bf, axis=1) * self.ue_type + 0.25* np.mean(self.echo_bf, axis=1) * (1-self.ue_type))
+
+        # reward uses sinr and estimation error according to the objective function
+        reward = np.sum(0.75*(sinr-11) * self.ue_type + 0.25* (sinr - 3) * (1-self.ue_type))
 
         if np.sum(self.datapool) == 0:
             done = True

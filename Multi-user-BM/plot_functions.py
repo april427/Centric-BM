@@ -86,6 +86,7 @@ def plot_column_from_csv(file_path, column_name):
     plt.ylabel(column_name)
     plt.show()
 
-plot_column_from_csv('ppo_bm/PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_5.csv', 'reward')
+#plot_column_from_csv('ppo_bm/PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_5.csv', 'reward')
+
 # %%
 

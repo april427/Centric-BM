@@ -4,35 +4,18 @@
     "type": "split",
     "children": [
       {
-        "id": "ef87dcfa192c4b80",
+        "id": "b0c410603fed1b87",
         "type": "tabs",
         "children": [
           {
-            "id": "a01bcfdcebcb7c83",
+            "id": "ded8ccc3936a6cd9",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "08-01 report.md",
-                "mode": "source",
-                "source": false
-              }
-            }
-          },
-          {
-            "id": "7d81fde90e96c83a",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "08-15 report.md",
-                "mode": "source",
-                "source": false
-              }
+              "type": "empty",
+              "state": {}
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -98,7 +81,6 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "08-15 report.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -115,7 +97,6 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "08-15 report.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -137,9 +118,7 @@
             "type": "leaf",
             "state": {
               "type": "outline",
-              "state": {
-                "file": "08-15 report.md"
-              }
+              "state": {}
             }
           }
         ]
@@ -159,11 +138,11 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "7d81fde90e96c83a",
+  "active": "ded8ccc3936a6cd9",
   "lastOpenFiles": [
-    "07-25 report.md",
-    "08-15 report.md",
     "08-01 report.md",
+    "08-15 report.md",
+    "07-25 report.md",
     "08-08 report.md",
     "07-11 report.md"
   ]
