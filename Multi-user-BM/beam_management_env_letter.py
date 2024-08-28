@@ -69,7 +69,12 @@ class BeamManagementEnv(gym.Env):
         self.cross_pos = np.array([[27, 80], [30, 70]])
         self.road_matrix = road(self.cross_pos)
         self.single_lane_width = 5
-        self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+        self.user_positions = np.array([[24.,61.],[95.,30.]])
+        self.config = np.array([[2,2],[1,1]])
+        self.if_turned = np.array([False, False])
+        #self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+
+        self.diff_sensing_weight = np.zeros((3,self.N_UEs))
 
         self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex)  # received signal at the BS
 
@@ -116,14 +121,37 @@ class BeamManagementEnv(gym.Env):
         mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
-        # self.user_positions = np.array([[24.,61.],[95.,30.]])
-        # self.config = np.array([[2,2],[1,1]])
-        # self.if_turned = np.array([False, False])
-        self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex) 
+        ############ set limited options for initial positions ###########
+        dice = np.random.randint(0, 6)
+        if dice == 0:
+            self.user_positions = np.array([[24.,61.],[95.,30.]])
+            self.config = np.array([[2,2],[1,1]])
+            self.if_turned = np.array([False, False])
+        elif dice == 1:
+            self.user_positions = np.array([[31., 39.],[59., 72.]])
+            self.config = np.array([[3,3],[1,1]])
+            self.if_turned = np.array([False, True])
+        elif dice == 2:
+            self.user_positions = np.array([[23., 79.],[61., 29.]])
+            self.config = np.array([[3,3],[1,1]])
+            self.if_turned = np.array([False, False])
+        elif dice == 3:
+            self.user_positions = np.array([[14., 33.],[75., 34.]])
+            self.config = np.array([[4,2],[4,2]])
+            self.if_turned = np.array([False, False])
+        elif dice == 4:
+            self.user_positions = np.array([[30., 21.],[75., 74.]])
+            self.config = np.array([[2,2],[1,1]])
+            self.if_turned = np.array([False, False])
+        elif dice == 5:
+            self.user_positions = np.array([[35., 73.],[64., 33.]])
+            self.config = np.array([[4,2],[4,2]])
+            self.if_turned = np.array([False, False])
 
-        self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+        #self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
         self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
 
+        self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex) 
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
         xi = np.zeros((self.N_UEs,))
         s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples), dtype=complex) 
@@ -157,6 +185,11 @@ class BeamManagementEnv(gym.Env):
         self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
         self.echo_bf = np.abs(transmit_beam @ self.y_BS)**2
+
+        # change to db
+        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1)/10 )
+        self.memory = [echo_bf_db, echo_bf_db, echo_bf_db]     
+        self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1])))
 
         return self._get_state()
 
@@ -208,8 +241,8 @@ class BeamManagementEnv(gym.Env):
                 if self.previous_beam[i].size == 1: # CU in the previous step
                     self.current_beam[i,] = self.previous_beam[i]
                 else: # SU in the previous step
-                    index = (np.abs(np.conj(self.codebook[self.previous_beam[i],:]) @ self.y_BS)**2).sum(axis=1).argmax()
-                    self.current_beam[i,] = self.previous_beam[i][index]
+                    index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, aod[i]))))
+                    self.current_beam[i,] = index
             elif action[i] == 1:
                 self.ue_type[i] = 0
                 self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], 31)
@@ -257,6 +290,12 @@ class BeamManagementEnv(gym.Env):
             # beamforming output
             self.echo_bf[i,] = np.abs(np.conj(transmit_beam[i,:]) @ self.y_BS)**2
         
+        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1)/10 )
+        self.memory[0] = self.memory[1]
+        self.memory[1] = self.memory[2] 
+        self.memory[2] = echo_bf_db # current echo bf
+        self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1]))) 
+        
         # compute the rate at the user
         self.R, sinr = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
         # SU user does not have traffic
@@ -276,7 +315,10 @@ class BeamManagementEnv(gym.Env):
         #reward = np.sum(0.75 * np.mean(self.echo_bf, axis=1) * self.ue_type + 0.25* np.mean(self.echo_bf, axis=1) * (1-self.ue_type))
 
         # reward uses sinr and estimation error according to the objective function
-        reward = np.sum(0.75*(sinr-11) * self.ue_type + 0.25* (sinr - 3) * (1-self.ue_type))
+        #reward = np.sum(0.75*(sinr-11) * self.ue_type + 0.25* (sinr - 3) * (1-self.ue_type))
+
+        # reward consider the sensing importance
+        reward = np.sum(np.sqrt(np.mean(self.echo_bf,axis=1)) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * np.sqrt(np.mean(self.echo_bf,axis=1)) )
 
         if np.sum(self.datapool) == 0:
             done = True

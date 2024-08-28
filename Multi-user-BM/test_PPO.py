@@ -114,7 +114,7 @@ def test():
         writer.add_scalar("Test reward", reward, ep)
 
         log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
-        logf.flush()
+        log_f.flush()
 
         # clear buffer
         ppo_agent.buffer.clear()
@@ -127,27 +127,11 @@ def test():
     env.close()
 
     print("============================================================================================")
-    # print("Total lost traffic DL and UL: " + str(sum(info['lost_traffic'])))
-    # print("Total traffic DL and UL: " + str(sum(info['total_traffic'])))
-    # print("Total lost traffic DL and UL for 3 users:\n" + str(info['lost_traffic'] / info['total_traffic']))
-    # print("Average PER: " + str(np.mean(info['lost_traffic'] / info['total_traffic'])))
-    # print("Total Throughput: " + str(1 - sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
-    # print("(%) of failure types (Buffer, Beam, Blockage) over failed traffic: " + str(
-    #     info['failure_type'] / sum(info['failure_type'])))
-    # print("(%) of failure types (Buffer, Beam, Blockage) over total traffic: " + str(
-    #     info['failure_type'] / sum(sum(info['total_traffic']))))
-    # print("(%) of drops over the total traffic: " + str(sum(info['failure_type'] / sum(sum(info['total_traffic'])))))
-    # print("Lost packets by type: " + str(info['failure_type']))
     print("============================================================================================")
     throughput_cdf = np.sort(throughput)
     yvals = np.arange(len(throughput))/float(len(throughput)-1)
     plt.plot(throughput_cdf, yvals, '-')
 
-    # np.savetxt('results_beam_tracking/reward_episode_PPO_cttc', reward_episode)
-    # np.savetxt('results_beam_tracking/mean_packet_rate_episode_PPO_cttc', mean_packet_rate_episode)
-    # np.savetxt('results_beam_tracking/action_list_PPO_cttc', action_list)
-    # np.savetxt('results_beam_tracking/failure_type_PPO_cttc', info['failure_type'])
-    # np.savetxt('results_beam_tracking/th_PPO_cttc', th_episode)
 
 if __name__ == '__main__':
 

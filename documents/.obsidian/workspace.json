@@ -11,8 +11,12 @@
             "id": "ded8ccc3936a6cd9",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {}
+              "type": "markdown",
+              "state": {
+                "file": "08-29 report.md",
+                "mode": "source",
+                "source": false
+              }
             }
           }
         ]
@@ -81,6 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "08-29 report.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -97,6 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
+                "file": "08-29 report.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -118,7 +124,9 @@
             "type": "leaf",
             "state": {
               "type": "outline",
-              "state": {}
+              "state": {
+                "file": "08-29 report.md"
+              }
             }
           }
         ]
@@ -140,6 +148,8 @@
   },
   "active": "ded8ccc3936a6cd9",
   "lastOpenFiles": [
+    "AI Cloud command.md",
+    "image-15.png",
     "08-01 report.md",
     "08-15 report.md",
     "07-25 report.md",

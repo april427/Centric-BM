@@ -1,7 +1,54 @@
-
+### Aug 22 comments
+- Use SINR to calculate reward
+- Check the reward definition in ISAC literature  
 ---
-A BS optimizes the resource management in a multi-user communication network.
-The BS decides the user type, beams, and power level for all the users.
+<!--
+#### Results update
+Cleared one bug in the code.
+Packet throughput is defined as the percentage of successfully transmitted packets in one episode. 
+This is the non-RL algorithms. 
+<img src="image-9.png" width = "300">
+-->
+### Reward
+- In JSAC setup, if a user is both communication user and sensing user at the same time, the reward of a user is communication part subtracting the sensing part of all users. This aligns to Petar's early comment that the sensing part shares with communication resources at each step. 
+
+
+- In out setup, a user is either a communication user or a sensing user. Reward of a user at each step (TTI) depends on its type.  
+
+$$r = \sum_{u=1}^{U} \omega_c \lambda_u r_s + \omega_s  (1 - \lambda_u) r_c$$
+- The two weights are to balance the relative importance of communication and sensing functions.
+- The individual reward is linked to the corresponding beamforming output.
+
+$r_s$ encourages the BS to maximize the SNR to the intended user.
+$r_s = \boldsymbol{b}_u$ or $\boldsymbol{b}_u -th$ 
+
+$r_c$ should encourage the BS to send sensing beams to users that are useful to them, that is, it can reflect the importance of sensing.
+
+
+**Reward tempt**
+
+1. use sinr of users to calculate the reward
+$r = \sum_{u=1}^{U} 0.75* \lambda_u (sinr -15) + 0.25* (1-\lambda_u) (sinr-5)$
+
+/runs/PPO_BeamManagementEnv-v1_run_1
+Reward: the model converged
+<img src="image-11.png" width ="400">
+CDF of throughput:
+<img src="image-12.png" width ="400">
+However, the throughput is low compared to the non-RL methods.
+
+
+2. changed the value to which SINR is compared
+08-27 09:50
+$r = \sum_{u=1}^{U} 0.75* \lambda_u (sinr -11) + 0.25* (1-\lambda_u) (sinr-3)$
+
+<img src="image-13.png" width ="400">
+
+3. Changes: Users' initial positions are fixed to 6 options.
+08-27 17:40
+<img src="image-15.png" width ="400">
+
+
 
 
 ### PPO-based method
@@ -88,60 +135,3 @@ Every episode I initialized user postions randomly,
 
 
 
-#### Results update
-<img src="image-9.png" width = "300">
-
-### Reward
-- In JSAC setup, users are communication user and sensing user at the same time. The reward is communication part subtracting the sensing part of all users. This aligns to Petar's comment that the sensing part shares with communication resources at each step. 
-
-
-Reward at each step (TTI) is a weighted sum of two parts of respective users because of our system setting that users are either communication user or sensing user.  
-
-$r = \sum_{u=1}^{U} \omega_c \lambda_u r_s + \omega_s  (1 - \lambda_u) r_c$
-- The two weights are to balance the relative importance of communication and sensing functions.
-- The individual reward is linked to the corresponding beamforming output.
-
-$r_s$ encourages the BS to maximize the SNR to the intended user.
-$r_s = \boldsymbol{b}_u$ or $\boldsymbol{b}_u -th$ 
-
-$r_c$ should encourage the BS to send sensing beams to users that are useful to them, that is, it can reflect the importance of sensing.
-
-
-
-Throughput 
-![alt text](image-10.png)
-Extremely low compared to non-RL methods.
-
-- Reward tempt
-
-1. use sinr of users to calculate the reward
-$r = \sum_{u=1}^{U} 0.75* \lambda_u (sinr -15) + 0.25* (1-lambda_u) (sinr-5)$
-
-/runs/PPO_BeamManagementEnv-v1_run_1
-Reward:
-![alt text](image-11.png)
-Test
-![alt text](image-12.png)
-
-
-### AICloud log
-08-27 09:50
-``` # reward uses sinr and estimation error according to the objective function
-        reward = np.sum(0.75*(sinr-11) * self.ue_type + 0.25* (sinr - 3) * (1-self.ue_type))
-```
-
-
-### AICloud command
-```
-scp -r ppo_bm fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~
-ssh -l fq35hc@es.aau.dk ai-fe02.srv.aau.dk
-srun hostname
-srun --pty --gres=gpu:1 singularity shell --nv pytorch-24.07
-```
-After running, copy file from AIcloud to local
-```
-scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/runs .
-scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_preTrained .
-scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_logs .
-```
-(. means current directly in my local machine)

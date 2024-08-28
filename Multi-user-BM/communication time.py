@@ -16,7 +16,7 @@ episode_durations = []
 # variable initialization
 N_UEs = env.unwrapped.N_UEs
 TTI = env.unwrapped.num_steps 
-episode =  1000
+episode =  2000
 N = env.unwrapped.N_samples # number of samples
 number_of_antennas = env.unwrapped.number_of_antennas
 base_station_position = env.unwrapped.base_station_position
@@ -94,7 +94,32 @@ for nPt in range(np.size(Pt_mW)):
         reward = 0
 
         # initialize user positions in every episode
-        user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.road_matrix, env.cross_pos, N_UEs, env.single_lane_width)
+        #user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
+        dice = np.random.randint(0, 6)
+        if dice == 0:
+            user_positions[0,:,:] = np.array([[24.,61.],[95.,30.]])
+            config = np.array([[2,2],[1,1]])
+            if_turned = np.array([False, False])
+        elif dice == 1:
+            user_positions[0,:,:] = np.array([[31., 39.],[59., 72.]])
+            config = np.array([[3,3],[1,1]])
+            if_turned = np.array([False, True])
+        elif dice == 2:
+            user_positions[0,:,:] = np.array([[23., 79.],[61., 29.]])
+            config = np.array([[3,3],[1,1]])
+            if_turned = np.array([False, False])
+        elif dice == 3:
+            user_positions[0,:,:] = np.array([[14., 33.],[75., 34.]])
+            config = np.array([[4,2],[4,2]])
+            if_turned = np.array([False, False])
+        elif dice == 4:
+            user_positions[0,:,:] = np.array([[30., 21.],[75., 74.]])
+            config = np.array([[2,2],[1,1]])
+            if_turned = np.array([False, False])
+        elif dice == 5:
+            user_positions[0,:,:] = np.array([[35., 73.],[64., 33.]])
+            config = np.array([[4,2],[4,2]])
+            if_turned = np.array([False, False])
         
         for i in range(N_UEs):
             
@@ -240,8 +265,8 @@ for nPt in range(np.size(Pt_mW)):
         sinr_user.append(sinr)
         genie_sinr_user.append(genie_sinr)
 
-        SNR_user[nPt, l, :] = 10*np.log10(np.mean(Pt[u]* pathloss,axis=1) /noise_power)
-        SNR_echo[nPt, l, :] = 10*np.log10( np.mean((Pt[u]* number_of_antennas**2 * reflection_coefficient**2)) /(noise_power*number_of_antennas))
+        #SNR_user[nPt, l, :] = 10*np.log10(np.mean(Pt[u]* pathloss,axis=1) /noise_power)
+        #SNR_echo[nPt, l, :] = 10*np.log10( np.mean((Pt[u]* number_of_antennas**2 * reflection_coefficient**2)) /(noise_power*number_of_antennas))
 
     nmse[nPt, :, :] = np.mean((error)**2, axis = 2)
     var_aod[nPt, :,:] = np.mean(variance, axis = 2)
@@ -254,8 +279,6 @@ plt.plot(transmission_time_cdf, yvals, '--')
 plt.show()
 
 # %%
-import pickle
-
 figure_handle = plt.figure()
 ax = figure_handle.add_subplot()
 heu_transmitted_rate_cdf = np.sort(heu_transmitted_rate)
@@ -269,13 +292,38 @@ ax.legend(['Heuristic', 'Genie'])
 ax.set_ylabel('CDF')
 ax.set_xlabel('Packet throughput')
 
-file = open('figure/throughput_cdf.mpl', 'wb')
-pickle.dump(figure_handle, open('figure/throughput_cdf.mpl', 'wb'))
+#%%
+import pickle
+file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'wb')
+pickle.dump(figure_handle, file)
+
+# %%
+import pickle
+file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'rb')
+fig = pickle.load(file)
+fig
+ax = fig.gca()
+
+# %%
+import numpy as np
+file_path = "/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_1.csv"
+data = np.genfromtxt(file_path, delimiter=',', names=True)
+tot = data['total_packet_num']
+tp = data['transmitted_packets']
+th = tp/tot
+th_cdf = np.sort(th)
+yvals = np.arange(len(th))/float(len(th)-1)
+ax.plot(th_cdf, yvals, '-')
+ax.legend(['Heuristic', 'Genie', 'PPO'])
+figure_handle
+#%%
+file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'wb')
+pickle.dump(figure_handle, file)
 
 # %%
 # # plot beam pattern
 # plot_beam_pattern(y_BS, number_of_antennas)
-plot_road_trraffic(env.road_matrix, N_UEs, user_positions)
+plot_road_trraffic(env.unwrapped.road_matrix, N_UEs, user_positions)
 
 # plot_nmse_vs_snr(SNR_echo, nmse, var_aod)
 

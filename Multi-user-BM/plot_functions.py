@@ -89,4 +89,11 @@ def plot_column_from_csv(file_path, column_name):
 #plot_column_from_csv('ppo_bm/PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_5.csv', 'reward')
 
 # %%
-
+def plot_cdf_from_csv(file_path, column_name):
+    data = np.genfromtxt(file_path, delimiter=',', names=True)
+    column_data = data[column_name]
+    column_cdf = np.sort(column_data)
+    yvals = np.arange(len(column_data))/float(len(column_data)-1)
+    plt.plot(column_cdf, yvals, '-')
+    plt.ylabel('CDF')
+    plt.show()
