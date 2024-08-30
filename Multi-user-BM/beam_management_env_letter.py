@@ -93,8 +93,9 @@ class BeamManagementEnv(gym.Env):
             mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
             self.current_beam[i] = np.argmax(np.abs(self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
         
-        self.power_threshold = 2*np.arcsin(1.2/self.number_of_antennas)*1e9 # beamwidth*1e9 
-        self.R_threshold = 4
+        self.power_threshold = 5/(2*2*np.arcsin(1.2/self.number_of_antennas)**2)/(self.number_of_antennas)**4 # beamwidth*1e9 
+        self.R_threshold = 2**4 -1
+        self.rate_threshold = 4
     
 
     def reset(self, seed=None):
@@ -189,7 +190,7 @@ class BeamManagementEnv(gym.Env):
         # change to db
         echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1)/10 )
         self.memory = [echo_bf_db, echo_bf_db, echo_bf_db]     
-        self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1])))
+        self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1]))) 
 
         return self._get_state()
 
@@ -267,7 +268,7 @@ class BeamManagementEnv(gym.Env):
                 xi[i] = np.abs(transmit_beam[i,] @ self.mmWave_LoS_NLoS_channel[i])**2
             else:
                 transmit_beam[i,] = self.codebook[self.current_beam[i],:].sum(axis=0)
-                xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ transmit_beam[i,])**2
+                xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ (np.sqrt(1/3)*transmit_beam[i,]))**2
 
         # allocation power
         Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
@@ -302,23 +303,30 @@ class BeamManagementEnv(gym.Env):
         self.R = self.R * self.ue_type
 
         #update buffer
-        self.datapool = self.datapool - ((self.R - self.R_threshold*np.ones(self.N_UEs)) > 0)
+        self.datapool = self.datapool - ((self.R - self.rate_threshold*np.ones(self.N_UEs)) > 0)
         self.datapool[self.datapool < 0] = 0
 
         #reward for communication
-        #reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        #reward = np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
 
         #SU
-        #reward += np.sum(np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
+        #reward += np.sum(self.diff_sensing_weight * np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
 
         # reward uses beamforming output
         #reward = np.sum(0.75 * np.mean(self.echo_bf, axis=1) * self.ue_type + 0.25* np.mean(self.echo_bf, axis=1) * (1-self.ue_type))
 
         # reward uses sinr and estimation error according to the objective function
-        #reward = np.sum(0.75*(sinr-11) * self.ue_type + 0.25* (sinr - 3) * (1-self.ue_type))
+        #reward = np.sum(0.75*(sinr-12) * self.ue_type + 0.25* (sinr - 13) * (1-self.ue_type))
 
         # reward consider the sensing importance
-        reward = np.sum(np.sqrt(np.mean(self.echo_bf,axis=1)) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * np.sqrt(np.mean(self.echo_bf,axis=1)) )
+        #reward = np.sum((sinr-11) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * (sinr-3) )
+
+        # reward using hyperbolic tagent function, no penalization
+        sinr = 10**(sinr/10)
+        hyper_sinr_commu = hyperboic_func(sinr, 1, 15)
+        hyper_sinr_sensing = hyperboic_func(sinr, 1, 4)
+        reward = np.sum(hyper_sinr_commu * self.ue_type ) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * hyper_sinr_sensing)
+
 
         if np.sum(self.datapool) == 0:
             done = True

@@ -119,7 +119,7 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     # Compute the communication rate
     rate = np.log2(1 + np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
 
-    # Compute SINR
+    # Compute SINR in dB
     sinr = 10*np.log10(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
     aa = np.mean(sinr,axis=1) 
     aa[np.isinf(aa)] = -10
@@ -194,6 +194,17 @@ def base(b,n, N_UEs):
         convert_result = [0]*(N_UEs-len(convert_result)) + convert_result
     return convert_result
 
+def hyperboic_func(x, A, c):
+    '''
+    hyperbolic reward function
+    Args:
+        x (float): input value
+        A (float): scaling parameter how much it closes to c
+        c (float): location c 
+    '''
+    y = 1 - np.exp(- A * (x - c))
+    y[y<-20] = -20
+    return y
 # %%
 # #Constants
 # fc = 28e9  # carrier frequency (Hz)

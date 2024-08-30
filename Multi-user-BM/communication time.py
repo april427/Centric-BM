@@ -16,7 +16,7 @@ episode_durations = []
 # variable initialization
 N_UEs = env.unwrapped.N_UEs
 TTI = env.unwrapped.num_steps 
-episode =  2000
+episode =  500
 N = env.unwrapped.N_samples # number of samples
 number_of_antennas = env.unwrapped.number_of_antennas
 base_station_position = env.unwrapped.base_station_position
@@ -57,7 +57,8 @@ N_fft = 1024
 
 # For power allocation
 xi = np.zeros(N_UEs)
-threshold = [1e-5, 2**4 -1] # [SU, CU] threshold
+#threshold = [1e-5, 2**4 -1] # [SU, CU] threshold
+threshold = [ 5/(2*beamwidth**2)/(number_of_antennas)**4 , 2**4-1]
 ue_type = np.zeros(N_UEs)
 if_dynamic = True # dynamic power allocation
 genie_transmitted_rate = np.zeros(episode)
@@ -147,7 +148,7 @@ for nPt in range(np.size(Pt_mW)):
 
             for u in range(N_UEs):
                 # update user position
-                user_positions[n+1, u,:], config[u,:], if_turned[u] = update_positions(user_positions[n,u,:], env.cross_pos, sample_velocity(), env.dt, env.single_lane_width, config[u,:], if_turned[u]) 
+                user_positions[n+1, u,:], config[u,:], if_turned[u] = update_positions(user_positions[n,u,:], env.cross_pos, sample_velocity(), env.unwrapped.dt, env.unwrapped.single_lane_width, config[u,:], if_turned[u]) 
 
                 # update distance
                 d[u] = np.linalg.norm(base_station_position - user_positions[n+1,u])
@@ -293,6 +294,7 @@ ax.set_ylabel('CDF')
 ax.set_xlabel('Packet throughput')
 
 #%%
+###############################################################
 import pickle
 file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'wb')
 pickle.dump(figure_handle, file)

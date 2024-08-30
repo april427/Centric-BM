@@ -22,7 +22,7 @@ def train():
     has_continuous_action_space = False  # continuous action space; else discrete
 
     max_ep_len = 100  # max timesteps in one episode (TTIs in a frame)
-    max_training_timesteps = int(3e6)  # break training loop if timeteps > max_training_timesteps
+    max_training_timesteps = int(1e6)  # break training loop if timeteps > max_training_timesteps
 
     print_freq = max_ep_len * 10  # print avg reward in the interval (in num timesteps)
     log_freq = max_ep_len * 2  # log avg reward in the interval (in num timesteps)
@@ -220,7 +220,7 @@ def train():
                 print_avg_reward = print_running_reward / print_running_episodes
                 print_avg_reward = round(print_avg_reward, 2)
 
-                print("Episode : {} \t\t Timestep : {} \t\t Average Reward : {}".format(i_episode, time_step, print_avg_reward))
+                print("Episode : {} \t Timestep : {} \t Average Reward : {} \t Throughput: {}".format(i_episode, time_step, print_avg_reward, round((total_packets - np.sum(env.unwrapped.datapool))/total_packets,2) ))
 
                 print_running_reward = 0
                 print_running_episodes = 0
