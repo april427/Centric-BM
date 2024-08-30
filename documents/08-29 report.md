@@ -10,45 +10,59 @@ This is the non-RL algorithms.
 <img src="image-9.png" width = "300">
 -->
 ### Reward
-- In JSAC setup, if a user is both communication user and sensing user at the same time, the reward of a user is communication part subtracting the sensing part of all users. This aligns to Petar's early comment that the sensing part shares with communication resources at each step. 
+* In JSAC setup, if a user is both communication user and sensing user at the same time, the reward of a user is communication part subtracting the sensing part of all users. Or according to the objective function, the reward is the objective subtracting the constraints.
 
 
-- In out setup, a user is either a communication user or a sensing user. Reward of a user at each step (TTI) depends on its type.  
+* In out setup, a user is either a communication user or a sensing user. Reward of a user at each step (TTI) depends on its type.  
 
 $$r = \sum_{u=1}^{U} \omega_c \lambda_u r_s + \omega_s  (1 - \lambda_u) r_c$$
-- The two weights are to balance the relative importance of communication and sensing functions.
-- The individual reward is linked to the corresponding beamforming output.
+
+The two weights are to balance the relative importance of communication and sensing functions.
+The individual reward is linked to the corresponding beamforming output $\boldsymbol{b}_u$ or users' SINR.
 
 $r_s$ encourages the BS to maximize the SNR to the intended user.
-$r_s = \boldsymbol{b}_u$ or $\boldsymbol{b}_u -th$ 
 
-$r_c$ should encourage the BS to send sensing beams to users that are useful to them, that is, it can reflect the importance of sensing.
+$r_c$ should encourage the BS to send sensing beams to users that are useful to them, that is, it can reflect the importance of sensing
 
 
-**Reward tempt**
+
+**Reward attempt**
 
 1. use sinr of users to calculate the reward
 $r = \sum_{u=1}^{U} 0.75* \lambda_u (sinr -15) + 0.25* (1-\lambda_u) (sinr-5)$
 
-/runs/PPO_BeamManagementEnv-v1_run_1
+<!-- /runs/PPO_BeamManagementEnv-v1_run_1 -->
 Reward: the model converged
 <img src="image-11.png" width ="400">
-CDF of throughput:
+CDF of throughput: 
+*Throughput is defined as the percentage of successfully transmitted packets among the generated total packets in one episode.*
 <img src="image-12.png" width ="400">
 However, the throughput is low compared to the non-RL methods.
 
 
-2. changed the value to which SINR is compared
-08-27 09:50
+2. Changes: the value to which SINR is compared
+<!-- 08-27 09:50 /Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_0.pth --> 
 $r = \sum_{u=1}^{U} 0.75* \lambda_u (sinr -11) + 0.25* (1-\lambda_u) (sinr-3)$
 
 <img src="image-13.png" width ="400">
 
+*Heuristic:* The BS estimates the AoDs from echos, and assign user type and beams according to the estimates. 
+*Genie:* The BS knows the CSI of each user.
+
 3. Changes: Users' initial positions are fixed to 6 options.
-08-27 17:40
-<img src="image-15.png" width ="400">
+<!-- 08-27 17:40 /Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_1.pth-->
+<img src="image-16.png" width ="350">
+<img src="image-15.png" width ="350">
 
 
+4. Changes: introduce a weight for sensing using historical information
+Take the history information into consideration
+$\boldsymbol{b}_{u,n-2} - \boldsymbol{b}_{u,n-1}$ shows the variation of the reflected signal power, which also shows the importance of sensing.
+When it is high, sensing has a higher weight. Set the sensing weight $\omega_s= \text{sigmoid}(\boldsymbol{b}_{u,n-2} - \boldsymbol{b}_{u,n-1})$
+$r = \sum_{u=1}^{U} \lambda_u \sqrt{\boldsymbol{b}_u} + \omega_s (1-\lambda_u) \sqrt{\boldsymbol{b}_u}$
+ $r = \sum_{u=1}^{U} \lambda_u (sinr -12) + \omega_s (1-\lambda_u) (sinr-6)$
+
+However, the throughput is less than 50%.
 
 
 ### PPO-based method
@@ -126,12 +140,10 @@ I didn't take the sensing part into consider tation.
 Every episode I initialized user postions randomly, 
 
 ### KPI 
-- Lost packets: at the end of the frame, the un-transmitted packets
-   ```
-         datapool.sum()
-   ```
+- Throughput: at the end of the frame, the percentage of transmitted packets
 
-- Averaged packet waiting time to be transmitted: the number of TTIs that is assigned as sensing before its transmission
+
+- Lentency: Averaged packet waiting time to be transmitted: the number of TTIs that is assigned as sensing before its transmission
 
 
 

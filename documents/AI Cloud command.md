@@ -7,8 +7,16 @@ srun --pty --gres=gpu:1 singularity shell --nv pytorch-24.07
 ```
 After running, copy file from AIcloud to local
 ```
-scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/runs .
-scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_preTrained .
+#copy Tensorboard event#
+
+scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/runs/PPO_BeamManagementEnv-v1_run_1 .
+
+
+#copy preTrained model#
+
+scp fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_?.pth .
+
+# copy data in csv -- Not necessary
 scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_logs .
 ```
 (. means current directly in my local machine)
