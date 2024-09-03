@@ -62,7 +62,7 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 1     #### set this to load a particular checkpoint num
+    run_num_pretrained = 6     #### set this to load a particular checkpoint num
 
     ############# write the test data into Tensorboard and csv #######
     writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")

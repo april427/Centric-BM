@@ -74,6 +74,8 @@ def plot_nmse_vs_snr(SNR_echo, nmse, var_aod):
     plt.show()
 
 # %%
+import numpy as np
+import matplotlib.pyplot as plt
 def plot_column_from_csv(file_path, column_name):
     data = np.genfromtxt(file_path, delimiter=',', names=True)
     column_data = data[column_name]
@@ -86,14 +88,21 @@ def plot_column_from_csv(file_path, column_name):
     plt.ylabel(column_name)
     plt.show()
 
-#plot_column_from_csv('ppo_bm/PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_5.csv', 'reward')
+# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
 
 # %%
-def plot_cdf_from_csv(file_path, column_name):
+import numpy as np
+import matplotlib.pyplot as plt
+def plot_cdf_from_csv(file_path, column_name1, column_name2):
     data = np.genfromtxt(file_path, delimiter=',', names=True)
-    column_data = data[column_name]
-    column_cdf = np.sort(column_data)
-    yvals = np.arange(len(column_data))/float(len(column_data)-1)
-    plt.plot(column_cdf, yvals, '-')
+    tot = data[column_name1]
+    tp = data[column_name2]
+    th = tp/tot
+    th_cdf = np.sort(th)
+    yvals = np.arange(len(th))/float(len(th)-1)
+    plt.plot(th_cdf, yvals, '-')
     plt.ylabel('CDF')
     plt.show()
+
+#plot_cdf_from_csv('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_10.csv', 'total_packet_num', 'transmitted_packets')
+# %%

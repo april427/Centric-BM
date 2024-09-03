@@ -194,7 +194,9 @@ def base(b,n, N_UEs):
         convert_result = [0]*(N_UEs-len(convert_result)) + convert_result
     return convert_result
 
-def hyperboic_func(x, A, c):
+# %%
+
+def hyperbolic_func(x, A, c):
     '''
     hyperbolic reward function
     Args:
@@ -202,33 +204,22 @@ def hyperboic_func(x, A, c):
         A (float): scaling parameter how much it closes to c
         c (float): location c 
     '''
-    y = 1 - np.exp(- A * (x - c))
-    y[y<-20] = -20
+    y=np.zeros(np.size(x))
+    y[x>=c] = 1 - np.exp(- A * (x[x>=c] - c))
+    y[x<c] = np.exp(A * (x[x<c] - c)) -1
+    y[x>=c+5] = np.exp(-(x[x>=c+5] -c-5 )) 
     return y
+
+
 # %%
-# #Constants
-# fc = 28e9  # carrier frequency (Hz)
-# c = 3e8  # speed of light (m/s)
-# lambda_ = c / fc  # wavelength (m)
-# M = 32  # number of antennas at the BS
-# Pt = 10 #mW
-# # BS and UE positions
-# BS_pos = np.array([25, 25, 60])  # BS at origin with height 10 meters
-# UE_pos = np.array([68, 93, 1.7])  # UE at (50, 50, 1.5) meters
-# d = np.linalg.norm(BS_pos-UE_pos)
 
-# AoD = compute_AoD_at_BS(BS_pos, UE_pos)
-# a_BS = compute_ULA_response(M, AoD)
-# mmWave_LOS_channel = compute_mmWave_LoS_NLoS_channel(M, a_BS, d)
-# mono_LoS_channel = compute_mono_static_channel(M, AoD, 0.5)
-# codebook = dft_codebook(M, M)
-
-# y = np.sqrt(Pt)*mmWave_LOS_channel @ codebook
-# print(np.argmax(np.abs(y), axis=1))
-# print(compute_power_given_beam(Pt, mmWave_LOS_channel, codebook[:, np.argmax(np.abs(y), axis=1)]))
-# print("--------------------------------------------------------------------------------------------")
-# for i in range(len(codebook)):
-#     print("Beam: " + str(compute_power_given_beam(Pt, mmWave_LOS_channel, codebook[:, i])))
-#     print("Ratio: " + str(compute_power_given_beam(Pt, mmWave_LOS_channel, codebook[:, i])/compute_power_given_beam(Pt, mmWave_LOS_channel, codebook[:, np.argmax(np.abs(y), axis=1)]))) 
-
+# import numpy as np
+# import matplotlib.pyplot as plt
+# x = np.linspace(0, 30, 1000)
+# y = np.log2(1+15)*hyperbolic_func(x, 1, 15)
+# fig, ax = plt.subplots()
+# ax.plot(x, y)
+# ax.grid(True, which='both')
+# ax.axhline(y=0, color='k')
+# ax.axvline(x=0, color='k')
 # %%
