@@ -62,17 +62,18 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 7     #### set this to load a particular checkpoint num
+    run_num_pretrained = 14     #### set this to load a particular checkpoint num
 
     ############# write the test data into Tensorboard and csv #######
     writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")
 
-    log_dir = "PPO_logs" + '/' + env_name + '/'
+    log_dir = "saved_policy/PPO_logs" + '/'
     log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
     log_f = open(log_f_name, "w+")
     log_f.write('episode,reward, total_packet_num, transmitted_packets\n')
 
-    directory = "PPO_preTrained" + '/' + env_name + '/'
+    directory = "saved_policy/PPO_preTrained" + '/' 
+    #+ env_name + '/'
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
     # checkpoint_path = directory + 'PPO_BeamManagementEnv-v1_WINNER.pth'
     print("loading network from : " + checkpoint_path)

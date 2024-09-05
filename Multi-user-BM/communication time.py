@@ -336,7 +336,7 @@ ax = fig.gca()
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
-file_path = "/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_7.csv"
+file_path = "/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_14.csv"
 data = np.genfromtxt(file_path, delimiter=',', names=True)
 tot = data['total_packet_num']
 tp = data['transmitted_packets']
@@ -344,7 +344,7 @@ th = tp/tot
 th_cdf = np.sort(th)
 yvals = np.arange(len(th))/float(len(th)-1)
 ax.plot(th_cdf, yvals, '-')
-ax.legend(['Heuristic', 'Genie', 'PPO'])
+ax.legend(['Heuristic', 'Genie', 'PPO,case4', 'PPO,case5'])
 
 dummy = plt.figure()
 new_manager = dummy.canvas.manager
