@@ -79,7 +79,7 @@ import matplotlib.pyplot as plt
 def plot_column_from_csv(file_path, column_name):
     data = np.genfromtxt(file_path, delimiter=',', names=True)
     column_data = data[column_name]
-    window_size = 100
+    window_size = 200
     moving_avg = np.convolve(column_data, np.ones(window_size)/window_size, mode='valid')
     plt.plot(moving_avg)
     plt.show()
@@ -88,7 +88,7 @@ def plot_column_from_csv(file_path, column_name):
     plt.ylabel(column_name)
     plt.show()
 
-# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
+#plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_7.csv', 'reward')
 
 # %%
 import numpy as np
@@ -104,5 +104,5 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
     plt.ylabel('CDF')
     plt.show()
 
-#plot_cdf_from_csv('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_10.csv', 'total_packet_num', 'transmitted_packets')
+#plot_cdf_from_csv('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_7.csv', 'total_packet_num', 'transmitted_packets')
 # %%

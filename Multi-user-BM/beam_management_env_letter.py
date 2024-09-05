@@ -291,7 +291,7 @@ class BeamManagementEnv(gym.Env):
             # beamforming output
             self.echo_bf[i,] = np.abs(np.conj(transmit_beam[i,:]) @ self.y_BS)**2
         
-        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1)/10 )
+        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1) )
         self.memory[0] = self.memory[1]
         self.memory[1] = self.memory[2] 
         self.memory[2] = echo_bf_db # current echo bf
@@ -313,7 +313,7 @@ class BeamManagementEnv(gym.Env):
         #reward += np.sum(self.diff_sensing_weight * np.sum(self.echo_bf, axis = 1) * (1-self.ue_type) > self.power_threshold)
 
         # reward uses beamforming output
-        #reward = np.sum(0.75 * np.mean(self.echo_bf, axis=1) * self.ue_type + 0.25* np.mean(self.echo_bf, axis=1) * (1-self.ue_type))
+        #reward = np.sum(0.75 * (sinr -12) * self.ue_type + 0.25* (echo_bf_db - 20) * (1-self.ue_type))
 
         # reward uses sinr and estimation error according to the objective function
         #reward = np.sum(0.75*(sinr-12) * self.ue_type + 0.25* (sinr - 13) * (1-self.ue_type))
@@ -322,10 +322,14 @@ class BeamManagementEnv(gym.Env):
         #reward = np.sum((sinr-11) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * (sinr-3) )
 
         # reward using hyperbolic tagent function, no penalization
-        sinr = 10**(sinr/10)
-        hyper_sinr_commu = hyperboic_func(sinr, 1, 15)
-        hyper_sinr_sensing = hyperboic_func(sinr, 1, 4)
-        reward = np.sum(hyper_sinr_commu * self.ue_type ) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * hyper_sinr_sensing)
+        #sinr = 10**(sinr/10)
+        # hyper_sinr_commu = hyperbolic_func(sinr,  0.03, 0.4, 12) #snr in dB
+        hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 16)
+        # reward = 0.75*np.sum(hyper_sinr_commu * self.ue_type ) + 0.25*np.sum((1-self.ue_type) * hyper_sinr_sensing)
+
+        # reward considers transmitted packets and echo_bf
+        reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        reward += np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
 
         if np.sum(self.datapool) == 0:

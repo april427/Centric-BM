@@ -62,7 +62,7 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 6     #### set this to load a particular checkpoint num
+    run_num_pretrained = 7     #### set this to load a particular checkpoint num
 
     ############# write the test data into Tensorboard and csv #######
     writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")
@@ -120,7 +120,7 @@ def test():
         ppo_agent.buffer.clear()
 
         test_running_reward +=  ep_reward
-        print('Episode: {} \t\t Reward: {}'.format(ep, round(ep_reward, 2)))
+        print('Episode: {} \t Reward: {} \t Throughput: {}'.format(ep, round(ep_reward, 2), round(throughput[ep-1], 2)))
         ep_reward = 0
 
     log_f.close()

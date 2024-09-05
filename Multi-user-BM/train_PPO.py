@@ -165,6 +165,7 @@ def train():
     # printing and logging variables
     print_running_reward = 0
     print_running_episodes = 0
+    print_running_thp = 0
 
     log_running_reward = 0
     log_running_episodes = 0
@@ -219,11 +220,13 @@ def train():
                 # print average reward till last episode
                 print_avg_reward = print_running_reward / print_running_episodes
                 print_avg_reward = round(print_avg_reward, 2)
+                print_avg_thp = round(print_running_thp/print_running_episodes , 2)
 
-                print("Episode : {} \t Timestep : {} \t Average Reward : {} \t Throughput: {}".format(i_episode, time_step, print_avg_reward, round((total_packets - np.sum(env.unwrapped.datapool))/total_packets,2) ))
+                print("Episode : {} \t Timestep : {} \t Average Reward : {} \t Throughput: {}".format(i_episode, time_step, print_avg_reward, print_avg_thp ))
 
                 print_running_reward = 0
                 print_running_episodes = 0
+                print_running_thp = 0
 
             # save model weights
             if time_step % save_model_freq == 0:
@@ -245,6 +248,7 @@ def train():
 
         print_running_reward += current_ep_reward
         print_running_episodes += 1
+        print_running_thp += (total_packets - np.sum(env.unwrapped.datapool))/total_packets
 
         log_running_reward += current_ep_reward
         log_running_episodes += 1

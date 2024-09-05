@@ -122,7 +122,7 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     # Compute SINR in dB
     sinr = 10*np.log10(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
     aa = np.mean(sinr,axis=1) 
-    aa[np.isinf(aa)] = -10
+    #aa[np.isinf(aa)] = -10
 
     rate = np.mean(rate, axis=1)
     return rate, aa
@@ -196,7 +196,7 @@ def base(b,n, N_UEs):
 
 # %%
 
-def hyperbolic_func(x, A, c):
+def hyperbolic_func(x, A1, A2, c):
     '''
     hyperbolic reward function
     Args:
@@ -205,9 +205,13 @@ def hyperbolic_func(x, A, c):
         c (float): location c 
     '''
     y=np.zeros(np.size(x))
-    y[x>=c] = 1 - np.exp(- A * (x[x>=c] - c))
-    y[x<c] = np.exp(A * (x[x<c] - c)) -1
-    y[x>=c+5] = np.exp(-(x[x>=c+5] -c-5 )) 
+    y[x>=c] = (1 - np.exp(- A1 * (x[x>=c] - c)))
+    y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
+    # y[x>=c+20] = np.exp(-A1*(x[x>=c+20] - c - 20 )) 
+    
+    # y[x>=c] = (2 - np.exp(A1 * (x[x>=c] - c)))
+    # y[x<c] = 0 
+    # y[y<0] = 0
     return y
 
 
@@ -215,8 +219,8 @@ def hyperbolic_func(x, A, c):
 
 # import numpy as np
 # import matplotlib.pyplot as plt
-# x = np.linspace(0, 30, 1000)
-# y = np.log2(1+15)*hyperbolic_func(x, 1, 15)
+# x = np.linspace(0, 40, 1000)
+# y = hyperbolic_func(x, 1, 0.4, 15)
 # fig, ax = plt.subplots()
 # ax.plot(x, y)
 # ax.grid(True, which='both')
