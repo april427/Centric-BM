@@ -6,9 +6,9 @@ PPO_logs/
 PPO_preTrained/
 runs/
 
-# .DS_Store
-# .DS_Store?
-# **/.DS_Store
+.DS_Store
+.DS_Store?
+**/.DS_Store
 
 
-#.obsidian/
+.obsidian/
