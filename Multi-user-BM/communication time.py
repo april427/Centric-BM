@@ -17,7 +17,7 @@ episode_durations = []
 N_UEs = env.unwrapped.N_UEs
 TTI = env.unwrapped.num_steps 
 episode =  100
-N = env.unwrapped.N_samples # number of samples
+N_samples = env.unwrapped.N_samples # number of samples
 number_of_antennas = env.unwrapped.number_of_antennas
 base_station_position = env.unwrapped.base_station_position
 codebook = env.unwrapped.codebook
@@ -35,9 +35,9 @@ Pt_mW[0] = env.unwrapped.Pt_mW # 20 dBm in mW, SNR of 1 user = 33 dB
 
 # fixed map is imported from env_letter
 
-y_user = np.zeros((N_UEs, N), dtype = complex) 
-y_BS = np.zeros((number_of_antennas, N), dtype = complex) 
-waveform = hadamard(N)
+y_user = np.zeros((N_UEs, N_samples), dtype = complex) 
+y_BS = np.zeros((number_of_antennas, N_samples), dtype = complex) 
+waveform = hadamard(N_samples)
 waveform[[0, -1],:] = waveform[[-1,0],:]
 
 nitta = np.zeros((number_of_antennas), dtype = complex) # temperal variable for AoD estimation
@@ -49,7 +49,7 @@ var_aod = np.zeros((np.size(Pt_mW), episode, N_UEs))
 echo_bf = np.zeros((episode, TTI, N_UEs))
 echo_bf_genie = np.zeros((episode, TTI, N_UEs))
 
-genie_y_user = np.zeros((N_UEs, N))+ 1j
+genie_y_user = np.zeros((N_UEs, N_samples))+ 1j
 rx_snr = np.zeros((TTI, N_UEs))
 SNR_user = np.zeros((np.size(Pt_mW), episode, N_UEs))
 SNR_echo = np.zeros((np.size(Pt_mW), episode, N_UEs))
@@ -140,12 +140,12 @@ for nPt in range(np.size(Pt_mW)):
 
         # Moving users calculate the number of TTIs
         for n in range(TTI):
-            s_BS = np.zeros(( N_UEs, number_of_antennas, N), dtype = complex)
+            s_BS = np.zeros(( N_UEs, number_of_antennas, N_samples), dtype = complex)
             mono_LoS_channel = np.zeros((number_of_antennas, number_of_antennas), dtype=complex)
             mmWave_LoS_NLoS_channel = np.zeros((N_UEs, number_of_antennas), dtype=complex) 
-            genie_s_BS = np.zeros((N_UEs, number_of_antennas, N), dtype = complex)
-            genie_user_signal = np.zeros((N_UEs, N), dtype = complex)
-            user_signal = np.zeros((N_UEs, N), dtype = complex)
+            genie_s_BS = np.zeros((N_UEs, number_of_antennas, N_samples), dtype = complex)
+            genie_user_signal = np.zeros((N_UEs, N_samples), dtype = complex)
+            user_signal = np.zeros((N_UEs, N_samples), dtype = complex)
             Pt = Pt_mW[nPt] / N_UEs * np.ones(N_UEs) 
             transmit_beam = np.zeros((N_UEs, number_of_antennas), dtype = complex)
             genie_transmit_beam = np.zeros((N_UEs, number_of_antennas), dtype = complex)
@@ -184,7 +184,7 @@ for nPt in range(np.size(Pt_mW)):
                     ue_type[u] = 1
                 else:
                     transmit_beam[u,] = codebook[current_beam[n,u],:].sum(axis=0)
-                    xi[u] = reflection_coefficient**2 * N * np.abs(a_BS[u] @ transmit_beam[u,])**2 # for power allocation
+                    xi[u] = reflection_coefficient**2 * N_samples * np.abs(a_BS[u] @ transmit_beam[u,])**2 # for power allocation
                     ue_type[u] = 0
                 
                 s_BS[u,:,:] = np.outer(transmit_beam[u,], waveform[u, :])
@@ -208,7 +208,7 @@ for nPt in range(np.size(Pt_mW)):
             genie_y_user = mmWave_LoS_NLoS_channel @ np.sum(genie_s_BS, axis=0)
 
             # genie-aided rate
-            genie_rate[:,n], genie_sinr[:,n] = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N) 
+            genie_rate[:,n], genie_sinr[:,n] = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N_samples) 
 
             if genie_transmitted < total_num_packets:
                 genie_transmitted += np.sum(((genie_rate[:,n] >= 4)  ))
@@ -217,20 +217,20 @@ for nPt in range(np.size(Pt_mW)):
                 genie_ue_type = np.array([0,0])
 
             # calculate communication rate of each user
-            rate[:,n], sinr[:,n] = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N)
+            rate[:,n], sinr[:,n] = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N_samples)
             
             datapool -= ((rate[:,n] >= 4) * ue_type )
             datapool[datapool < 0] = 0
             if np.sum(datapool) == 0:
                 break   
             
-            genie_y_BS = mono_LoS_channel @ np.sum(genie_s_BS,axis=0) + ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N)))
+            genie_y_BS = mono_LoS_channel @ np.sum(genie_s_BS,axis=0) + ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)))
 
             # received echos at BS
-            y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0)  +  ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N)))
+            y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0)  +  ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)))
             
             # Estimate AoDs from the echo
-            aod = estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas)
+            aod = estimate_AoD_from_echo(y_BS, waveform, N_UEs, N_samples, N_fft, number_of_antennas)
             # estimation error
             error[l,:,n] = np.abs(aod - AoD)
             user_count_sensing[n] += np.sum((error[l,:,n] <= beamwidth) * (1-ue_type))
@@ -244,7 +244,7 @@ for nPt in range(np.size(Pt_mW)):
                 # CLRB
                 derivative_a_BS = np.array([np.exp(-1j * np.pi * i * np.cos(AoD[u]))*(1j * np.pi * i * np.sin(AoD[u])) for i in range(number_of_antennas)])
 
-                variance[l,u,n] = 1/2/ N/ abs(np.sqrt(Pt[u])* reflection_coefficient * number_of_antennas * np.dot(a_BS[u], transmit_beam[u,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
+                variance[l,u,n] = 1/2/ N_samples/ abs(np.sqrt(Pt[u])* reflection_coefficient * number_of_antennas * np.dot(a_BS[u], transmit_beam[u,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, a_BS[u]))**2 )
 
 
                 # map the estimated aod to the closest beam in the codebook
@@ -290,21 +290,23 @@ for nPt in range(np.size(Pt_mW)):
 
 #echo_bf_db = 10*np.log10(np.mean(echo_bf, axis = 0) )
 # %%
-variable = np.zeros([episode,N_UEs*TTI])
+
+fig_sinr,ax_sinr = plt.subplots()
 inx = 0
-for item in genie_sinr_user:
+variable = np.zeros([episode,N_UEs*TTI])
+for item in sinr_user:
     variable[inx,:] = item.flatten()
     inx+=1
 variable = variable.flatten()
 variable = variable[variable != -np.inf]
 variable_cdf = np.sort(variable)
 yvals = np.arange(len(variable))/float(len(variable)-1)
-plt.plot(variable_cdf, yvals, '--')
-plt.show()
+ax_sinr.plot(variable_cdf, yvals, '--')
+#fig_sinr.show()
 
-hist, bins = np.histogram(variable, bins=15)
-bin_centers = (bins[1:]+bins[:-1])*0.5
-plt.plot(bin_centers, hist)
+# hist, bins = np.histogram(variable, bins=15)
+# bin_centers = (bins[1:]+bins[:-1])*0.5
+# plt.plot(bin_centers, hist)
 
 # %%
 figure_handle = plt.figure()

@@ -115,14 +115,14 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     # Generate complex Gaussian noise
     noise = (np.random.normal(0, np.sqrt(noise_power/2), size = (N_UEs, N)) + 1j* np.random.normal(0, np.sqrt(noise_power/2), size = (N_UEs, N)))
     
-    interference = noiseless_output - signal
+    interference = 0#noiseless_output - signal
     # Compute the communication rate
     rate = np.log2(1 + np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
 
     # Compute SINR in dB
     sinr = 10*np.log10(np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
     aa = np.mean(sinr,axis=1) 
-    #aa[np.isinf(aa)] = -10
+    aa[np.isinf(aa)] = -20
 
     rate = np.mean(rate, axis=1)
     return rate, aa
@@ -171,12 +171,14 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
     
     Pt = Pt * (datapool != 0)
 
-    if np.sum(Pt) - Pt_mW < 0:
+    if np.sum(Pt) - Pt_mW < 0: # more power is available
 
         Pt = Pt + (Pt_mW - np.sum(Pt))*(datapool != 0) / (np.count_nonzero(datapool)) # equal allocation of the remaining power
     else:
         while np.sum(Pt) - Pt_mW > 0 :
-            Pt[sorted_user[counter]] = 0
+            Pt[sorted_user[counter]] -= (np.sum(Pt) - Pt_mW)
+            if Pt[sorted_user[counter]] < 0:
+                Pt[sorted_user[counter]] = 0 
             if counter == -N_UEs:
                 Pt[sorted_user[counter]] = Pt_mW
                 return Pt
@@ -206,8 +208,10 @@ def hyperbolic_func(x, A1, A2, c):
     '''
     y=np.zeros(np.size(x))
     y[x>=c] = (1 - np.exp(- A1 * (x[x>=c] - c)))
-    y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
-    # y[x>=c+20] = np.exp(-A1*(x[x>=c+20] - c - 20 )) 
+    y[x<c] = -1
+    #y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
+    b = 12
+    y[x>=c+b] = np.exp(-A2*(x[x>=c+b] - c - b )) 
     
     # y[x>=c] = (2 - np.exp(A1 * (x[x>=c] - c)))
     # y[x<c] = 0 
@@ -220,9 +224,18 @@ def hyperbolic_func(x, A1, A2, c):
 # import numpy as np
 # import matplotlib.pyplot as plt
 # x = np.linspace(0, 40, 1000)
-# y = hyperbolic_func(x, 1, 0.4, 15)
+# A1 = 0.8
+# A2 = 0.2
+# c= 10
+# b = 12
+# y = hyperbolic_func(x, A1, A2, c)
+# textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),
+#     r'$y = (1 - exp(- %.1f( x - %.1f)), x >= %.1f$' % (A1, c, c),
+#     r'$y = -1, x < %.1f$' % (c)))
 # fig, ax = plt.subplots()
 # ax.plot(x, y)
+# props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+# ax.text(16, -0.4, textstr)
 # ax.grid(True, which='both')
 # ax.axhline(y=0, color='k')
 # ax.axvline(x=0, color='k')

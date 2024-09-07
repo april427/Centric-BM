@@ -81,14 +81,13 @@ def plot_column_from_csv(file_path, column_name):
     column_data = data[column_name]
     window_size = 500
     moving_avg = np.convolve(column_data, np.ones(window_size)/window_size, mode='valid')
-    plt.plot(moving_avg)
-    plt.show()
-    plt.plot(column_data)
-    plt.xlabel('Index')
-    plt.ylabel(column_name)
-    plt.show()
+    fig, ax = plt.subplots()
+    ax.plot(moving_avg)
+    ax.set(xlabel='Episode', ylabel='Averaged Reward',  xticklabels=(['','0','2k','4k','6k','8k','10k']))
 
-#plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_15.csv', 'reward')
+
+# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BM_09071035_log_12.csv', 'reward')
+#plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_16.csv', 'reward')
 
 # %%
 import numpy as np

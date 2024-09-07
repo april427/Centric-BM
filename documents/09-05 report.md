@@ -74,3 +74,52 @@ Left figure : histogram of SINR[dB]. Right figure: histogram of beamforming outp
 Left figure: y-axis is CRLB, x-asix is steps
 Right figure: y-axis is beamforming output $\boldsymbol{b}_u$
 When $\boldsymbol{b}_u >= 2\cdot 10^2$, CLRB is in an acceptable range.
+
+## Comments:
+##### CDF of SINR
+![alt text](image-33.png)
+
+##### No sensing in the reward
+- Linear function of SINR[dB]
+Time-09061345
+saved_policy/PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_16.pth
+'''reward = np.sum((sinr-13) * self.ue_type )'''
+
+> Suspect: this will only yield the throughput to be 50%. Maybe the agent will push all the resource to one user and transmit all of its packets. 
+
+<img src = "image-35.png" width = 300>  <img src = "image-39.png" width = 300> 
+
+---
+
+<img src ="image-34.png" width = 300> 
+
+- Without a penalization at high SINR
+saved_policy/PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_17.pth
+
+
+<img src ="image-38.png" width = 300>  <img src="image-37.png" width = 300>
+
+##### Lower the value
+
+### TODO
+- MSE as a function of time
+
+- XI for sensing is wrong, such that the power allocation for users is wrong
+
+I simply cannot use SINR to calculate the reward. SINR depends on power allocation and the beam selection. 
+
+
+
+> Important Change: Calculating SNR instead of SINR of each user.
+> TODO: To check the performance of non-RL methods.
+
+- reward is the hyperbolic function of SNR. 
+/PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_12.pth
+
+<img src ="image-40.png" width = 300>   <img src ="image-41.png" width = 300> 
+ hyper_sinr_commu = hyperbolic_func(sinr,  1, 0.4, 10) #snr in dB
+reward = np.sum(hyper_sinr_commu * self.ue_type )
+
+
+- add a penalization at high SNR
+![alt text](image-42.png)

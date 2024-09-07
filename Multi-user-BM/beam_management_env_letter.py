@@ -24,7 +24,7 @@ class BeamManagementEnv(gym.Env):
         self.num_steps = 100 # number of steps per episode
         self.config = np.zeros((self.N_UEs,))
         self.action_space = spaces.Discrete(5**self.N_UEs) #spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
-        self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs * self.N_samples,))
+        self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs *2,))
         self.waveform = hadamard(self.N_samples)
         self.waveform[[0,-1],:] = self.waveform[[-1,0],:]
 
@@ -63,7 +63,7 @@ class BeamManagementEnv(gym.Env):
         self.R = np.zeros((self.N_UEs,)) # user communication rate
         self.ue_type = np.zeros((self.N_UEs,)) # user type (SU or PU)
         
-        self.echo_bf = np.zeros((self.N_UEs, self.N_samples)) # beamforming output of echo signal at the BS
+        self.echo_bf = np.zeros((self.N_UEs, )) # beamforming output of echo signal at the BS
         
         # define the road traffic scenario
         self.cross_pos = np.array([[27, 80], [30, 70]])
@@ -93,7 +93,7 @@ class BeamManagementEnv(gym.Env):
             mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
             self.current_beam[i] = np.argmax(np.abs(self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
         
-        self.power_threshold = 5/(2*2*np.arcsin(1.2/self.number_of_antennas)**2)/(self.number_of_antennas)**4 # beamwidth*1e9 
+        self.power_threshold = 5/(8 * np.arcsin(1.2/self.number_of_antennas)**2)/(self.number_of_antennas)**4 # beamwidth*1e9 
         self.R_threshold = 2**4 -1
         self.rate_threshold = 4
     
@@ -185,10 +185,10 @@ class BeamManagementEnv(gym.Env):
 
         self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
-        self.echo_bf = np.abs(transmit_beam @ self.y_BS)**2
+        self.echo_bf = np.mean(np.abs(transmit_beam @ self.y_BS)**2, axis = 1)
 
         # change to db
-        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1)/10 )
+        echo_bf_db = 10*np.log10(self.echo_bf/10 )
         self.memory = [echo_bf_db, echo_bf_db, echo_bf_db]     
         self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1]))) 
 
@@ -267,8 +267,8 @@ class BeamManagementEnv(gym.Env):
                 transmit_beam[i,] = self.codebook[self.current_beam[i],:]
                 xi[i] = np.abs(transmit_beam[i,] @ self.mmWave_LoS_NLoS_channel[i])**2
             else:
-                transmit_beam[i,] = self.codebook[self.current_beam[i],:].sum(axis=0)
-                xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ (np.sqrt(1/3)*transmit_beam[i,]))**2
+                transmit_beam[i,] = np.sqrt(1/3)*self.codebook[self.current_beam[i],:].sum(axis=0)
+                xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ (transmit_beam[i,]))**2
 
         # allocation power
         Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
@@ -287,11 +287,10 @@ class BeamManagementEnv(gym.Env):
         self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
         # compute the beamforming output at the BS
-        for i in range(self.N_UEs):
-            # beamforming output
-            self.echo_bf[i,] = np.abs(np.conj(transmit_beam[i,:]) @ self.y_BS)**2
+        # beamforming output
+        self.echo_bf = np.mean(np.abs(np.conj(transmit_beam) @ self.y_BS)**2, axis = 1)
         
-        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis=1) )
+        echo_bf_db = 10*np.log10(self.echo_bf) 
         self.memory[0] = self.memory[1]
         self.memory[1] = self.memory[2] 
         self.memory[2] = echo_bf_db # current echo bf
@@ -316,20 +315,19 @@ class BeamManagementEnv(gym.Env):
         #reward = np.sum(0.75 * (sinr -12) * self.ue_type + 0.25* (echo_bf_db - 20) * (1-self.ue_type))
 
         # reward uses sinr and estimation error according to the objective function
-        #reward = np.sum(0.75*(sinr-12) * self.ue_type + 0.25* (sinr - 13) * (1-self.ue_type))
+        #reward = np.sum((sinr-13) * self.ue_type + 0* (sinr - 13) * (1-self.ue_type))
 
         # reward consider the sensing importance
         #reward = np.sum((sinr-11) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * (sinr-3) )
 
         # reward using hyperbolic tagent function, no penalization
-        #sinr = 10**(sinr/10)
-        # hyper_sinr_commu = hyperbolic_func(sinr,  0.03, 0.4, 12) #snr in dB
-        hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 16)
-        # reward = 0.75*np.sum(hyper_sinr_commu * self.ue_type ) + 0.25*np.sum((1-self.ue_type) * hyper_sinr_sensing)
+        hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
+        # hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 16)
+        reward = np.sum(hyper_sinr_commu * self.ue_type ) #+ 0 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
         # reward considers transmitted packets and echo_bf
-        reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
-        reward += np.sum((1-self.ue_type) * hyper_sinr_sensing)
+        # reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        # reward += np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
 
         if np.sum(self.datapool) == 0:
@@ -344,6 +342,6 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (self.echo_bf.flatten())
+        return (np.concatenate((self.echo_bf, self.diff_sensing_weight)))
 
 register(id='BeamManagementEnv-v1', entry_point=BeamManagementEnv)
