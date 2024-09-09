@@ -337,7 +337,8 @@ class BeamManagementEnv(gym.Env):
                                                  'bs_position': self.base_station_position.copy(),
                                                  'current_beam': self.current_beam.copy(),
                                                  'buffer': self.datapool.copy(),
-                                                 'num_sensing_slots': self.counter_sensing_slots.copy()
+                                                 'num_sensing_slots': self.counter_sensing_slots.copy(),
+                                                 'sinr': sinr.copy(),
                                                  }
 
 
