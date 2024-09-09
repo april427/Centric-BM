@@ -87,7 +87,7 @@ def plot_column_from_csv(file_path, column_name):
 
 
 # plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BM_09071035_log_12.csv', 'reward')
-#plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_16.csv', 'reward')
+# plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_18.csv', 'reward')
 
 # %%
 import numpy as np
@@ -104,4 +104,63 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
     plt.show()
 
 #plot_cdf_from_csv('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_7.csv', 'total_packet_num', 'transmitted_packets')
+# %%
+
+#%%
+########################communication time plots##########################
+# import pickle
+# file = open('figure/throughput_cdf_rl_hyper1.mpl', 'wb')
+# pickle.dump(figure_handle, file)
+
+# # %%
+# import pickle
+# file = open('figure/throughput_cdf_rl_hyper1.mpl', 'rb')
+# fig = pickle.load(file)
+# ax = fig.gca()
+
+
+# # %%
+# import numpy as np
+# import matplotlib.pyplot as plt
+# file_path = "/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_14.csv"
+# data = np.genfromtxt(file_path, delimiter=',', names=True)
+# tot = data['total_packet_num']
+# tp = data['transmitted_packets']
+# th = tp/tot
+# th_cdf = np.sort(th)
+# yvals = np.arange(len(th))/float(len(th)-1)
+# ax.plot(th_cdf, yvals, '-')
+# ax.legend(['Heuristic', 'Genie', 'PPO,case4', 'PPO,case5'])
+
+# dummy = plt.figure()
+# new_manager = dummy.canvas.manager
+# new_manager.canvas.figure = fig
+# fig.set_canvas(new_manager.canvas)
+# #%%
+# # file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'wb')
+# # pickle.dump(figure_handle, file)
+
+
+# %%
+# import numpy as np
+# import matplotlib.pyplot as plt
+# fig, ax = plt.subplots()
+# for N in [1,3,6,9,10]:
+#     th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
+#     th_cdf = np.sort(th)
+#     yvals = np.arange(len(th))/float(len(th)-1)
+#     ax.plot(th_cdf, yvals, '-')
+
+# th = np.loadtxt('results_bm/Thp_genie')
+# th_cdf = np.sort(th)
+# yvals = np.arange(len(th))/float(len(th)-1)
+# ax.plot(th_cdf, yvals, '-')
+# th = np.loadtxt('results_bm/Thp_heuristic')
+# th_cdf = np.sort(th)
+# yvals = np.arange(len(th))/float(len(th)-1)
+# ax.plot(th_cdf, yvals, '-')
+# ax.legend(['1-TDMA','3-TDMA','6-TDMA','9-TDMA', '10-TDMA', 'Genie', 'Heuristic'])
+
+# ax.set_ylabel('CDF')
+# ax.set_xlabel('Packet throughput')
 # %%
