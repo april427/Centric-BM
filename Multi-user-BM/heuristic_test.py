@@ -168,10 +168,10 @@ for nPt in range(np.size(Pt_mW)):
             genie_y_user = mmWave_LoS_NLoS_channel @ np.sum(genie_s_BS, axis=0)
 
             # genie-aided rate
-            genie_rate[:,n], genie_sinr[:,n] = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N) 
+            genie_rate[:,n], genie_sinr[:,n], _ = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N) 
 
             # calculate communication rate of each user
-            rate[:,n], sinr[:,n] = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N)
+            rate[:,n], sinr[:,n], _ = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N)
             rate[:,n] = rate[:,n] * ue_type
             
             user_count_commun[n] += np.sum((rate[:,n] >= 4) * ue_type )  

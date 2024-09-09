@@ -46,7 +46,7 @@ class BeamManagementEnv(gym.Env):
             (self.N_UEs, ))  # number of packets of each UE in the buffer
         self.previous_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.previous_power = np.zeros((5, self.N_UEs))
-        self.counter_sensing_slots = np.zeros((self.N_UEs, )).astype(int) #Counter for sensing slots
+        self.counter_sensing_slots = np.zeros((self.N_UEs), dtype=int) #Counter for sensing slots
         self.failure_type = np.zeros(3)
         self.done = False  # flag indicating whether the episode is over
         self.base_station_position = np.array([50, 50])  # BS position
@@ -109,7 +109,7 @@ class BeamManagementEnv(gym.Env):
             (self.N_UEs, 1))  # current downlink traffic 
         self.total_traffic_episode = np.zeros((self.N_UEs, 1))  # total downlink traffic per episode
         self.lost_traffic_episode = np.zeros((self.N_UEs, 1))  # traffic lost per episode
-        self.counter_sensing_slots = np.zeros((self.N_UEs, 1))  # counter for sensing slots   
+        self.counter_sensing_slots = np.zeros((self.N_UEs), dtype=int)  # counter for sensing slots   
         self.previous_beam = np.empty([self.N_UEs,], dtype=object)  # previsou beam direction
         self.previous_traffic = np.zeros(
             (5, self.N_UEs, 1))  # current downlink and uplink traffic 
@@ -278,7 +278,7 @@ class BeamManagementEnv(gym.Env):
             s_BS[i,] = np.sqrt(Pt[i]/self.current_beam[i].size) * np.outer(transmit_beam[i,], self.waveform[i])
 
             # user targeted signal
-            user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,:,:] 
+            user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,] 
  
         # compute the user received signal, noiseless
         y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
@@ -297,7 +297,7 @@ class BeamManagementEnv(gym.Env):
         self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1]))) 
         
         # compute the rate at the user
-        self.R, sinr = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
+        self.R, sinr, interference_db = compute_communication_rate(y_user, user_signal, self.noise_power, self.N_UEs, self.N_samples)
         # SU user does not have traffic
         self.R = self.R * self.ue_type
 
@@ -315,15 +315,15 @@ class BeamManagementEnv(gym.Env):
         #reward = np.sum(0.75 * (sinr -12) * self.ue_type + 0.25* (echo_bf_db - 20) * (1-self.ue_type))
 
         # reward uses sinr and estimation error according to the objective function
-        #reward = np.sum((sinr-13) * self.ue_type + 0* (sinr - 13) * (1-self.ue_type))
+        reward = 3*np.sum((sinr-8) * self.ue_type ) - 0.1*np.sum(interference_db-35)
 
         # reward consider the sensing importance
         #reward = np.sum((sinr-11) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * (sinr-3) )
 
         # reward using hyperbolic tagent function, no penalization
-        hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
+        #hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
         # hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 16)
-        reward = np.sum(hyper_sinr_commu * self.ue_type ) #+ 0 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
+        #reward = np.sum(hyper_sinr_commu * self.ue_type ) #+ 0 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
         # reward considers transmitted packets and echo_bf
         # reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)

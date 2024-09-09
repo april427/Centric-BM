@@ -86,8 +86,8 @@ def plot_column_from_csv(file_path, column_name):
     ax.set(xlabel='Episode', ylabel='Averaged Reward',  xticklabels=(['','0','2k','4k','6k','8k','10k']))
 
 
-# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BM_09071035_log_12.csv', 'reward')
-# plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_18.csv', 'reward')
+#plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
+#plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
 
 # %%
 import numpy as np
@@ -99,11 +99,15 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
     th = tp/tot
     th_cdf = np.sort(th)
     yvals = np.arange(len(th))/float(len(th)-1)
-    plt.plot(th_cdf, yvals, '-')
-    plt.ylabel('CDF')
-    plt.show()
+    ax = plt.plot(th_cdf, yvals, '-')
+    return ax
 
-#plot_cdf_from_csv('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_logs/BeamManagementEnv-v1/TEST_PPO_BeamManagementEnv-v1_log_7.csv', 'total_packet_num', 'transmitted_packets')
+# fig,ax = plt.subplots()
+# for N in [0,14,15,16,17,18,12,13]:
+#     ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_'+str(N)+'.csv', 'total_packet_num', 'transmitted_packets')
+
+# fig.legend(['PPO, case2','PPO, case5.2','PPO, case6','PPO, case7', 'PPO, case8', 'PPO, case9', 'PPO, case10', 'PPO, case11'])
+# ax.set(xlabel='Throughput', ylabel='CDF')
 # %%
 
 #%%
@@ -140,7 +144,19 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
 # # file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'wb')
 # # pickle.dump(figure_handle, file)
 
-
+# %%
+fig,ax = plt.subplots()
+for N in [1,6]:
+    th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
+    th_cdf = np.sort(th)
+    yvals = np.arange(len(th))/float(len(th)-1)
+    ax.plot(th_cdf, yvals, '-')
+th = np.loadtxt('results_bm/Thp_heuristic')
+th_cdf = np.sort(th)
+yvals = np.arange(len(th))/float(len(th)-1)
+ax.plot(th_cdf, yvals, '-')
+ax.legend(['1-TDMA', '6-TDMA', 'Heuristic'])
+ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_11.csv', 'total_packet_num', 'transmitted_packets')
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt

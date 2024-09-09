@@ -115,7 +115,7 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     # Generate complex Gaussian noise
     noise = (np.random.normal(0, np.sqrt(noise_power/2), size = (N_UEs, N)) + 1j* np.random.normal(0, np.sqrt(noise_power/2), size = (N_UEs, N)))
     
-    interference = 0#noiseless_output - signal
+    interference = noiseless_output - signal
     # Compute the communication rate
     rate = np.log2(1 + np.abs(signal)**2 / ( np.abs(interference)**2 + np.abs(noise) ** 2 ))
 
@@ -124,8 +124,11 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     aa = np.mean(sinr,axis=1) 
     aa[np.isinf(aa)] = -20
 
+    interference_db = np.mean(10*np.log10(np.abs(interference)**2),axis = 1)    
+    interference_db[np.isnan(interference_db)] = 50
+    interference_db[np.isinf(interference_db)] = 50
     rate = np.mean(rate, axis=1)
-    return rate, aa
+    return rate, aa, interference_db
 
 def estimate_AoD_from_echo(y_BS, waveform, N_UEs, N, N_fft, number_of_antennas):
     """
@@ -186,7 +189,7 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
     
     return Pt
 
-# ausiliary functions
+# ausiliary functions: convert decimal to base b
 def base(b,n, N_UEs):
     size = math.ceil(math.log(max(1,n),b))
     convert_result = [place

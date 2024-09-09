@@ -73,8 +73,7 @@ for nPt in range(np.size(Pt_mW)):
     genie_rate_all_episodes = []
     sinr_user = []
     genie_sinr_user = []
-    SU_count = []
-    CU_count = []
+    user_count_sensing = np.zeros(episode)
     error = np.zeros((episode, N_UEs, TTI)) # AoD estimation error
     variance = np.zeros((episode, N_UEs, TTI)) # variance of AoD estimation error
     transmission_time = np.zeros(episode)
@@ -89,8 +88,6 @@ for nPt in range(np.size(Pt_mW)):
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
         genie_beam = np.empty([TTI, N_UEs,], dtype=object)
         user_positions = np.zeros((TTI+1, N_UEs, 2))
-        user_count_sensing = np.zeros(TTI)
-        user_count_commun = np.zeros(TTI)
 
         config = np.empty([N_UEs, 2], dtype = int)
         datapool = np.random.binomial(n=TTI, p=0.6, size=N_UEs).astype(float)
@@ -102,8 +99,8 @@ for nPt in range(np.size(Pt_mW)):
         #user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
         dice = np.random.randint(0, 6)
         if dice == 0:
-            user_positions[0,:,:] = np.array([[24.,61.],[95.,30.]])
-            config = np.array([[2,2],[1,1]])
+            user_positions[0,:,:] = np.array([[27., 65.],[79., 42.]])
+            config = np.array([[4,2],[4,2]])
             if_turned = np.array([False, False])
         elif dice == 1:
             user_positions[0,:,:] = np.array([[31., 39.],[59., 72.]])
@@ -186,6 +183,7 @@ for nPt in range(np.size(Pt_mW)):
                     transmit_beam[u,] = codebook[current_beam[n,u],:].sum(axis=0)
                     xi[u] = reflection_coefficient**2 * N_samples * np.abs(a_BS[u] @ transmit_beam[u,])**2 # for power allocation
                     ue_type[u] = 0
+                    user_count_sensing[l] += 1
                 
                 s_BS[u,:,:] = np.outer(transmit_beam[u,], waveform[u, :])
 
@@ -194,7 +192,7 @@ for nPt in range(np.size(Pt_mW)):
                 Pt = dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapool)
             
             for u in range(N_UEs):
-                genie_s_BS[u,] = np.sqrt(Pt[u]/np.size(current_beam[n,u])) * genie_s_BS[u,]
+                genie_s_BS[u,] = np.sqrt(Pt[u]) * genie_s_BS[u,]
 
                 # target signal for user
                 genie_user_signal[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS[u]
@@ -208,7 +206,7 @@ for nPt in range(np.size(Pt_mW)):
             genie_y_user = mmWave_LoS_NLoS_channel @ np.sum(genie_s_BS, axis=0)
 
             # genie-aided rate
-            genie_rate[:,n], genie_sinr[:,n] = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N_samples) 
+            genie_rate[:,n], genie_sinr[:,n], interference_db = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N_samples) 
 
             if genie_transmitted < total_num_packets:
                 genie_transmitted += np.sum(((genie_rate[:,n] >= 4)  ))
@@ -217,7 +215,7 @@ for nPt in range(np.size(Pt_mW)):
                 genie_ue_type = np.array([0,0])
 
             # calculate communication rate of each user
-            rate[:,n], sinr[:,n] = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N_samples)
+            rate[:,n], sinr[:,n], interference_db = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N_samples)
             
             datapool -= ((rate[:,n] >= 4) * ue_type )
             datapool[datapool < 0] = 0
@@ -233,7 +231,6 @@ for nPt in range(np.size(Pt_mW)):
             aod = estimate_AoD_from_echo(y_BS, waveform, N_UEs, N_samples, N_fft, number_of_antennas)
             # estimation error
             error[l,:,n] = np.abs(aod - AoD)
-            user_count_sensing[n] += np.sum((error[l,:,n] <= beamwidth) * (1-ue_type))
 
             echo_bf[l,n,:] = np.mean(np.abs(np.conj(transmit_beam) @ y_BS)**2, axis = 1)
 
@@ -281,7 +278,7 @@ for nPt in range(np.size(Pt_mW)):
         sinr_user.append(sinr)
         genie_sinr_user.append(genie_sinr)
 
-
+        user_count_sensing[l] = user_count_sensing[l] / (n+1) 
         #SNR_user[nPt, l, :] = 10*np.log10(np.mean(Pt[u]* pathloss,axis=1) /noise_power)
         #SNR_echo[nPt, l, :] = 10*np.log10( np.mean((Pt[u]* number_of_antennas**2 * reflection_coefficient**2)) /(noise_power*number_of_antennas))
 
@@ -290,11 +287,13 @@ for nPt in range(np.size(Pt_mW)):
 
 #echo_bf_db = 10*np.log10(np.mean(echo_bf, axis = 0) )
 # %%
+print(dice)
+print(genie_beam)
 
 fig_sinr,ax_sinr = plt.subplots()
 inx = 0
 variable = np.zeros([episode,N_UEs*TTI])
-for item in sinr_user:
+for item in genie_sinr_user:
     variable[inx,:] = item.flatten()
     inx+=1
 variable = variable.flatten()
@@ -322,52 +321,18 @@ ax.legend(['Heuristic', 'Genie'])
 ax.set_ylabel('CDF')
 ax.set_xlabel('Packet throughput')
 
-#%%
-###############################################################
-import pickle
-file = open('figure/throughput_cdf_rl_hyper1.mpl', 'wb')
-pickle.dump(figure_handle, file)
+# # %%
+# # # plot beam pattern
+# # plot_beam_pattern(y_BS, number_of_antennas)
+# plot_road_trraffic(env.unwrapped.road_matrix, N_UEs, user_positions)
 
-# %%
-import pickle
-file = open('figure/throughput_cdf_rl_hyper1.mpl', 'rb')
-fig = pickle.load(file)
-ax = fig.gca()
+# # plot_nmse_vs_snr(SNR_echo, nmse, var_aod)
 
+# np.savetxt('results_bm/Thp_heuristic', heu_transmitted_rate)
+# np.savetxt('results_bm/Thp_genie', genie_transmitted_rate)
 
-# %%
-import numpy as np
-import matplotlib.pyplot as plt
-file_path = "/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_14.csv"
-data = np.genfromtxt(file_path, delimiter=',', names=True)
-tot = data['total_packet_num']
-tp = data['transmitted_packets']
-th = tp/tot
-th_cdf = np.sort(th)
-yvals = np.arange(len(th))/float(len(th)-1)
-ax.plot(th_cdf, yvals, '-')
-ax.legend(['Heuristic', 'Genie', 'PPO,case4', 'PPO,case5'])
-
-dummy = plt.figure()
-new_manager = dummy.canvas.manager
-new_manager.canvas.figure = fig
-fig.set_canvas(new_manager.canvas)
-#%%
-# file = open('figure/throughput_cdf_rl_6initial_posi.mpl', 'wb')
-# pickle.dump(figure_handle, file)
-
-# %%
-# # plot beam pattern
-# plot_beam_pattern(y_BS, number_of_antennas)
-plot_road_trraffic(env.unwrapped.road_matrix, N_UEs, user_positions)
-
-# plot_nmse_vs_snr(SNR_echo, nmse, var_aod)
-
-
-
-# %%
-moving_avg = np.convolve(reward_episode, np.ones(10)/10, mode='valid')
-plt.plot(moving_avg)
-plt.plot(reward_episode)
-plt.show()
-# %%
+# # %%
+# moving_avg = np.convolve(reward_episode, np.ones(10)/10, mode='valid')
+# plt.plot(moving_avg)
+# plt.plot(reward_episode)
+# plt.show()
