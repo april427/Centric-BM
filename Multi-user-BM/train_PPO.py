@@ -7,7 +7,6 @@ import numpy as np
 import gymnasium as gym
 from beam_management_env_letter import BeamManagementEnv
 
-from torch.utils.tensorboard import SummaryWriter
 
 from PPO import PPO
 
@@ -102,8 +101,6 @@ def train():
     print("save checkpoint path : " + checkpoint_path)
     #####################################################
 
-    ##################### TB writer #####################
-    writer = SummaryWriter(f"runs/{'PPO_' + env_name}_run_{run_num}")
     #####################################################
 
 
@@ -241,10 +238,6 @@ def train():
             if done:
                 break
         
-
-        writer.add_scalar("Transmit packets", total_packets - np.sum(env.unwrapped.datapool), i_episode)
-        writer.add_scalar("Average sensing slots", np.sum(env.unwrapped.counter_sensing_slots)/(total_packets-np.sum(env.unwrapped.datapool)), i_episode)
-        writer.add_scalar("Episode reward", current_ep_reward, i_episode)
 
         print_running_reward += current_ep_reward
         print_running_episodes += 1

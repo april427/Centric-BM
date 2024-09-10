@@ -47,7 +47,7 @@ action_list = []
 num_steps = 100
 action = 0
 counter = 0
-N=9
+N=6
 list_actions = N_TDMA(N, env.unwrapped.N_UEs)
 sum_reward = []
 th_episode = []
@@ -96,7 +96,7 @@ yvals = np.arange(len(tdma_thp_cdf))/float(len(tdma_thp_cdf)-1)
 ax.plot(tdma_thp_cdf, yvals, '-')
 ax.set_xlabel('Throughput')
 ax.set_ylabel('CDF')
-ax.legend([{'%d-TDMA', N}])
+ax.legend(['{}-TDMA'.format(N)])
 
 # print("Total lost traffic DL and UL: " + str(sum(info['lost_traffic'])))
 # print("Total traffic DL and UL: " + str(sum(info['total_traffic'])))

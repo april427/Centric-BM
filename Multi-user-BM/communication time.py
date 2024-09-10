@@ -61,7 +61,7 @@ N_fft = 1024
 xi = np.zeros(N_UEs)
 #threshold = [1e-5, 2**4 -1] # [SU, CU] threshold
 threshold = [ 5/(2*beamwidth**2)/(number_of_antennas)**4 , 2**4-1]
-ue_type = np.zeros(N_UEs)
+ue_type = np.zeros(N_UEs, dtype = int)
 if_dynamic = True # dynamic power allocation
 genie_transmitted_rate = np.zeros(episode)
 heu_transmitted_rate = np.zeros(episode)
@@ -287,13 +287,13 @@ for nPt in range(np.size(Pt_mW)):
 
 #echo_bf_db = 10*np.log10(np.mean(echo_bf, axis = 0) )
 # %%
-print(dice)
-print(genie_beam)
+# print(dice)
+# print(genie_beam)
 
 fig_sinr,ax_sinr = plt.subplots()
 inx = 0
 variable = np.zeros([episode,N_UEs*TTI])
-for item in genie_sinr_user:
+for item in sinr_user:
     variable[inx,:] = item.flatten()
     inx+=1
 variable = variable.flatten()
@@ -301,6 +301,9 @@ variable = variable[variable != -np.inf]
 variable_cdf = np.sort(variable)
 yvals = np.arange(len(variable))/float(len(variable)-1)
 ax_sinr.plot(variable_cdf, yvals, '--')
+ax_sinr.grid(True, which='both')
+ax_sinr.xlabel('SINR')
+ax_sinr.legend(['heuristic','genie'])
 #fig_sinr.show()
 
 # hist, bins = np.histogram(variable, bins=15)
@@ -336,3 +339,4 @@ ax.set_xlabel('Packet throughput')
 # plt.plot(moving_avg)
 # plt.plot(reward_episode)
 # plt.show()
+# %%

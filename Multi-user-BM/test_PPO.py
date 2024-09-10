@@ -11,7 +11,6 @@ from beam_management_env_letter import BeamManagementEnv
 # import roboschool
 
 from PPO import PPO
-from torch.utils.tensorboard import SummaryWriter
 
 import matplotlib.pyplot as plt
 
@@ -62,18 +61,16 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 11     #### set this to load a particular checkpoint num
+    run_num_pretrained = 17     #### set this to load a particular checkpoint num
 
-    ############# write the test data into Tensorboard and csv #######
-    writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")
-
-    log_dir = "saved_policy/PPO_logs" + '/'
-    log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
-    log_f = open(log_f_name, "w+")
-    log_f.write('episode,reward, total_packet_num, transmitted_packets, mse_ue0, mse_ue1, sinr_ue0, sinr_ue1\n')
+    ############# write the test data into csv #######
+    # log_dir = "saved_policy/PPO_logs" + '/'
+    # log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
+    # log_f = open(log_f_name, "w+")
+    # log_f.write('episode,reward, total_packet_num, transmitted_packets\n')
 
     directory = "saved_policy/PPO_preTrained" + '/' 
-    #directory = "PPO_preTrained" + '/' + env_name + '/'
+    # #directory = "PPO_preTrained" + '/' + env_name + '/'
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
     # checkpoint_path = directory + 'PPO_BeamManagementEnv-v1_WINNER.pth'
     print("loading network from : " + checkpoint_path)
@@ -118,11 +115,9 @@ def test():
                 print("all transmitted")
 
         throughput[ep-1] = (total_num_packet-np.sum(env.datapool))/total_num_packet
-        writer.add_scalar("Packet transmission rate", throughput[ep-1], ep)
-        writer.add_scalar("Test reward", reward, ep)
 
-        log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
-        log_f.flush()
+        # log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
+        # log_f.flush()
 
         test_running_reward +=  ep_reward
         print('Episode: {} \t Reward: {} \t Throughput: {}'.format(ep, round(ep_reward, 2), round(throughput[ep-1], 2)))
@@ -140,7 +135,7 @@ def test():
     mse = square_error.reshape(-1, square_error.shape[-1])
     sinr_avg = sinr.reshape(-1, sinr.shape[-1])
 
-    log_f.close()
+    #log_f.close()
     env.close()
 
     print("============================================================================================")
