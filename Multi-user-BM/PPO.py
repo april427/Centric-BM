@@ -104,19 +104,6 @@ class ActorCritic(nn.Module):
                 nn.Tanh(),
                 nn.Linear(64, 1)
             )
-        else:
-            self.network = nn.Sequential(
-                Transpose((0, 3, 1, 2)),
-                layer_init(nn.Conv2d(27, 16, kernel_size=3, stride=2)),
-                nn.ReLU(),
-                layer_init(nn.Conv2d(16, 32, kernel_size=2)),
-                nn.ReLU(),
-                nn.Flatten(),
-                layer_init(nn.Linear(32 * 3 * 3, 128)),
-                nn.ReLU(),
-            )
-            self.actor = layer_init(nn.Linear(128, action_dim), std=0.01)
-            self.critic = layer_init(nn.Linear(128, 1), std=1)
 
     def set_action_std(self, new_action_std):
         if self.has_continuous_action_space:

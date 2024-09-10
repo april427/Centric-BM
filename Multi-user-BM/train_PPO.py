@@ -34,7 +34,7 @@ def train():
     action_std_decay_freq = int(2.5e5)  # action_std decay frequency (in num timesteps)
     #####################################################
 
-    ## Note : print/log frequencies should be > than max_ep_len
+    #
 
     ################ PPO hyperparameters ################
     update_timestep = max_ep_len * 4  # update policy every n timesteps

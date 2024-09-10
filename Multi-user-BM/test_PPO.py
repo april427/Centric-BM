@@ -62,7 +62,7 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 12     #### set this to load a particular checkpoint num
+    run_num_pretrained = 11     #### set this to load a particular checkpoint num
 
     ############# write the test data into Tensorboard and csv #######
     writer = SummaryWriter(f"runs/{'TEST_' + env_name}_{run_num_pretrained}")
@@ -70,10 +70,10 @@ def test():
     log_dir = "saved_policy/PPO_logs" + '/'
     log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
     log_f = open(log_f_name, "w+")
-    log_f.write('episode,reward, total_packet_num, transmitted_packets\n')
+    log_f.write('episode,reward, total_packet_num, transmitted_packets, mse_ue0, mse_ue1, sinr_ue0, sinr_ue1\n')
 
-    #directory = "saved_policy/PPO_preTrained" + '/' 
-    directory = "PPO_preTrained" + '/' + env_name + '/'
+    directory = "saved_policy/PPO_preTrained" + '/' 
+    #directory = "PPO_preTrained" + '/' + env_name + '/'
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
     # checkpoint_path = directory + 'PPO_BeamManagementEnv-v1_WINNER.pth'
     print("loading network from : " + checkpoint_path)
@@ -84,15 +84,20 @@ def test():
 
     test_running_reward = 0
     transmitted_packet_rate = []
-    th_episode = []
+    sensing_slots_ratio = []
     reward_episode = []
     action_list = []
+    square_error = np.zeros((6,total_test_episodes,max_ep_len, env.unwrapped.N_UEs))
+    sinr = np.zeros((6,total_test_episodes,max_ep_len, env.unwrapped.N_UEs))
 
     for ep in range(1, total_test_episodes+1):
         ep_reward = 0
         state = env.reset()
         total_num_packet = np.sum(env.datapool)
         reward_list = []
+        square_error_ep = np.zeros((max_ep_len, env.unwrapped.N_UEs))
+        sinr_ep = np.zeros((max_ep_len, env.unwrapped.N_UEs))
+        pos_inx = env.unwrapped.dice
 
         for t in range(1, max_ep_len+1):
             action = ppo_agent.select_action(state)
@@ -101,6 +106,8 @@ def test():
             state, reward, done, info = env.step(action)
             ep_reward += reward
             reward_list.append(reward)
+            square_error_ep[t-1,] = info['square_error']
+            sinr_ep[t-1,] = info['sinr']
 
             if render:
                 env.render()
@@ -117,12 +124,21 @@ def test():
         log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
         log_f.flush()
 
-        # clear buffer
-        ppo_agent.buffer.clear()
-
         test_running_reward +=  ep_reward
         print('Episode: {} \t Reward: {} \t Throughput: {}'.format(ep, round(ep_reward, 2), round(throughput[ep-1], 2)))
         ep_reward = 0
+
+        sensing_slots_ratio.append(info['num_sensing_slots']/t)
+        square_error[pos_inx, ep-1,] = square_error_ep
+        sinr[pos_inx, ep-1] = sinr_ep
+
+        # clear buffer
+        ppo_agent.buffer.clear()
+
+    square_error = np.mean(square_error, axis=1)
+    sinr = np.mean(sinr,axis =1)
+    mse = square_error.reshape(-1, square_error.shape[-1])
+    sinr_avg = sinr.reshape(-1, sinr.shape[-1])
 
     log_f.close()
     env.close()
@@ -132,6 +148,12 @@ def test():
     throughput_cdf = np.sort(throughput)
     yvals = np.arange(len(throughput))/float(len(throughput)-1)
     plt.plot(throughput_cdf, yvals, '-')
+
+    np.savetxt('results_bm/Thp_PPO_{}'.format(run_num_pretrained), sensing_slots_ratio)
+
+    np.savetxt('results_bm/mse_{}'.format(run_num_pretrained), mse)
+    np.savetxt('results_bm/sinr_{}'.format(run_num_pretrained), sinr_avg)
+    
 
 
 if __name__ == '__main__':

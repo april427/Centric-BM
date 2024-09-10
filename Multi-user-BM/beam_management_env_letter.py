@@ -64,7 +64,8 @@ class BeamManagementEnv(gym.Env):
         self.ue_type = np.zeros((self.N_UEs,)) # user type (SU or PU)
         
         self.echo_bf = np.zeros((self.N_UEs, )) # beamforming output of echo signal at the BS
-        
+        self.dice = 0 # decide the starting position
+
         # define the road traffic scenario
         self.cross_pos = np.array([[27, 80], [30, 70]])
         self.road_matrix = road(self.cross_pos)
@@ -123,28 +124,28 @@ class BeamManagementEnv(gym.Env):
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
         ############ set limited options for initial positions ###########
-        dice = np.random.randint(0, 6)
-        if dice == 0:
+        self.dice = np.random.randint(0, 6)
+        if self.dice == 0:
             self.user_positions = np.array([[24.,61.],[95.,30.]])
             self.config = np.array([[2,2],[1,1]])
             self.if_turned = np.array([False, False])
-        elif dice == 1:
+        elif self.dice == 1:
             self.user_positions = np.array([[31., 39.],[59., 72.]])
             self.config = np.array([[3,3],[1,1]])
             self.if_turned = np.array([False, True])
-        elif dice == 2:
+        elif self.dice == 2:
             self.user_positions = np.array([[23., 79.],[61., 29.]])
             self.config = np.array([[3,3],[1,1]])
             self.if_turned = np.array([False, False])
-        elif dice == 3:
+        elif self.dice == 3:
             self.user_positions = np.array([[14., 33.],[75., 34.]])
             self.config = np.array([[4,2],[4,2]])
             self.if_turned = np.array([False, False])
-        elif dice == 4:
+        elif self.dice == 4:
             self.user_positions = np.array([[30., 21.],[75., 74.]])
             self.config = np.array([[2,2],[1,1]])
             self.if_turned = np.array([False, False])
-        elif dice == 5:
+        elif self.dice == 5:
             self.user_positions = np.array([[35., 73.],[64., 33.]])
             self.config = np.array([[4,2],[4,2]])
             self.if_turned = np.array([False, False])
@@ -218,6 +219,7 @@ class BeamManagementEnv(gym.Env):
         
         # estimate AoD from y_BS the echo of the previous step TTI
         aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
+        square_error = np.abs(aod - self.AoD)**2
 
         for i in range(self.N_UEs):
             
@@ -315,7 +317,7 @@ class BeamManagementEnv(gym.Env):
         #reward = np.sum(0.75 * (sinr -12) * self.ue_type + 0.25* (echo_bf_db - 20) * (1-self.ue_type))
 
         # reward uses sinr and estimation error according to the objective function
-        reward = 3*np.sum((sinr-8) * self.ue_type ) - 0.1*np.sum(interference_db-35)
+        reward = 3*np.sum((sinr-10) * self.ue_type ) - 0.1*np.sum(interference_db-30)
 
         # reward consider the sensing importance
         #reward = np.sum((sinr-11) * self.ue_type) + np.sum(self.diff_sensing_weight * (1-self.ue_type) * (sinr-3) )
@@ -339,6 +341,7 @@ class BeamManagementEnv(gym.Env):
                                                  'buffer': self.datapool.copy(),
                                                  'num_sensing_slots': self.counter_sensing_slots.copy(),
                                                  'sinr': sinr.copy(),
+                                                 'square_error': square_error.copy()
                                                  }
 
 

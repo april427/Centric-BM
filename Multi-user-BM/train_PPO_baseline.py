@@ -39,7 +39,7 @@ random_seed = 0  # set random seed if required (0 = no random seed)
 
 env_name = "BeamManagementEnv-v1"
 print("training environment name : " + env_name)
-env = gym.make(env_name, N_f=1000)
+env = gym.make(env_name)
 
 model = PPO("MlpPolicy", 
             env, 

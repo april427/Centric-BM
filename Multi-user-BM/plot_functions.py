@@ -82,12 +82,12 @@ def plot_column_from_csv(file_path, column_name):
     window_size = 500
     moving_avg = np.convolve(column_data, np.ones(window_size)/window_size, mode='valid')
     fig, ax = plt.subplots()
-    ax.plot(moving_avg)
+    ax.plot(moving_avg[0:9999])
     ax.set(xlabel='Episode', ylabel='Averaged Reward',  xticklabels=(['','0','2k','4k','6k','8k','10k']))
 
 
-#plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
-#plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
+# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
+# plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_15.csv', 'reward')
 
 # %%
 import numpy as np
@@ -179,4 +179,18 @@ ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_
 
 # ax.set_ylabel('CDF')
 # ax.set_xlabel('Packet throughput')
+
+# %%
+# import numpy as np
+# import matplotlib.pyplot as plt
+# mse = np.loadtxt('results_bm/mse_11')
+# fig, ax = plt.subplots()
+# ax.plot(np.sqrt(mse[:,0]))
+# ax.plot(np.sqrt(mse[:,1]))
+
+# sinr = np.loadtxt('results_bm/sinr_11')
+# fig1, ax1 = plt.subplots()
+# ax1.plot(sinr[:,0])
+# ax1.plot(sinr[:,1])
+
 # %%
