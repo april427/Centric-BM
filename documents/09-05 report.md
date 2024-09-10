@@ -142,10 +142,13 @@ reward = np.sum(hyper_sinr_commu * self.ue_type )
 <!-- saved_policy/PPO_preTrained/PPO_BeamManagementEnv-v1_0_13.pth -->
 
 **11.** User SINR and multiuser Interference
-$$ r = \sum_{u=1}^U 3*(sinr[dB] - 8)* \lambda_u + 0.1 (Interference[dB] - 35)$$
+$$ r = \sum_{u=1}^U 3*(sinr[dB] - 8)* \lambda_u - 0.1 (Interference[dB] - 35)$$
 <!-- saved_policy/PPO_preTrained/PPO_BeamManagementEnv-v1_0_11.pth -->
 <img src="image-47.png" width = 350>
 
+Checked the trained policy, the averaged SINR is lower than 8. But the reward is high. The power is only allocated to one user, causing the user has ~50 SINR. This increases the reward. 
+
+**12.** Change the value 
 
 ##### A comparison of the above attempts.
 <img src="image-48.png" width = 350>

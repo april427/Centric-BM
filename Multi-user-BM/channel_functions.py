@@ -170,7 +170,7 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
     else: # SU
         Pt[weak_ue_ind] = threshold[0] / xi[weak_ue_ind]
     for u in range(N_UEs):
-        Pt[u] = Pt[weak_ue_ind] * xi[u]/xi[weak_ue_ind]
+        Pt[u] = Pt[weak_ue_ind] * (xi[u]/xi[weak_ue_ind]) * (threshold[ue_type[weak_ue_ind]]/threshold[ue_type[u]])
     
     Pt = Pt * (datapool != 0)
 

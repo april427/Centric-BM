@@ -145,23 +145,23 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
 # # pickle.dump(figure_handle, file)
 
 # %%
-fig,ax = plt.subplots()
-for N in [1,6]:
-    th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
-    th_cdf = np.sort(th)
-    yvals = np.arange(len(th))/float(len(th)-1)
-    ax.plot(th_cdf, yvals, '-')
-th = np.loadtxt('results_bm/Thp_heuristic')
-th_cdf = np.sort(th)
-yvals = np.arange(len(th))/float(len(th)-1)
-ax.plot(th_cdf, yvals, '-')
-ax.legend(['1-TDMA', '6-TDMA', 'Heuristic'])
-ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_11.csv', 'total_packet_num', 'transmitted_packets')
+# fig,ax = plt.subplots()
+# for N in [1,6]:
+#     th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
+#     th_cdf = np.sort(th)
+#     yvals = np.arange(len(th))/float(len(th)-1)
+#     ax.plot(th_cdf, yvals, '-')
+# th = np.loadtxt('results_bm/Thp_heuristic')
+# th_cdf = np.sort(th)
+# yvals = np.arange(len(th))/float(len(th)-1)
+# ax.plot(th_cdf, yvals, '-')
+# ax.legend(['1-TDMA', '6-TDMA', 'Heuristic'])
+# ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_11.csv', 'total_packet_num', 'transmitted_packets')
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt
 # fig, ax = plt.subplots()
-# for N in [1,3,6,9,10]:
+# for N in [1,3,6]:
 #     th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
 #     th_cdf = np.sort(th)
 #     yvals = np.arange(len(th))/float(len(th)-1)
@@ -175,7 +175,7 @@ ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_
 # th_cdf = np.sort(th)
 # yvals = np.arange(len(th))/float(len(th)-1)
 # ax.plot(th_cdf, yvals, '-')
-# ax.legend(['1-TDMA','3-TDMA','6-TDMA','9-TDMA', '10-TDMA', 'Genie', 'Heuristic'])
+# ax.legend(['1-TDMA','3-TDMA','6-TDMA', 'Genie', 'Heuristic'])
 
 # ax.set_ylabel('CDF')
 # ax.set_xlabel('Packet throughput')
