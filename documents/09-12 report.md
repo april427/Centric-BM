@@ -1,14 +1,8 @@
 
-## Comments:
-##### CDF of SINR
-<img src = "image-33.png" width = 350>
 
-
-<span style="color:blue">----: SINR of genie beam allocation</span>
-<span style="color:orange">----: SINR of heuristic beam allocation</span>
 
 ##### Do NOT consider sensing in the reward
-**1.** Linear function of SINR[dB]
+**0.** Linear function of SINR[dB]
 <!-- -->
 '''reward = np.sum((sinr-10) * self.ue_type )'''
 
@@ -16,14 +10,14 @@
 
 ---
 
-**2.** Use number of transmitted packets
+**1.** Use number of transmitted packets
 $$r = \sum_{u=1}^U (R_u>4) \lambda_u $$
 
 - PPO_preTrained/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_0_1.pth 
 
 ---
 
-**3.** Without a penalization at high SINR 
+**2.** Without a penalization at high SINR 
 <img src ="image-34.png" width = 350> 
 
 <!--saved_policy/PPO_preTrained/PPO_BeamManagementEnv-v1_0_2.pth -->
@@ -31,18 +25,18 @@ $$r = \sum_{u=1}^U (R_u>4) \lambda_u $$
 
 ---
 
-**4.** Add a penalization and use SINR
+**3.** Add a penalization and use SINR
 <!-- saved_policy/PPO_preTrained/PPO_BeamManagementEnv-v1_0_3.pth  -->
 <img src="image-42.png" width = 350>
 
 ---
 
-**5.** Consider both communication and sensing
+**4.** Consider both communication and sensing
 <!--saved_policy/PPO_preTrained/PPO_BeamManagementEnv-v1_0_4.pth -->
 $$ r = \sum_{u=1}^U (R_u>4) \lambda_u - (1-\lambda_u) \frac{|\theta_u - \hat{\theta}_u|}{\pi}  $$
 
 
-**6.** Add more information to the state
+**5.** Add more information to the state
 $$\mathcal{S} = \{[\boldsymbol{b}_1,\cdots, \boldsymbol{b}_U], [buffer_1,\cdots, \buffer_U], [\boldsymbol{b}_1,\cdots, \boldsymbol{b}_1], [\lambda_1,\cdots, \lambda_U]\}$$
 
 ---
