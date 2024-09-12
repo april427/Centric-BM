@@ -9,6 +9,8 @@ from itertools import count
 import numpy as np
 import pandas as pd
 import pickle
+import sys
+sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
 
 from beam_management_env_letter import BeamManagementEnv
 
@@ -47,7 +49,7 @@ action_list = []
 num_steps = 100
 action = 0
 counter = 0
-N=6
+N=3
 list_actions = N_TDMA(N, env.unwrapped.N_UEs)
 sum_reward = []
 th_episode = []
@@ -109,7 +111,7 @@ ax.legend(['{}-TDMA'.format(N)])
 # print("Lost packets by type: " + str(info['failure_type']))
 
 
-np.savetxt('results_bm/Thp_' + str(N) + 'TDMA', throughput)
+np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
 
 
 

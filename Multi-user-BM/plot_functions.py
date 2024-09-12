@@ -82,33 +82,34 @@ def plot_column_from_csv(file_path, column_name):
     window_size = 500
     moving_avg = np.convolve(column_data, np.ones(window_size)/window_size, mode='valid')
     fig, ax = plt.subplots()
-    ax.plot(moving_avg[0:9999])
+    ax.plot(moving_avg)
     ax.set(xlabel='Episode', ylabel='Averaged Reward',  xticklabels=(['','0','2k','4k','6k','8k','10k']))
 
 
-# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_11.csv', 'reward')
-# plot_column_from_csv('saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_15.csv', 'reward')
+# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_1.csv', 'reward')
+# for i in [0,1,2,3,4,5]:
+    # plot_column_from_csv(f'Multi-user-BM/saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_{i}.csv', 'reward')
+
 
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
-def plot_cdf_from_csv(file_path, column_name1, column_name2):
+def plot_cdf_from_csv(file_path, column_name1, column_name2, ax):
     data = np.genfromtxt(file_path, delimiter=',', names=True)
     tot = data[column_name1]
     tp = data[column_name2]
     th = tp/tot
     th_cdf = np.sort(th)
     yvals = np.arange(len(th))/float(len(th)-1)
-    ax = plt.plot(th_cdf, yvals, '-')
+    ax.plot(th_cdf, yvals, '-')
     return ax
 
 # fig,ax = plt.subplots()
 # for N in [0,14,15,16,17,18,12,13]:
-#     ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_'+str(N)+'.csv', 'total_packet_num', 'transmitted_packets')
+#     ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_'+str(N)+'.csv', 'total_packet_num', 'transmitted_packets',ax)
 
 # fig.legend(['PPO, case2','PPO, case5.2','PPO, case6','PPO, case7', 'PPO, case8', 'PPO, case9', 'PPO, case10', 'PPO, case11'])
 # ax.set(xlabel='Throughput', ylabel='CDF')
-# %%
 
 #%%
 ########################communication time plots##########################
@@ -145,18 +146,21 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
 # # pickle.dump(figure_handle, file)
 
 # %%
+# import numpy as np
+# import matplotlib.pyplot as plt
 # fig,ax = plt.subplots()
-# for N in [1,6]:
-#     th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
+# for N in [1,3,6]:
+#     th = np.loadtxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA')
 #     th_cdf = np.sort(th)
 #     yvals = np.arange(len(th))/float(len(th)-1)
 #     ax.plot(th_cdf, yvals, '-')
-# th = np.loadtxt('results_bm/Thp_heuristic')
+# th = np.loadtxt('Multi-user-BM/results_bm/Thp_heuristic')
 # th_cdf = np.sort(th)
 # yvals = np.arange(len(th))/float(len(th)-1)
 # ax.plot(th_cdf, yvals, '-')
-# ax.legend(['1-TDMA', '6-TDMA', 'Heuristic'])
-# ax = plot_cdf_from_csv('saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_11.csv', 'total_packet_num', 'transmitted_packets')
+# for N in [1,2,4]:
+#     ax = plot_cdf_from_csv('Multi-user-BM/saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_'+str(N)+'.csv', 'total_packet_num', 'transmitted_packets',ax)
+# ax.legend(['1-TDMA', '3-TDMA','6-TDMA', 'Heuristic', 'PPO, case2', 'PPO, case3', 'PPO, case5'])
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt
@@ -183,12 +187,12 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2):
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt
-# mse = np.loadtxt('results_bm/mse_11')
+# mse = np.loadtxt('Multi-user-BM/results_bm/mse_4')
 # fig, ax = plt.subplots()
 # ax.plot(np.sqrt(mse[:,0]))
 # ax.plot(np.sqrt(mse[:,1]))
 
-# sinr = np.loadtxt('results_bm/sinr_11')
+# sinr = np.loadtxt('Multi-user-BM/results_bm/sinr_4')
 # fig1, ax1 = plt.subplots()
 # ax1.plot(sinr[:,0])
 # ax1.plot(sinr[:,1])

@@ -7,12 +7,16 @@ import torch
 import numpy as np
 
 import gymnasium as gym
+
+import sys
+sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
 from beam_management_env_letter import BeamManagementEnv
 # import roboschool
 
 from PPO import PPO
 
 import matplotlib.pyplot as plt
+
 
 #################################### Testing ###################################
 def test():
@@ -61,16 +65,16 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 17     #### set this to load a particular checkpoint num
+    run_num_pretrained = 7     #### set this to load a particular checkpoint num
 
     ############# write the test data into csv #######
-    # log_dir = "saved_policy/PPO_logs" + '/'
-    # log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
-    # log_f = open(log_f_name, "w+")
-    # log_f.write('episode,reward, total_packet_num, transmitted_packets\n')
+    log_dir = "Multi-user-BM/saved_policy/PPO_logs" 
+    log_f_name = log_dir + "/TEST_PPO_" + env_name + "_log_" + str(run_num_pretrained)+ ".csv"
+    log_f = open(log_f_name, "w+")
+    log_f.write('episode,reward, total_packet_num, transmitted_packets\n')
 
-    directory = "saved_policy/PPO_preTrained" + '/' 
-    # #directory = "PPO_preTrained" + '/' + env_name + '/'
+    directory = "Multi-user-BM/saved_policy/PPO_preTrained" + '/' 
+    #directory = "PPO_preTrained" + '/' + env_name + '/'
     checkpoint_path = directory + "PPO_{}_{}_{}.pth".format(env_name, random_seed, run_num_pretrained)
     # checkpoint_path = directory + 'PPO_BeamManagementEnv-v1_WINNER.pth'
     print("loading network from : " + checkpoint_path)
@@ -116,8 +120,8 @@ def test():
 
         throughput[ep-1] = (total_num_packet-np.sum(env.datapool))/total_num_packet
 
-        # log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
-        # log_f.flush()
+        log_f.write('{},{},{},{}\n'.format(ep, ep_reward, total_num_packet, total_num_packet-np.sum(env.datapool)))
+        log_f.flush()
 
         test_running_reward +=  ep_reward
         print('Episode: {} \t Reward: {} \t Throughput: {}'.format(ep, round(ep_reward, 2), round(throughput[ep-1], 2)))
@@ -135,7 +139,7 @@ def test():
     mse = square_error.reshape(-1, square_error.shape[-1])
     sinr_avg = sinr.reshape(-1, sinr.shape[-1])
 
-    #log_f.close()
+    log_f.close()
     env.close()
 
     print("============================================================================================")
@@ -144,10 +148,10 @@ def test():
     yvals = np.arange(len(throughput))/float(len(throughput)-1)
     plt.plot(throughput_cdf, yvals, '-')
 
-    np.savetxt('results_bm/Thp_PPO_{}'.format(run_num_pretrained), sensing_slots_ratio)
+    np.savetxt('Multi-user-BM/results_bm/Thp_PPO_{}'.format(run_num_pretrained), sensing_slots_ratio)
 
-    np.savetxt('results_bm/mse_{}'.format(run_num_pretrained), mse)
-    np.savetxt('results_bm/sinr_{}'.format(run_num_pretrained), sinr_avg)
+    np.savetxt('Multi-user-BM/results_bm/mse_{}'.format(run_num_pretrained), mse)
+    np.savetxt('Multi-user-BM/results_bm/sinr_{}'.format(run_num_pretrained), sinr_avg)
     
 
 

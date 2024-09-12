@@ -5,8 +5,10 @@ import torch
 import numpy as np
 
 import gymnasium as gym
-from beam_management_env_letter import BeamManagementEnv
 
+import sys
+sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
+from beam_management_env_letter import BeamManagementEnv
 
 from PPO import PPO
 
@@ -194,6 +196,7 @@ def train():
 
             # update PPO agent
             if time_step % update_timestep == 0:
+
                 ppo_agent.update()
 
             # if continuous action space; then decay action std of ouput action distribution
