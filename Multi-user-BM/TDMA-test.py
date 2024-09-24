@@ -40,7 +40,7 @@ def N_TDMA(N, N_UEs): # S - C - C...
 
 # %%
 env = gym.make('BeamManagementEnv-v1')
-num_episodes = 1000
+num_episodes = 100
 episode_durations = []
 reward_episode = []
 num_sensing_slot = []
@@ -49,13 +49,13 @@ action_list = []
 num_steps = 100
 action = 0
 counter = 0
-N=3
+N=6
 list_actions = N_TDMA(N, env.unwrapped.N_UEs)
 sum_reward = []
 th_episode = []
 for i_episode in range(num_episodes):
     # Initialize the environment and get it's state
-    print("Episode: " + str(i_episode), flush=True)
+    #print("Episode: " + str(i_episode), flush=True)
     state = env.reset()
     total_packets = sum(env.unwrapped.datapool)
     state = torch.tensor(state, dtype=torch.float32)
@@ -81,9 +81,12 @@ for i_episode in range(num_episodes):
             reward_episode.append(np.mean(reward_list))
             break
     
-    throughput.append(1 - np.sum(env.unwrapped.datapool)/ total_packets)
+    thp = 1 - np.sum(env.unwrapped.datapool)/ total_packets
+    throughput.append(thp)
     num_sensing_slot.append(info['num_sensing_slots'])
     #sensing_slots_ratio.append(info['num_sensing_slots']/(t+1))
+
+    print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
 
 print('Complete')
 # print(np.mean(mean_packet_rate_episode))
@@ -111,7 +114,7 @@ ax.legend(['{}-TDMA'.format(N)])
 # print("Lost packets by type: " + str(info['failure_type']))
 
 
-np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
+#np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
 
 
 

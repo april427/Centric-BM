@@ -1,13 +1,15 @@
 # %%
-from channel_functions import *
 import numpy as np
 import gymnasium as gym
 from scipy.linalg import hadamard
 import matplotlib.pyplot as plt
-from road import *
-from plot_functions import *
 
+import sys
+sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
+from channel_functions import *
 from beam_management_env_letter import BeamManagementEnv
+from plot_functions import *
+from road import *
 
 env = gym.make('BeamManagementEnv-v1')
 episode_durations = []
@@ -28,7 +30,6 @@ aod = np.zeros(N_UEs) # estimated value
 a_BS = np.zeros((N_UEs, number_of_antennas), dtype = complex) 
 mmWave_LoS_NLoS_channel = np.zeros((N_UEs, number_of_antennas), dtype = complex) 
 
-edge_snr_db = np.array([30])
 noise_power = env.unwrapped.noise_power # -109 dBm/Hz in mW
 Pt_mW = np.zeros(1) + 1j
 Pt_mW[0] = env.unwrapped.Pt_mW # 20 dBm in mW, SNR of 1 user = 33 dB
@@ -97,7 +98,7 @@ for nPt in range(np.size(Pt_mW)):
 
         # initialize user positions in every episode
         #user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
-        dice = np.random.randint(0, 6)
+        dice = np.random.randint(0, 5)
         if dice == 0:
             user_positions[0,:,:] = np.array([[27., 65.],[79., 42.]])
             config = np.array([[4,2],[4,2]])
@@ -105,7 +106,7 @@ for nPt in range(np.size(Pt_mW)):
         elif dice == 1:
             user_positions[0,:,:] = np.array([[31., 39.],[59., 72.]])
             config = np.array([[3,3],[1,1]])
-            if_turned = np.array([False, True])
+            if_turned = np.array([False, False])
         elif dice == 2:
             user_positions[0,:,:] = np.array([[23., 79.],[61., 29.]])
             config = np.array([[3,3],[1,1]])
@@ -180,7 +181,7 @@ for nPt in range(np.size(Pt_mW)):
                     xi[u] = np.abs(transmit_beam[u,] @ mmWave_LoS_NLoS_channel[u])**2 # for power allocation
                     ue_type[u] = 1
                 else:
-                    transmit_beam[u,] = codebook[current_beam[n,u],:].sum(axis=0)
+                    transmit_beam[u,] = np.sqrt(1/3)*codebook[current_beam[n,u],:].sum(axis=0)
                     xi[u] = reflection_coefficient**2 * N_samples * np.abs(a_BS[u] @ transmit_beam[u,])**2 # for power allocation
                     ue_type[u] = 0
                     user_count_sensing[l] += 1
@@ -188,8 +189,7 @@ for nPt in range(np.size(Pt_mW)):
                 s_BS[u,:,:] = np.outer(transmit_beam[u,], waveform[u, :])
 
             # Allocate power
-            if if_dynamic:
-                Pt = dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapool)
+            Pt = dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapool)
             
             for u in range(N_UEs):
                 genie_s_BS[u,] = np.sqrt(Pt[u]) * genie_s_BS[u,]
@@ -217,7 +217,7 @@ for nPt in range(np.size(Pt_mW)):
             # calculate communication rate of each user
             rate[:,n], sinr[:,n], interference_db = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N_samples)
             
-            datapool -= ((rate[:,n] >= 4) * ue_type )
+            datapool -= ((rate[:,n] >= [4,4]) * ue_type )
             datapool[datapool < 0] = 0
             if np.sum(datapool) == 0:
                 break   
@@ -246,7 +246,7 @@ for nPt in range(np.size(Pt_mW)):
 
                 # map the estimated aod to the closest beam in the codebook
                 current_beam[n+1, u] = np.argmax(np.abs(codebook @ np.conj(compute_ULA_response(number_of_antennas, aod[u]))))
-                if np.sqrt(variance[l,u,n]) > beamwidth: #error[l,u,n] > 2*beamwidth: #echo_bf[u]< beamwidth*1e4: 
+                if error[l,u,n] > 2*beamwidth:#np.sqrt(variance[l,u,n]) > beamwidth: # #echo_bf[u]< beamwidth*1e4: 
                     # beam_index = np.insert(np.array(current_beam[n,u]), 0, [np.min(current_beam[n,u])-1, np.max(current_beam[n,u])+1])
                     beam_index = np.mod( np.add(np.min(current_beam[n, u]), [-1,0,1]), 31 ) # use the previous AoD
                     #beam_index = np.mod( np.add(current_beam[n+1, u], [-1,0,1]), 31 ) # use the estimated AoD
@@ -290,20 +290,20 @@ for nPt in range(np.size(Pt_mW)):
 # print(dice)
 # print(genie_beam)
 
-fig_sinr,ax_sinr = plt.subplots()
-inx = 0
-variable = np.zeros([episode,N_UEs*TTI])
-for item in sinr_user:
-    variable[inx,:] = item.flatten()
-    inx+=1
-variable = variable.flatten()
-variable = variable[variable != -np.inf]
-variable_cdf = np.sort(variable)
-yvals = np.arange(len(variable))/float(len(variable)-1)
-ax_sinr.plot(variable_cdf, yvals, '--')
-ax_sinr.grid(True, which='both')
-ax_sinr.xlabel('SINR')
-ax_sinr.legend(['heuristic','genie'])
+# fig_sinr,ax_sinr = plt.subplots()
+# inx = 0
+# variable = np.zeros([episode,N_UEs*TTI])
+# for item in sinr_user:
+#     variable[inx,:] = item.flatten()
+#     inx+=1
+# variable = variable.flatten()
+# variable = variable[variable != -np.inf]
+# variable_cdf = np.sort(variable)
+# yvals = np.arange(len(variable))/float(len(variable)-1)
+# ax_sinr.plot(variable_cdf, yvals, '--')
+# ax_sinr.grid(True, which='both')
+# ax_sinr.xlabel('SINR')
+# ax_sinr.legend(['heuristic','genie'])
 #fig_sinr.show()
 
 # hist, bins = np.histogram(variable, bins=15)
@@ -321,8 +321,8 @@ genie_transmitted_rate_cdf = np.sort(genie_transmitted_rate)
 yvals = np.arange(len(genie_transmitted_rate))/float(len(genie_transmitted_rate)-1)
 ax.plot(genie_transmitted_rate_cdf, yvals, '-')
 ax.legend(['Heuristic', 'Genie'])
-ax.set_ylabel('CDF')
-ax.set_xlabel('Packet throughput')
+# ax.set_ylabel('CDF')
+# ax.set_xlabel('Packet throughput')
 
 # # %%
 # # # plot beam pattern
