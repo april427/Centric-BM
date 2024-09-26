@@ -172,12 +172,12 @@ def train():
     time_step = 0
     i_episode = 0
 
-    transmit_packets = np.zeros((max_training_timesteps))
+    # transmit_packets = np.zeros((max_training_timesteps))
 
     # training loop
     while time_step <= max_training_timesteps:
 
-        state = env.reset()
+        state, _ = env.reset()
         current_ep_reward = 0
         total_packets = np.sum(env.unwrapped.datapool)
 
@@ -185,7 +185,7 @@ def train():
 
             # select action with policy
             action = ppo_agent.select_action(state)
-            state, reward, done, _ = env.step(action)
+            state, reward, done, _, _ = env.step(action)
 
             # saving reward and is_terminals
             ppo_agent.buffer.rewards.append(reward)
