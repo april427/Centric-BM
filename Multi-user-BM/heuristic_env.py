@@ -21,7 +21,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 torch.set_default_dtype(torch.float32)
-experiment_number = random.randint(0, 1000000000)
 
 
 # %%
@@ -41,7 +40,7 @@ th_episode = []
 reward_list = []
 for i_episode in range(num_episodes):
     # Initialize the environment and get it's state
-    state = env.reset()
+    state, _ = env.reset()
     total_packets = env.unwrapped.total_traffic_episode
     state = torch.tensor(state, dtype=torch.float32)
     position_ue_list = []
@@ -50,7 +49,7 @@ for i_episode in range(num_episodes):
     for t in range(num_steps):
 
         #action_list.append(action)
-        observation, reward, terminated, info = env.step(action)
+        observation, reward, terminated,_, info = env.step(action)
         # print(observation)
         position_ue_list.append(info['ue_position'])
         reward_episode += reward
@@ -58,19 +57,18 @@ for i_episode in range(num_episodes):
         done = terminated
 
         # set the action for the next step
-        action_array = (info['est_error'] > (2*env.unwrapped.beamwidth*np.ones((2)) ) )*random.randint(1,4)
+        action_array = (info['est_error'] > (2*env.unwrapped.beamwidth*np.ones((2)) ) )#*random.randint(1,4)
 
         action = 0  
         for i in range(env.unwrapped.N_UEs):
-            action += action_array[i]*5**(env.unwrapped.N_UEs - i - 1)
+            action += action_array[i]*2**(env.unwrapped.N_UEs - i - 1)
 
         if done:
             episode_durations.append(t + 1)
             reward_done.append(reward_episode)
             break
-
-    if t == num_steps - 1:  
-        reward_list.append(reward_episode)
+ 
+    reward_list.append(reward_episode)
 
     thp = 1 - np.sum(env.unwrapped.datapool)/ total_packets
     throughput.append(thp)
@@ -96,10 +94,12 @@ ax.legend('Heuristic Env')
 
 #%%
 fig,ax = plt.subplots()
-ax.plot(reward_done)
+#ax.plot(reward_done)
 ax.plot(reward_list)
 fig.show()
 
 
 #np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
 
+
+# %%

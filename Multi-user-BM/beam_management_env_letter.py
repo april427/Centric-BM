@@ -25,8 +25,8 @@ class BeamManagementEnv(gym.Env):
         self.th = np.zeros((1000,))
         self.num_steps = 100 # number of steps per episode
         self.config = np.zeros((self.N_UEs,))
-        self.action_space = spaces.Discrete(5**self.N_UEs) #spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
-        self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs *4 + 1,))
+        self.action_space = spaces.Discrete(2**self.N_UEs) #spaces.MultiDiscrete(np.ones(self.N_UEs) * 5)##gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
+        self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs*3 + self.N_UEs *2 + 1,)) #gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs *4 + 1,))
         self.waveform = hadamard(self.N_samples)
         self.waveform[[0,-1],:] = self.waveform[[-1,0],:]
 
@@ -38,12 +38,14 @@ class BeamManagementEnv(gym.Env):
 
         self.d_ULA = np.arange(self.number_of_antennas) * self.lambda_ / 2  # ULA with half-wavelength spacing
         self.codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
-        self.current_slot = 0  # current slot/channel use
+
+        self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas)
+        
         self.current_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.current_traffic = np.zeros(
             (self.N_UEs, ))  # current downlink 
         self.datapool = np.zeros(
-            (self.N_UEs, ))  # number of packets of each UE in the buffer
+            (self.N_UEs, ), dtype=np.float32)  # number of packets of each UE in the buffer
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
         self.previous_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.previous_power = np.zeros((5, self.N_UEs))
@@ -57,6 +59,7 @@ class BeamManagementEnv(gym.Env):
 
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
+        self.aod = np.zeros((self.N_UEs,))
         self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
         self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
         mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
@@ -64,7 +67,7 @@ class BeamManagementEnv(gym.Env):
         self.R = np.zeros((self.N_UEs,)) # user communication rate
         self.ue_type = np.zeros((self.N_UEs,), dtype = int) # user type (SU or PU)
         
-        self.echo_bf = np.zeros((self.N_UEs, )) # beamforming output of echo signal at the BS
+        self.echo_bf = np.zeros((self.N_UEs, self.N_samples)) # beamforming output of echo signal at the BS
         self.dice = 0 # decide the starting position
 
         # define the road traffic scenario
@@ -77,8 +80,8 @@ class BeamManagementEnv(gym.Env):
         #self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
 
         self.diff_sensing_weight = np.zeros((3,self.N_UEs))
+        self.est_error = np.zeros((self.N_UEs,), dtype=np.float32)
 
-        self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex)  # received signal at the BS
 
         for i in range(self.N_UEs):
             self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
@@ -95,7 +98,7 @@ class BeamManagementEnv(gym.Env):
             mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
             self.current_beam[i] = np.argmax(np.abs(self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
         
-        self.power_threshold = 5/(8 * np.arcsin(1.2/self.number_of_antennas)**2)/(self.number_of_antennas)**4 # beamwidth*1e9 
+        self.power_threshold = 5/(2*self.beamwidth**2)/(self.number_of_antennas)**4 # beamwidth*1e9 
         self.R_threshold = 2**4 -1
         self.rate_threshold = 4
     
@@ -115,28 +118,24 @@ class BeamManagementEnv(gym.Env):
         self.previous_beam = np.empty([self.N_UEs,], dtype=object)  # previsou beam direction
         self.previous_traffic = np.zeros(
             (5, self.N_UEs, 1))  # current downlink and uplink traffic 
-        self.previous_power = np.zeros((5, self.N_UEs))
 
         self.d = np.zeros((self.N_UEs,))
         self.AoD = np.zeros((self.N_UEs,))
-        self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
+        #self.a_BS = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex) 
         self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas), dtype = complex) 
         mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
         ############ set limited options for initial positions ###########
-        self.dice = np.random.randint(0, 6)
+        self.dice = np.random.randint(0, 5)
         if self.dice == 0:
-            # self.user_positions = np.array([[24.,61.],[95.,30.]])
-            # self.config = np.array([[2,2],[1,1]])
-            # self.if_turned = np.array([False, False])
             self.user_positions = np.array([[27., 65.],[79., 42.]])
             self.config = np.array([[4,2],[4,2]])
             self.if_turned = np.array([False, False])
         elif self.dice == 1:
             self.user_positions = np.array([[31., 39.],[59., 72.]])
             self.config = np.array([[3,3],[1,1]])
-            self.if_turned = np.array([False, True])
+            self.if_turned = np.array([False, False])
         elif self.dice == 2:
             self.user_positions = np.array([[23., 79.],[61., 29.]])
             self.config = np.array([[3,3],[1,1]])
@@ -158,7 +157,7 @@ class BeamManagementEnv(gym.Env):
         self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
 
-        self.y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex) 
+        y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex) 
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
         xi = np.zeros((self.N_UEs,))
         s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples), dtype=complex) 
@@ -187,18 +186,21 @@ class BeamManagementEnv(gym.Env):
         Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
         
         for i in range(self.N_UEs):
-            s_BS[i,] = np.sqrt(Pt[i]/np.size(self.current_beam[i]) )* np.outer(transmit_beam[i,], self.waveform[i])
+            s_BS[i,] = np.sqrt(Pt[i]/np.size(self.current_beam[i]) )* np.outer(transmit_beam[i,], self.waveform[i,])
 
-        self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
+        y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
-        self.echo_bf = np.mean(np.abs(transmit_beam @ self.y_BS)**2, axis = 1)
+        self.aod = self.AoD
+        self.est_error = np.abs(self.aod - self.AoD)
+
+        self.echo_bf = np.abs(np.conj(transmit_beam) @ y_BS)**2
 
         # change to db
-        echo_bf_db = 10*np.log10(self.echo_bf/10 )
-        self.memory = [echo_bf_db, echo_bf_db, echo_bf_db]     
+        echo_bf_db = 10*np.log10(np.mean(self.echo_bf,axis =1)/10 )
+        self.memory = np.array([echo_bf_db, echo_bf_db, echo_bf_db], dtype = np.float32)     
         self.diff_sensing_weight = 1/(1+np.exp(-(self.memory[0] - self.memory[1]))) 
 
-        return self._get_state()
+        return self._get_state(), {}
 
 
 
@@ -217,14 +219,14 @@ class BeamManagementEnv(gym.Env):
         
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
 
-        action = base(5, action, self.N_UEs) # bruteforce discrete action space
+        action = base(2, action, self.N_UEs) # bruteforce discrete action space
 
         self.previous_beam = self.current_beam.copy()
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
         
         # estimate AoD from y_BS the echo of the previous step TTI
-        aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
-        square_error = np.abs(aod - self.AoD)**2
+        # aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
+        # square_error = np.abs(aod - self.AoD)**2
 
 
         for i in range(self.N_UEs):
@@ -250,24 +252,33 @@ class BeamManagementEnv(gym.Env):
                 if self.previous_beam[i].size == 1: # CU in the previous step
                     self.current_beam[i,] = self.previous_beam[i]
                 else: # SU in the previous step
-                    index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, aod[i]))))
+                    index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.aod[i]))))
                     self.current_beam[i,] = index
             elif action[i] == 1:
                 self.ue_type[i] = 0
-                self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], 31)
+                if self.previous_beam[i].size > 1:
+                    temp = np.sort(self.previous_beam[i])
+                    if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
+                        mask = (temp != 0) & (temp != 1)
+                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[-1, 0, 1], self.number_of_antennas)
+                    else:
+                        self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
+                else:
+                    self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
+
                 self.counter_sensing_slots[i] += 1
-            elif action[i] == 2:
-                self.ue_type[i] = 0
-                self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], 31)
-                self.counter_sensing_slots[i] += 1
-            elif action[i] == 3:
-                self.ue_type[i] = 0
-                self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[-1, 0, 1], 31)
-                self.counter_sensing_slots[i] += 1
-            elif action[i] == 4:
-                self.ue_type[i] = 0
-                self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0, 1, 2], 31)
-                self.counter_sensing_slots[i] += 1
+            # elif action[i] == 2:
+                # self.ue_type[i] = 0
+                # self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], self.number_of_antennas)
+                # self.counter_sensing_slots[i] += 1
+            # elif action[i] == 3:
+            #     self.ue_type[i] = 0
+            #     self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
+            #     self.counter_sensing_slots[i] += 1
+            # elif action[i] == 4:
+            #     self.ue_type[i] = 0
+            #     self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0, 1, 2], self.number_of_antennas)
+            #     self.counter_sensing_slots[i] += 1
             else:
                 raise ValueError('Invalid action')
             
@@ -277,13 +288,13 @@ class BeamManagementEnv(gym.Env):
             else:
                 transmit_beam[i,] = np.sqrt(1/3)*self.codebook[self.current_beam[i],:].sum(axis=0)
                 xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ (transmit_beam[i,]))**2
-
+           
         # allocation power
         Pt = dynamic_power_allocation(self.d, xi, Pt, self.Pt_mW, self.ue_type, [self.power_threshold, self.R_threshold], self.N_UEs, self.datapool)
 
         user_signal = np.zeros((self.N_UEs, self.N_samples), dtype=complex) 
         for i in range(self.N_UEs):
-            s_BS[i,] = np.sqrt(Pt[i]/self.current_beam[i].size) * np.outer(transmit_beam[i,], self.waveform[i])
+            s_BS[i,] = np.sqrt(Pt[i]) * np.outer(transmit_beam[i,], self.waveform[i])
 
             # user targeted signal
             user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,] 
@@ -292,16 +303,16 @@ class BeamManagementEnv(gym.Env):
         y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
 
         # compute the echo signal at the BS
-        self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
+        y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
-        aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
-        normalized_error = np.abs(aod - self.AoD)
+        self.aod = estimate_AoD_from_echo(y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
+        self.est_error = np.abs(self.aod - self.AoD)
 
         # compute the beamforming output at the BS
         # beamforming output
-        self.echo_bf = np.mean(np.abs(np.conj(transmit_beam) @ self.y_BS)**2, axis = 1)
+        self.echo_bf = np.abs(np.conj(transmit_beam) @ y_BS)**2
         
-        echo_bf_db = 10*np.log10(self.echo_bf) 
+        echo_bf_db = 10*np.log10(np.mean(self.echo_bf, axis =1)) 
         self.memory[0] = self.memory[1]
         self.memory[1] = self.memory[2] 
         self.memory[2] = echo_bf_db # current echo bf
@@ -317,7 +328,7 @@ class BeamManagementEnv(gym.Env):
         self.datapool[self.datapool < 0] = 0
 
         #reward for communication
-        reward = (1 + (self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode )*np.sum( self.R - self.rate_threshold*np.ones(self.N_UEs) > 0 )
+        reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) )*np.sum( self.R - self.rate_threshold*np.ones(self.N_UEs) > 0 )
 
         #SU
         #reward -= np.sum(normalized_error * (1-self.ue_type) )
@@ -335,29 +346,32 @@ class BeamManagementEnv(gym.Env):
 
         # reward using hyperbolic tagent function, no penalization
         # hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
-        # # hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 16)
+        #hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 16)
         # reward = np.sum(hyper_sinr_commu * self.ue_type ) #+ 0 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
         # reward considers transmitted packets and echo_bf
         # reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
         # reward += np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
+        #reward = np.sum((1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * (sinr -12) * self.ue_type + 0.25 * (1-self.ue_type) * 10*np.log10(0.025*3.14/self.est_error ) ) 
+
 
         if np.sum(self.datapool) == 0:
             done = True
-
-        return self._get_state(), reward, done, {'ue_position': self.user_positions.copy(),
-                                                 'bs_position': self.base_station_position.copy(),
+        truncated = False
+        return self._get_state(), reward, done, truncated, {'ue_position': self.user_positions.copy(),
                                                  'current_beam': self.current_beam.copy(),
                                                  'buffer': self.datapool.copy(),
+                                                 'total_traffic': self.total_traffic_episode,
                                                  'num_sensing_slots': self.counter_sensing_slots.copy(),
                                                  'sinr': sinr.copy(),
-                                                 'square_error': square_error.copy()
+                                                 'est_error': self.est_error.copy()
                                                  }
 
 
     def _get_state(self):
-        return (np.concatenate((self.echo_bf, self.diff_sensing_weight,self.datapool,[self.total_traffic_episode],self.ue_type)))
+        #return (np.concatenate((self.echo_bf, self.diff_sensing_weight,self.datapool,[self.total_traffic_episode],self.ue_type)))
         #return (np.concatenate((self.echo_bf, self.diff_sensing_weight)))
+        return (np.concatenate((self.memory.flatten(),self.datapool,[self.total_traffic_episode], self.ue_type), dtype = np.float32))
 
 register(id='BeamManagementEnv-v1', entry_point=BeamManagementEnv)

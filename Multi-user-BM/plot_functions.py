@@ -84,9 +84,10 @@ def plot_column_from_csv(file_path, column_name):
     fig, ax = plt.subplots()
     ax.plot(moving_avg)
     ax.set(xlabel='Episode', ylabel='Averaged Reward',  xticklabels=(['','0','2k','4k','6k','8k','10k']))
+    return ax
 
 
-# plot_column_from_csv('PPO_logs/BeamManagementEnv-v1/PPO_BeamManagementEnv-v1_log_1.csv', 'reward')
+# plot_column_from_csv('Multi-user-BM/saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_9.csv', 'reward')
 # for i in [0,1,2,3,4,5]:
     # plot_column_from_csv(f'Multi-user-BM/saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_{i}.csv', 'reward')
 
@@ -158,15 +159,15 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2, ax):
 # th_cdf = np.sort(th)
 # yvals = np.arange(len(th))/float(len(th)-1)
 # ax.plot(th_cdf, yvals, '-')
-# for N in [1,2,4]:
+# for N in [9]:
 #     ax = plot_cdf_from_csv('Multi-user-BM/saved_policy/PPO_logs/TEST_PPO_BeamManagementEnv-v1_log_'+str(N)+'.csv', 'total_packet_num', 'transmitted_packets',ax)
-# ax.legend(['1-TDMA', '3-TDMA','6-TDMA', 'Heuristic', 'PPO, case2', 'PPO, case3', 'PPO, case5'])
+# ax.legend(['1-TDMA', '3-TDMA','6-TDMA', 'Heuristic', 'PPO'])
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt
 # fig, ax = plt.subplots()
-# for N in [1,3,6]:
-#     th = np.loadtxt('results_bm/Thp_' + str(N) + 'TDMA')
+# for N in [1,3,6,9,10]:
+#     th = np.loadtxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA')
 #     th_cdf = np.sort(th)
 #     yvals = np.arange(len(th))/float(len(th)-1)
 #     ax.plot(th_cdf, yvals, '-')
@@ -179,7 +180,7 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2, ax):
 # th_cdf = np.sort(th)
 # yvals = np.arange(len(th))/float(len(th)-1)
 # ax.plot(th_cdf, yvals, '-')
-# ax.legend(['1-TDMA','3-TDMA','6-TDMA', 'Genie', 'Heuristic'])
+# ax.legend(['1-TDMA','3-TDMA','6-TDMA', '9-TDMA', '10-TDMA'])
 
 # ax.set_ylabel('CDF')
 # ax.set_xlabel('Packet throughput')

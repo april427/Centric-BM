@@ -32,7 +32,7 @@ def test():
     render = False              # render environment on screen
     frame_delay = 0             # if required; add delay b/w frames
 
-    total_test_episodes = 1000   # total num of testing episodes
+    total_test_episodes = 500   # total num of testing episodes
 
     K_epochs = 80               # update policy for K epochs
     eps_clip = 0.2              # clip parameter for PPO
@@ -65,7 +65,7 @@ def test():
 
     random_seed = 0             #### set this to load a particular checkpoint trained on random seed
     
-    run_num_pretrained = 7     #### set this to load a particular checkpoint num
+    run_num_pretrained = 10     #### set this to load a particular checkpoint num
 
     ############# write the test data into csv #######
     log_dir = "Multi-user-BM/saved_policy/PPO_logs" 
@@ -93,7 +93,7 @@ def test():
 
     for ep in range(1, total_test_episodes+1):
         ep_reward = 0
-        state = env.reset()
+        state,_ = env.reset()
         total_num_packet = np.sum(env.datapool)
         reward_list = []
         square_error_ep = np.zeros((max_ep_len, env.unwrapped.N_UEs))
@@ -104,10 +104,10 @@ def test():
             action = ppo_agent.select_action(state)
             # print(action)
             action_list.append(action)
-            state, reward, done, info = env.step(action)
+            state, reward, done, _, info = env.step(action)
             ep_reward += reward
             reward_list.append(reward)
-            square_error_ep[t-1,] = info['square_error']
+            square_error_ep[t-1,] = info['est_error']
             sinr_ep[t-1,] = info['sinr']
 
             if render:
