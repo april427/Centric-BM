@@ -70,6 +70,8 @@ class BeamManagementEnv(gym.Env):
         self.echo_bf = np.zeros((self.N_UEs, self.N_samples)) # beamforming output of echo signal at the BS
         self.dice = 0 # decide the starting position
 
+        self.crlb = np.zeros((self.N_UEs)) # CRLB estimation error
+
         # define the road traffic scenario
         self.cross_pos = np.array([[27, 80], [30, 70]])
         self.road_matrix = road(self.cross_pos)
@@ -127,33 +129,33 @@ class BeamManagementEnv(gym.Env):
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
         ############ set limited options for initial positions ###########
-        self.dice = np.random.randint(0, 5)
-        if self.dice == 0:
-            self.user_positions = np.array([[27., 65.],[79., 42.]])
-            self.config = np.array([[4,2],[4,2]])
-            self.if_turned = np.array([False, False])
-        elif self.dice == 1:
-            self.user_positions = np.array([[31., 39.],[59., 72.]])
-            self.config = np.array([[3,3],[1,1]])
-            self.if_turned = np.array([False, False])
-        elif self.dice == 2:
-            self.user_positions = np.array([[23., 79.],[61., 29.]])
-            self.config = np.array([[3,3],[1,1]])
-            self.if_turned = np.array([False, False])
-        elif self.dice == 3:
-            self.user_positions = np.array([[14., 33.],[75., 34.]])
-            self.config = np.array([[4,2],[4,2]])
-            self.if_turned = np.array([False, False])
-        elif self.dice == 4:
-            self.user_positions = np.array([[30., 21.],[75., 74.]])
-            self.config = np.array([[2,2],[1,1]])
-            self.if_turned = np.array([False, False])
-        elif self.dice == 5:
-            self.user_positions = np.array([[35., 73.],[64., 33.]])
-            self.config = np.array([[4,2],[4,2]])
-            self.if_turned = np.array([False, False])
+        # self.dice = np.random.randint(0, 5)
+        # if self.dice == 0:
+        #     self.user_positions = np.array([[27., 65.],[79., 42.]])
+        #     self.config = np.array([[4,2],[4,2]])
+        #     self.if_turned = np.array([False, False])
+        # elif self.dice == 1:
+        #     self.user_positions = np.array([[31., 39.],[59., 72.]])
+        #     self.config = np.array([[3,3],[1,1]])
+        #     self.if_turned = np.array([False, False])
+        # elif self.dice == 2:
+        #     self.user_positions = np.array([[23., 79.],[61., 29.]])
+        #     self.config = np.array([[3,3],[1,1]])
+        #     self.if_turned = np.array([False, False])
+        # elif self.dice == 3:
+        #     self.user_positions = np.array([[14., 33.],[75., 34.]])
+        #     self.config = np.array([[4,2],[4,2]])
+        #     self.if_turned = np.array([False, False])
+        # elif self.dice == 4:
+        #     self.user_positions = np.array([[30., 21.],[75., 74.]])
+        #     self.config = np.array([[2,2],[1,1]])
+        #     self.if_turned = np.array([False, False])
+        # elif self.dice == 5:
+        #     self.user_positions = np.array([[35., 73.],[64., 33.]])
+        #     self.config = np.array([[4,2],[4,2]])
+        #     self.if_turned = np.array([False, False])
 
-        #self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
+        self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
         self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
 
@@ -162,6 +164,8 @@ class BeamManagementEnv(gym.Env):
         xi = np.zeros((self.N_UEs,))
         s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples), dtype=complex) 
         transmit_beam = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex)
+
+        self.crlb = np.zeros((self.N_UEs))
 
         for i in range(self.N_UEs):
 
@@ -187,6 +191,12 @@ class BeamManagementEnv(gym.Env):
         
         for i in range(self.N_UEs):
             s_BS[i,] = np.sqrt(Pt[i]/np.size(self.current_beam[i]) )* np.outer(transmit_beam[i,], self.waveform[i,])
+            
+            derivative_a_BS = np.array([np.exp(-1j * np.pi * ll * np.cos(self.AoD[i]))*(1j * np.pi * ll * np.sin(self.AoD[i])) for ll in range(self.number_of_antennas)])
+
+            self.crlb[i] = 0.5/ self.N_samples/ abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas * np.dot(self.a_BS[i], transmit_beam[i,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - np.abs( np.dot( derivative_a_BS, self.a_BS[i]))**2 )
+ 
+
 
         y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) +  ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
 
@@ -216,6 +226,8 @@ class BeamManagementEnv(gym.Env):
         
         mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
         self.mmWave_LoS_NLoS_channel = np.zeros((self.N_UEs, self.number_of_antennas), dtype = complex)
+
+        a_BS_est = np.zeros((self.N_UEs, self.number_of_antennas), dtype=complex)
         
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
 
@@ -224,10 +236,6 @@ class BeamManagementEnv(gym.Env):
         self.previous_beam = self.current_beam.copy()
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
         
-        # estimate AoD from y_BS the echo of the previous step TTI
-        # aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
-        # square_error = np.abs(aod - self.AoD)**2
-
 
         for i in range(self.N_UEs):
             
@@ -298,6 +306,12 @@ class BeamManagementEnv(gym.Env):
 
             # user targeted signal
             user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,] 
+
+            # Calculate CRLB estimates
+            a_BS_est[i,] = compute_ULA_response(self.number_of_antennas, self.AoD[i]) 
+            derivative_a_BS = np.array([np.exp(-1j * np.pi * ll * np.cos(self.AoD[i]))*(1j * np.pi * ll * np.sin(self.AoD[i])) for ll in range(self.number_of_antennas)])
+
+            self.crlb[i] = 0.5/ self.N_samples/ abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas * np.dot(a_BS_est[i], transmit_beam[i,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - 2*np.real( np.dot( derivative_a_BS, a_BS_est[i])) ) #6/(np.pi**2 * abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas )**2)/(self.number_of_antennas**2 - 1) / np.sin(self.AoD[i])**2 #
  
         # compute the user received signal, noiseless
         y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
@@ -365,7 +379,8 @@ class BeamManagementEnv(gym.Env):
                                                  'total_traffic': self.total_traffic_episode,
                                                  'num_sensing_slots': self.counter_sensing_slots.copy(),
                                                  'sinr': sinr.copy(),
-                                                 'est_error': self.est_error.copy()
+                                                 'est_error': self.est_error.copy(),
+                                                 'crlb': self.crlb.copy(),
                                                  }
 
 

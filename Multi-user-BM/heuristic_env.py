@@ -57,7 +57,8 @@ for i_episode in range(num_episodes):
         done = terminated
 
         # set the action for the next step
-        action_array = (info['est_error'] > (2*env.unwrapped.beamwidth*np.ones((2)) ) )#*random.randint(1,4)
+        #action_array = (info['est_error'] > (2*env.unwrapped.beamwidth*np.ones((2)) ) )#*random.randint(1,4)
+        action_array = (np.sqrt(info['crlb']) > (2*env.unwrapped.beamwidth*np.ones((2)) ) )#*random.randint(1,4)
 
         action = 0  
         for i in range(env.unwrapped.N_UEs):
@@ -99,7 +100,7 @@ ax.plot(reward_list)
 fig.show()
 
 
-# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'Heuristic_v=30', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'Thp_Heuristic_crlb_aod_est', throughput)
 # np.savetxt('Multi-user-BM/results_bm/Reward_' + 'Heuristic', reward_list)
 
 
