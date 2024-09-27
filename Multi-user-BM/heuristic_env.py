@@ -25,7 +25,7 @@ torch.set_default_dtype(torch.float32)
 
 # %%
 env = gym.make('BeamManagementEnv-v1')
-num_episodes = 100
+num_episodes = 500
 episode_durations = []
 reward_done= []
 num_sensing_slot = []
@@ -99,7 +99,8 @@ ax.plot(reward_list)
 fig.show()
 
 
-#np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'Heuristic_v=30', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Reward_' + 'Heuristic', reward_list)
 
 
 # %%

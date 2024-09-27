@@ -92,37 +92,38 @@ for nPt in range(np.size(Pt_mW)):
 
         config = np.empty([N_UEs, 2], dtype = int)
         datapool = np.random.binomial(n=TTI, p=0.6, size=N_UEs).astype(float)
+        genie_datapool = datapool.copy()
         total_num_packets = np.sum(datapool)
         genie_transmitted = 0
 
 
         # initialize user positions in every episode
-        #user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
-        dice = np.random.randint(0, 5)
-        if dice == 0:
-            user_positions[0,:,:] = np.array([[27., 65.],[79., 42.]])
-            config = np.array([[4,2],[4,2]])
-            if_turned = np.array([False, False])
-        elif dice == 1:
-            user_positions[0,:,:] = np.array([[31., 39.],[59., 72.]])
-            config = np.array([[3,3],[1,1]])
-            if_turned = np.array([False, False])
-        elif dice == 2:
-            user_positions[0,:,:] = np.array([[23., 79.],[61., 29.]])
-            config = np.array([[3,3],[1,1]])
-            if_turned = np.array([False, False])
-        elif dice == 3:
-            user_positions[0,:,:] = np.array([[14., 33.],[75., 34.]])
-            config = np.array([[4,2],[4,2]])
-            if_turned = np.array([False, False])
-        elif dice == 4:
-            user_positions[0,:,:] = np.array([[30., 21.],[75., 74.]])
-            config = np.array([[2,2],[1,1]])
-            if_turned = np.array([False, False])
-        elif dice == 5:
-            user_positions[0,:,:] = np.array([[35., 73.],[64., 33.]])
-            config = np.array([[4,2],[4,2]])
-            if_turned = np.array([False, False])
+        user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
+        # dice = np.random.randint(0, 5)
+        # if dice == 0:
+        #     user_positions[0,:,:] = np.array([[27., 65.],[79., 42.]])
+        #     config = np.array([[4,2],[4,2]])
+        #     if_turned = np.array([False, False])
+        # elif dice == 1:
+        #     user_positions[0,:,:] = np.array([[31., 39.],[59., 72.]])
+        #     config = np.array([[3,3],[1,1]])
+        #     if_turned = np.array([False, False])
+        # elif dice == 2:
+        #     user_positions[0,:,:] = np.array([[23., 79.],[61., 29.]])
+        #     config = np.array([[3,3],[1,1]])
+        #     if_turned = np.array([False, False])
+        # elif dice == 3:
+        #     user_positions[0,:,:] = np.array([[14., 33.],[75., 34.]])
+        #     config = np.array([[4,2],[4,2]])
+        #     if_turned = np.array([False, False])
+        # elif dice == 4:
+        #     user_positions[0,:,:] = np.array([[30., 21.],[75., 74.]])
+        #     config = np.array([[2,2],[1,1]])
+        #     if_turned = np.array([False, False])
+        # elif dice == 5:
+        #     user_positions[0,:,:] = np.array([[35., 73.],[64., 33.]])
+        #     config = np.array([[4,2],[4,2]])
+        #     if_turned = np.array([False, False])
         
         for i in range(N_UEs):
             
@@ -208,11 +209,9 @@ for nPt in range(np.size(Pt_mW)):
             # genie-aided rate
             genie_rate[:,n], genie_sinr[:,n], interference_db = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N_samples) 
 
-            if genie_transmitted < total_num_packets:
-                genie_transmitted += np.sum(((genie_rate[:,n] >= 4)  ))
-                genie_ue_type = np.array([1,1])
-            else:
-                genie_ue_type = np.array([0,0])
+            genie_datapool -= ((genie_rate[:,n] >= 4) * ue_type )
+            genie_datapool[genie_datapool < 0] = 0
+
 
             # calculate communication rate of each user
             rate[:,n], sinr[:,n], interference_db = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N_samples)
@@ -248,10 +247,22 @@ for nPt in range(np.size(Pt_mW)):
                 current_beam[n+1, u] = np.argmax(np.abs(codebook @ np.conj(compute_ULA_response(number_of_antennas, aod[u]))))
                 if error[l,u,n] > 2*beamwidth:#np.sqrt(variance[l,u,n]) > beamwidth: # #echo_bf[u]< beamwidth*1e4: 
                     # beam_index = np.insert(np.array(current_beam[n,u]), 0, [np.min(current_beam[n,u])-1, np.max(current_beam[n,u])+1])
-                    beam_index = np.mod( np.add(np.min(current_beam[n, u]), [-1,0,1]), 31 ) # use the previous AoD
                     #beam_index = np.mod( np.add(current_beam[n+1, u], [-1,0,1]), 31 ) # use the estimated AoD
-                    beam_index = np.unique(np.mod( beam_index, 31 ))
-                    current_beam[n+1,u] = beam_index[beam_index >= 0]
+                    # beam_index = np.mod( np.add(np.min(current_beam[n, u]), [-1,0,1]), 31 ) # use the previous AoD
+
+                    # beam_index = np.unique(np.mod( beam_index, 31 ))
+                    # current_beam[n+1,u] = beam_index[beam_index >= 0]
+                    if current_beam[n,u].size > 1:
+                        temp = np.sort(current_beam[n,u])
+                        if temp[0] == 0 and temp[-1] == number_of_antennas - 1:
+                            mask = (temp != 0) & (temp != 1)
+                            current_beam[n+1,u] = np.mod(np.min(temp[mask])+[-1, 0, 1], number_of_antennas)
+                        else:
+                            current_beam[n+1,u] = np.mod(np.min(current_beam[n,u])+[-1, 0, 1], number_of_antennas)
+                    else:
+                        current_beam[n+1,u] = np.mod(np.min(current_beam[n,u])+[-1, 0, 1], number_of_antennas)
+                    
+                    
                 # else keep the current beam
                 else:   
                     if current_beam[n,u].size == 1:
@@ -260,18 +271,18 @@ for nPt in range(np.size(Pt_mW)):
                         current_beam[n+1,u] =current_beam[n+1,u] #SU=>CU
 
             #reward += np.sum(0.75 * echo_bf[l,n] * ue_type + 0.25* echo_bf[l,n] * (1-ue_type))
-            echo_bf_db = 10*np.log10(echo_bf[l,n,:]) 
-            hyper_sinr_commu = hyperbolic_func(sinr[:,n], 0.03, 0.4, 12) #snr in dB
-            hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 20)
-            reward[l,n]= 0.75*np.sum(hyper_sinr_commu * ue_type ) + 0.25*np.sum((1-ue_type) * hyper_sinr_sensing)
+            # echo_bf_db = 10*np.log10(echo_bf[l,n,:]) 
+            # hyper_sinr_commu = hyperbolic_func(sinr[:,n], 0.03, 0.4, 12) #snr in dB
+            # hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 20)
+            # reward[l,n]= 0.75*np.sum(hyper_sinr_commu * ue_type ) + 0.25*np.sum((1-ue_type) * hyper_sinr_sensing)
 
-            echo_bf_genie_db = 10*np.log10(echo_bf_genie[l,n,:])
-            reward_genie[l,n] = 0.75*np.sum(hyperbolic_func(genie_sinr[:,n],  0.03, 0.4, 12) * genie_ue_type ) + 0.25*np.sum((1-genie_ue_type) * hyperbolic_func(echo_bf_genie_db, 0.03, 0.4, 20))
+            # echo_bf_genie_db = 10*np.log10(echo_bf_genie[l,n,:])
+            # reward_genie[l,n] = 0.75*np.sum(hyperbolic_func(genie_sinr[:,n],  0.03, 0.4, 12) * genie_ue_type ) + 0.25*np.sum((1-genie_ue_type) * hyperbolic_func(echo_bf_genie_db, 0.03, 0.4, 20))
 
 
         # calculate the percentage of transmitted packets    
         heu_transmitted_rate[l] = (total_num_packets - np.sum(datapool))/total_num_packets
-        genie_transmitted_rate[l] = genie_transmitted/total_num_packets
+        genie_transmitted_rate[l] = (total_num_packets - np.sum(genie_datapool))/total_num_packets
 
         transmission_time[l] = n
 

@@ -41,7 +41,7 @@ def N_TDMA(N, N_UEs): # S - C - C...
 
 # %%
 env = gym.make('BeamManagementEnv-v1')
-num_episodes = 100
+num_episodes = 500
 episode_durations = []
 reward_episode = []
 num_sensing_slot = []
@@ -50,7 +50,7 @@ action_list = []
 num_steps = 100
 action = 0
 counter = 0
-N=25
+N=2
 list_actions = N_TDMA(N, env.unwrapped.N_UEs)
 sum_reward = []
 th_episode = []
@@ -96,9 +96,6 @@ for i_episode in range(num_episodes):
     print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
 
 print('Complete')
-# print(np.mean(mean_packet_rate_episode))
-# print(np.mean(sum_reward))
-# print(np.mean(th_episode))
 
 # %%
 figure_handle = plt.figure()
@@ -113,8 +110,8 @@ ax.legend(['{}-TDMA'.format(N)])
 
 
 
-np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
-
+np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA_v=30', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Reward_' + str(N) + 'TDMA', reward_list)
 
 
 #%%
@@ -126,11 +123,11 @@ np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA', throughput)
 # fig.show()
 # %%
 # fig, ax = plt.subplots()
-# for N in [1,3,20,25,30]:
+# for N in [1,4,8,16]:
 #     th = np.loadtxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA')
 #     th_cdf = np.sort(th)
 #     yvals = np.arange(len(th))/float(len(th)-1)
 #     ax.plot(th_cdf, yvals, '-')
-# ax.legend(['1-TDMA','3-TDMA','20-TDMA', '20-TDMA', '30-TDMA'])
+# ax.legend(['1-TDMA','4-TDMA','8-TDMA','16-TDMA'])
 
 # %%

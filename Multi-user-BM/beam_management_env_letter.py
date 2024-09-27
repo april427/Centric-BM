@@ -350,7 +350,7 @@ class BeamManagementEnv(gym.Env):
         # reward = np.sum(hyper_sinr_commu * self.ue_type ) #+ 0 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
         # reward considers transmitted packets and echo_bf
-        # reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
+        #reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UEs) > 0)
         # reward += np.sum((1-self.ue_type) * hyper_sinr_sensing)
 
         #reward = np.sum((1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * (sinr -12) * self.ue_type + 0.25 * (1-self.ue_type) * 10*np.log10(0.025*3.14/self.est_error ) ) 

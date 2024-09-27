@@ -2,8 +2,9 @@
 import gymnasium as gym
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
-from stable_baselines3 import DDPG, PPO, A2C, DQN
+from stable_baselines3 import  PPO, DQN
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
@@ -61,27 +62,34 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
         return True
 
+# %%
 # Create log dir
-log_dir = "baseline/tmp/"
+log_dir = "baseline/tmp_dqn_v20/"
 os.makedirs(log_dir, exist_ok=True)
 
 # %%
 env = gym.make("BeamManagementEnv-v1")
 #check_env(env)
+env = Monitor(env, log_dir)
 
-# Create the callback: check every 1000 steps
-callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
+
 # %%
-model = PPO("MlpPolicy", env, verbose=1)
+################### Learn a model ###################
+# Create the callback: check every 1000 steps
+callback = SaveOnBestTrainingRewardCallback(check_freq=100, log_dir=log_dir)
+
+model = DQN("MlpPolicy", env, verbose=1)
 timesteps = 1e5
 model.learn(total_timesteps=timesteps, callback=callback)
 
-plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v1")
+plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "DQN BeamManagement-v1")
 plt.show()
 
 # %%
-model = PPO.load("PPO_BeamManagementEnv-v1")
-num_episodes = 100
+# model = PPO.load("PPO_BeamManagementEnv-v1_1")
+# model = DQN.load("DQN_BeamManagementEnv-v1")
+model = DQN.load("baseline/tmp_dqn/best_model")
+num_episodes = 500
 num_steps = 100
 reward_done = []
 reward_list = []
@@ -113,7 +121,6 @@ for ep in range(1, num_episodes+1):
     print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
 # %%
-import matplotlib.pyplot as plt
 figure_handle = plt.figure()
 ax = figure_handle.add_subplot()
 tdma_thp_cdf = np.sort(throughput)
@@ -123,5 +130,6 @@ ax.set_xlabel('Throughput')
 ax.set_ylabel('CDF')
 ax.legend('Heuristic Env')
 # %%
-
-# model.save("PPO_BeamManagementEnv-v1")
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'DQN', throughput)
+# model.save("DQN_BeamManagementEnv-v1_1")
+# %%

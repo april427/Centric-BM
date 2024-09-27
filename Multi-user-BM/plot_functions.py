@@ -86,7 +86,7 @@ def plot_column_from_csv(file_path, column_name):
     ax.set(xlabel='Episode', ylabel='Averaged Reward',  xticklabels=(['','0','2k','4k','6k','8k','10k']))
     return ax
 
-
+# plot_column_from_csv('baseline/tmp/monitor.csv', 'r')
 # plot_column_from_csv('Multi-user-BM/saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_9.csv', 'reward')
 # for i in [0,1,2,3,4,5]:
     # plot_column_from_csv(f'Multi-user-BM/saved_policy/PPO_logs/PPO_BeamManagementEnv-v1_log_{i}.csv', 'reward')
@@ -166,21 +166,21 @@ def plot_cdf_from_csv(file_path, column_name1, column_name2, ax):
 # import numpy as np
 # import matplotlib.pyplot as plt
 # fig, ax = plt.subplots()
-# for N in [1,3,6,9,10]:
+# for N in [1,4,8]:
 #     th = np.loadtxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA')
 #     th_cdf = np.sort(th)
 #     yvals = np.arange(len(th))/float(len(th)-1)
 #     ax.plot(th_cdf, yvals, '-')
 
-# th = np.loadtxt('results_bm/Thp_genie')
+# th = np.loadtxt('Multi-user-BM/results_bm/Thp_PPO')
 # th_cdf = np.sort(th)
 # yvals = np.arange(len(th))/float(len(th)-1)
 # ax.plot(th_cdf, yvals, '-')
-# th = np.loadtxt('results_bm/Thp_heuristic')
+# th = np.loadtxt('Multi-user-BM/results_bm/Thp_heuristic')
 # th_cdf = np.sort(th)
 # yvals = np.arange(len(th))/float(len(th)-1)
 # ax.plot(th_cdf, yvals, '-')
-# ax.legend(['1-TDMA','3-TDMA','6-TDMA', '9-TDMA', '10-TDMA'])
+# ax.legend(['1-TDMA','4-TDMA','8-TDMA', 'PPO','Heuristic'])
 
 # ax.set_ylabel('CDF')
 # ax.set_xlabel('Packet throughput')
