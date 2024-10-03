@@ -35,10 +35,10 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         self.save_path = os.path.join(log_dir, "best_model")
         self.best_mean_reward = -np.inf
 
-    def _init_callback(self) -> None:
-        # Create folder if needed
-        if self.save_path is not None:
-            os.makedirs(self.save_path, exist_ok=True)
+    # def _init_callback(self) -> None:
+    #     # Create folder if needed
+    #     if self.save_path is not None:
+    #         os.makedirs(self.save_path, exist_ok=True)
 
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
@@ -63,73 +63,26 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         return True
 
 # %%
-# Create log dir
-log_dir = "baseline/tmp_dqn_v20/"
+model_type = "PPO"
+model_class = getattr(sys.modules[__name__], model_type)
+log_dir = "baseline_result/" + model_type + "_/"
 os.makedirs(log_dir, exist_ok=True)
 
-# %%
-env = gym.make("BeamManagementEnv-v1")
+env = gym.make("BeamManagementEnv-v1", reward_inx=1 , if_training=True)
 #check_env(env)
 env = Monitor(env, log_dir)
 
-
 # %%
-################### Learn a model ###################
-# Create the callback: check every 1000 steps
-callback = SaveOnBestTrainingRewardCallback(check_freq=100, log_dir=log_dir)
+################################### Learn a model #################################
+# Create the callback: check every episode
+callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
 
-model = DQN("MlpPolicy", env, verbose=1)
+
+model = model_class("MlpPolicy", env, verbose=1)
 timesteps = 1e5
 model.learn(total_timesteps=timesteps, callback=callback)
 
-plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "DQN BeamManagement-v1")
+plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v1")
 plt.show()
 
-# %%
-# model = PPO.load("PPO_BeamManagementEnv-v1_1")
-# model = DQN.load("DQN_BeamManagementEnv-v1")
-model = DQN.load("baseline/tmp_dqn/best_model")
-num_episodes = 500
-num_steps = 100
-reward_done = []
-reward_list = []
-throughput = []
-
-for ep in range(1, num_episodes+1):
-
-    state = env.reset()
-    current_ep_reward = 0
-    obs,_ = env.reset()
-    reward_episode = 0
-
-    for t in range(num_steps):
-        action, _states = model.predict(obs)
-        obs, rewards, dones, _, info = env.step(action)
-        reward_episode += rewards
-
-        if dones:
-            reward_done.append(reward_episode)
-            print("all transmitted")
-            break
-    
-    if t == num_steps - 1:  
-        reward_list.append(reward_episode)       
-    
-    thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
-    throughput.append(thp)
-
-    print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
-
-# %%
-figure_handle = plt.figure()
-ax = figure_handle.add_subplot()
-tdma_thp_cdf = np.sort(throughput)
-yvals = np.arange(len(tdma_thp_cdf))/float(len(tdma_thp_cdf)-1)
-ax.plot(tdma_thp_cdf, yvals, '-')
-ax.set_xlabel('Throughput')
-ax.set_ylabel('CDF')
-ax.legend('Heuristic Env')
-# %%
-# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'DQN', throughput)
-# model.save("DQN_BeamManagementEnv-v1_1")
-# %%
+model.save(log_dir + "BeamManagementEnv")

@@ -148,10 +148,10 @@ def test():
     yvals = np.arange(len(throughput))/float(len(throughput)-1)
     plt.plot(throughput_cdf, yvals, '-')
 
-    np.savetxt('Multi-user-BM/results_bm/Thp_PPO_{}'.format(run_num_pretrained), sensing_slots_ratio)
+    # np.savetxt('Multi-user-BM/results_bm/Thp_PPO_{}'.format(run_num_pretrained), sensing_slots_ratio)
 
-    np.savetxt('Multi-user-BM/results_bm/mse_{}'.format(run_num_pretrained), mse)
-    np.savetxt('Multi-user-BM/results_bm/sinr_{}'.format(run_num_pretrained), sinr_avg)
+    # np.savetxt('Multi-user-BM/results_bm/mse_{}'.format(run_num_pretrained), mse)
+    # np.savetxt('Multi-user-BM/results_bm/sinr_{}'.format(run_num_pretrained), sinr_avg)
     
 
 

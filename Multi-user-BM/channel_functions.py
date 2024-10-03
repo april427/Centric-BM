@@ -40,7 +40,7 @@ def compute_AoD_at_BS(BS_pos, UE_pos):
         """
     # Compute angle of departure at BS
     phi_radi = np.arctan2( UE_pos[1] - BS_pos[1], - BS_pos[0] + UE_pos[0]) 
-    AoD = np.array([phi_radi])
+    AoD = phi_radi#np.array([phi_radi])
     if AoD < 0:
         AoD = np.add(AoD,np.pi)
     return AoD
@@ -124,7 +124,7 @@ def compute_communication_rate(noiseless_output, signal, noise_power, N_UEs, N):
     aa = np.mean(sinr,axis=1) 
     aa[np.isinf(aa)] = -20
 
-    interference_db = np.mean(10*np.log10(np.abs(interference)**2),axis = 1)    
+    interference_db = np.mean(10*np.log10(np.abs(interference)**2),axis = 1) if np.abs(np.abs(interference)**2).any() else np.zeros((N_UEs,))
     interference_db[np.isnan(interference_db)] = 50
     interference_db[np.isinf(interference_db)] = 50
     rate = np.mean(rate, axis=1)
@@ -200,7 +200,6 @@ def base(b,n, N_UEs):
     return convert_result
 
 # %%
-
 def hyperbolic_func(x, A1, A2, c):
     '''
     hyperbolic reward function
@@ -221,26 +220,27 @@ def hyperbolic_func(x, A1, A2, c):
     # y[y<0] = 0
     return y
 
-"""
+#%%
+
 # %%
+# import numpy as np
+# import matplotlib.pyplot as plt
+# x = np.linspace(0, 40, 1000)
+# A1 = 0.8
+# A2 = 0
+# c= 10
+# b = 12
+# y = hyperbolic_func(x, A1, A2, c)
+# textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),
+#     r'$y = (1 - exp(- %.1f( x - %.1f)), x >= %.1f$' % (A1, c, c),
+#     r'$y = -1, x < %.1f$' % (c)))
+# fig, ax = plt.subplots()
+# ax.plot(x, y)
+# props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+# ax.text(16, -0.4, textstr)
+# ax.grid(True, which='both')
+# ax.axhline(y=0, color='k')
+# ax.axvline(x=0, color='k')
+#%%
 
-import numpy as np
-import matplotlib.pyplot as plt
-x = np.linspace(0, 40, 1000)
-A1 = 0.8
-A2 = 0.2
-c= 10
-b = 12
-y = hyperbolic_func(x, A1, A2, c)
-textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),
-    r'$y = (1 - exp(- %.1f( x - %.1f)), x >= %.1f$' % (A1, c, c),
-    r'$y = -1, x < %.1f$' % (c)))
-fig, ax = plt.subplots()
-ax.plot(x, y)
-props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-ax.text(16, -0.4, textstr)
-ax.grid(True, which='both')
-ax.axhline(y=0, color='k')
-ax.axvline(x=0, color='k')
 
-"""

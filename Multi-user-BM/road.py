@@ -118,9 +118,9 @@ def update_positions(position, cross_pos, velocity, dt, single_lane_width, confi
     """Update UE position given velocity and timestep, and reverse direction if outside square area"""
     cross_center = np.array(list(itertools.product(cross_pos[0], cross_pos[1])))
     new_position = position.copy()
-    displacement = velocity * dt # calculate linear displacement
+    displacement = velocity[0] * dt # calculate linear displacement
     #config[0] = config[1]
-    if ~if_turned:
+    if if_turned==False:
         if config[0] == 4:
             new_position, config = make_a_turn(new_position, displacement, config)
             if_turned = True

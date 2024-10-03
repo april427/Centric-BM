@@ -198,7 +198,7 @@ for nPt in range(np.size(Pt_mW)):
                 # target signal for user
                 genie_user_signal[u] = mmWave_LoS_NLoS_channel[u] @ genie_s_BS[u]
 
-                s_BS[u,] = np.sqrt(Pt[u]/np.size(current_beam[n,u]) )* s_BS[u,]
+                s_BS[u,] = np.sqrt(Pt[u] )* s_BS[u,]
 
                 user_signal[u] = mmWave_LoS_NLoS_channel[u] @ s_BS[u]
             
