@@ -1,4 +1,6 @@
 # %%
+import sys
+sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
 from channel_functions import *
 import numpy as np
 import gymnasium as gym
@@ -9,14 +11,14 @@ from plot_functions import *
 
 from beam_management_env_letter import BeamManagementEnv
 
-env = gym.make('BeamManagementEnv-v1')
+env = gym.make("BeamManagementEnv-v1", reward_inx=0 , if_training=False)
 
 
 # %%
 # variable initialization
-N_UEs = env.unwrapped.N_UEs
-TTI = env.unwrapped.num_steps
-episode =  100
+N_UEs = env.unwrapped.N_UEs +3
+TTI = 1#env.unwrapped.num_steps
+episode =  1
 N = env.unwrapped.N_samples # number of samples
 number_of_antennas = env.unwrapped.number_of_antennas
 base_station_position = env.unwrapped.base_station_position
@@ -58,7 +60,7 @@ N_fft = 1024
 # For power allocation
 xi = np.zeros(N_UEs)
 threshold = [1e-5, 2**4 -1] # [SU, CU] threshold
-ue_type = np.zeros(N_UEs)
+ue_type = np.zeros(N_UEs, dtype=int) # 0: SU, 1: CU
 if_dynamic = True # dynamic power allocation
 
 # %%

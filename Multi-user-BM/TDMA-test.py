@@ -50,7 +50,7 @@ action_list = []
 num_steps = 100
 action = 0
 counter = 0
-N=2
+N=8
 list_actions = N_TDMA(N, env.unwrapped.N_UEs)
 sum_reward = []
 th_episode = []
@@ -110,7 +110,7 @@ ax.legend(['{}-TDMA'.format(N)])
 
 
 
-np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA_v=30', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA_v=30', throughput)
 # np.savetxt('Multi-user-BM/results_bm/Reward_' + str(N) + 'TDMA', reward_list)
 
 

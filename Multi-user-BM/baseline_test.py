@@ -19,12 +19,14 @@ from beam_management_env_letter import BeamManagementEnv
 
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
-log_dir = "baseline_result/" + model_type + "_/"
 
-
-env = gym.make("BeamManagementEnv-v1", reward_inx = 0, if_training=False)
+rinx = 0
+env = gym.make("BeamManagementEnv-v1", reward_inx=rinx, if_training=False)
 #check_env(env)
-env = Monitor(env, log_dir)
+
+log_dir = "baseline_result/" + model_type + "_"+ str(env.unwrapped.N_UEs) +"ue_" + str(rinx) + "reward_inx/"
+
+#env = Monitor(env, log_dir)
 # %%
 ################################## Evaluate ####################################
 figure_handle = plt.figure()
@@ -35,7 +37,7 @@ for ri in range(5,6):
   model = PPO.load(log_dir + "BeamManagementEnv")
 # model = PPO.load("PPO_BeamManagementEnv-v1_1")
 
-  num_episodes = 1000
+  num_episodes = 100
   num_steps = 100
   reward_done = []
   reward_list = []
@@ -58,13 +60,14 @@ for ri in range(5,6):
               reward_done.append(reward_episode)
               print("all transmitted")
               break
+          
+          estimation_error.append(info['est_error'])
       
       if t == num_steps - 1:  
           reward_list.append(reward_episode)       
       
       thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
       throughput.append(thp)
-      estimation_error.append(info['est_error'])
 
       print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
@@ -77,9 +80,9 @@ for ri in range(5,6):
 ax.legend(['0','1','2','3','4','5'])
 plt.show()
 # %%
-np.savetxt('Multi-user-BM/results_bm/Thp_' + 'PPO_test', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'PPO_rician', throughput)
 
-np.savetxt('Multi-user-BM/results_bm/Er_' + 'PPO_test', estimation_error)
+# np.savetxt('Multi-user-BM/results_bm/Er_' + 'PPO_rician', estimation_error)
 
 # model.save(log_dir + "BeamManagementEnv-v1_1")
 # %%

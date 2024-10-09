@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import groupby
+from matplotlib.colors import ListedColormap
 
 # %%
 def plot_beam_pattern(y_BS, number_of_antennas):
@@ -33,8 +34,14 @@ def plot_beam_pattern(y_BS, number_of_antennas):
     plt.show()
 
 def plot_road_trraffic(road_matrix, N_UEs, user_positions):
-    plt.imshow(road_matrix.T)
-    plt.plot(50,50, 'ro')
+    colors = [(81/255, 117/255, 74/255), (201/255, 201/255, 201/255)]
+    figure_handle = plt.figure()
+    ax = figure_handle.add_subplot()
+    # Create the colormap
+    cmap = ListedColormap(colors)
+    ax.imshow(road_matrix.T, cmap=cmap)
+    ax.plot(50,50, 'bo', markersize=10)
+    ax.text(46.5, 57, 'BS', fontsize=14)
 
     for i in range(N_UEs):
         ue_pos_x = user_positions[:,i,0]
@@ -48,13 +55,12 @@ def plot_road_trraffic(road_matrix, N_UEs, user_positions):
         pos_y = ue_pos_y[:-1] + dv/2
         norm = np.sqrt(du**2+dv**2) 
 
-        plt.plot(ue_pos_x,ue_pos_y, marker="o")
-        plt.quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=5, pivot="mid")
-        plt.xlim(0,100)
-        plt.ylim(0,100)   
-        # hold the plot
-    plt.legend(['BS'])    
-    plt.show()
+        ax.plot(ue_pos_x,ue_pos_y, marker="o")
+        ax.quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=5, pivot="mid")  
+        # hold the plot   
+    figure_handle.xlim(0,100)
+    figure_handle.ylim(0,100) 
+    figure_handle.show()
 
 def plot_nmse_vs_snr(SNR_echo, nmse, var_aod):
 

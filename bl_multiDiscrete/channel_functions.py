@@ -63,6 +63,10 @@ def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient
              
     """
     mmWave_LOS_channel = np.sqrt(M) * wavelength / (4 *np.pi * d) * blockage_coefficient  * np.conj(a_BS).T
+
+    non_Los_channel = np.sqrt(1/2) * np.random.randn(1, M) + 1j * np.sqrt(1/2) * np.random.randn(1, M)
+    K = 10
+    mmWave_LOS_channel = np.sqrt(K/(1+K))*mmWave_LOS_channel + np.sqrt(1/(1+K))*non_Los_channel
     return mmWave_LOS_channel
 
 def compute_realistic_LoS_channel(sce, carrier_frequency, direction, num_user):
@@ -221,26 +225,25 @@ def hyperbolic_func(x, A1, A2, c):
     # y[y<0] = 0
     return y
 
-"""
+
 # %%
 
-import numpy as np
-import matplotlib.pyplot as plt
-x = np.linspace(0, 40, 1000)
-A1 = 0.8
-A2 = 0.2
-c= 10
-b = 12
-y = hyperbolic_func(x, A1, A2, c)
-textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),
-    r'$y = (1 - exp(- %.1f( x - %.1f)), x >= %.1f$' % (A1, c, c),
-    r'$y = -1, x < %.1f$' % (c)))
-fig, ax = plt.subplots()
-ax.plot(x, y)
-props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-ax.text(16, -0.4, textstr)
-ax.grid(True, which='both')
-ax.axhline(y=0, color='k')
-ax.axvline(x=0, color='k')
+# import numpy as np
+# import matplotlib.pyplot as plt
+# x = np.linspace(0, 40, 1000)
+# A1 = 0.8
+# A2 = 0.2
+# c= 10
+# b = 12
+# y = hyperbolic_func(x, A1, A2, c)
+# textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),
+#     r'$y = (1 - exp(- %.1f( x - %.1f)), x >= %.1f$' % (A1, c, c),
+#     r'$y = -1, x < %.1f$' % (c)))
+# fig, ax = plt.subplots()
+# ax.plot(x, y)
+# props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+# ax.text(16, -0.4, textstr)
+# ax.grid(True, which='both')
+# ax.axhline(y=0, color='k')
+# ax.axvline(x=0, color='k')
 
-"""

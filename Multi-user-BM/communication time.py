@@ -16,7 +16,7 @@ episode_durations = []
 
 # %%
 # variable initialization
-N_UEs = env.unwrapped.N_UEs
+N_UEs = 3#env.unwrapped.N_UEs
 TTI = env.unwrapped.num_steps 
 episode =  100
 N_samples = env.unwrapped.N_samples # number of samples
@@ -27,6 +27,7 @@ codebook = env.unwrapped.codebook
 d = np.zeros(N_UEs)
 AoD = np.zeros(N_UEs) # real value
 aod = np.zeros(N_UEs) # estimated value
+tracking_aod = np.zeros(N_UEs) # aod estimate for tracking
 a_BS = np.zeros((N_UEs, number_of_antennas), dtype = complex) 
 mmWave_LoS_NLoS_channel = np.zeros((N_UEs, number_of_antennas), dtype = complex) 
 
@@ -66,6 +67,7 @@ ue_type = np.zeros(N_UEs, dtype = int)
 if_dynamic = True # dynamic power allocation
 genie_transmitted_rate = np.zeros(episode)
 heu_transmitted_rate = np.zeros(episode)
+tracking_transmitted_rate = np.zeros(episode)
 
 # %%
 # beam initialization using beam sweeping
@@ -84,18 +86,21 @@ for nPt in range(np.size(Pt_mW)):
     for l in range(episode):
         rate = np.zeros((N_UEs,TTI))
         genie_rate = np.zeros((N_UEs,TTI))
+        tracking_rate = np.zeros((N_UEs,TTI))
         sinr = np.zeros((N_UEs,TTI))
         genie_sinr = np.zeros((N_UEs,TTI))
+        tracking_sinr = np.zeros((N_UEs,TTI))
         current_beam = np.empty([TTI+1, N_UEs,], dtype=object)
         genie_beam = np.empty([TTI, N_UEs,], dtype=object)
+        tracking_beam = np.empty([TTI, N_UEs,], dtype=object)
         user_positions = np.zeros((TTI+1, N_UEs, 2))
 
         config = np.empty([N_UEs, 2], dtype = int)
         datapool = np.random.binomial(n=TTI, p=0.6, size=N_UEs).astype(float)
         genie_datapool = datapool.copy()
+        tracking_datapool = datapool.copy()
         total_num_packets = np.sum(datapool)
         genie_transmitted = 0
-
 
         # initialize user positions in every episode
         user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
@@ -137,17 +142,21 @@ for nPt in range(np.size(Pt_mW)):
 
             current_beam[0,i] = np.argmax(np.abs( codebook @ mmWave_LoS_NLoS_channel[i]))
 
+        tracking_aod = AoD.copy() # initialize the estimated AoD
+
         # Moving users calculate the number of TTIs
         for n in range(TTI):
             s_BS = np.zeros(( N_UEs, number_of_antennas, N_samples), dtype = complex)
             mono_LoS_channel = np.zeros((number_of_antennas, number_of_antennas), dtype=complex)
             mmWave_LoS_NLoS_channel = np.zeros((N_UEs, number_of_antennas), dtype=complex) 
             genie_s_BS = np.zeros((N_UEs, number_of_antennas, N_samples), dtype = complex)
+            tracking_s_BS = np.zeros((N_UEs, number_of_antennas, N_samples), dtype = complex)
             genie_user_signal = np.zeros((N_UEs, N_samples), dtype = complex)
             user_signal = np.zeros((N_UEs, N_samples), dtype = complex)
             Pt = Pt_mW[nPt] / N_UEs * np.ones(N_UEs) 
             transmit_beam = np.zeros((N_UEs, number_of_antennas), dtype = complex)
             genie_transmit_beam = np.zeros((N_UEs, number_of_antennas), dtype = complex)
+            tracking_transmit_beam = np.zeros((N_UEs, number_of_antennas), dtype = complex)
 
             for u in range(N_UEs):
                 # update user position
@@ -176,6 +185,11 @@ for nPt in range(np.size(Pt_mW)):
 
                 genie_s_BS[u,:,:] = np.outer(codebook[genie_beam[n,u],:], waveform[u, :])
 
+                # comparison - do beam tracking every TTI
+                tracking_beam[n,u] = np.argmax(np.abs(codebook @ np.conj(compute_ULA_response(number_of_antennas, tracking_aod[u]))))
+                tracking_transmit_beam[u,:] = codebook[tracking_beam[n,u],:]
+                tracking_s_BS[u,:,:] = np.outer(tracking_transmit_beam[u,], waveform[u, :])
+
                 # transmit signal
                 if current_beam[n,u].size == 1:
                     transmit_beam[u,] = codebook[current_beam[n,u],:]
@@ -201,35 +215,53 @@ for nPt in range(np.size(Pt_mW)):
                 s_BS[u,] = np.sqrt(Pt[u] )* s_BS[u,]
 
                 user_signal[u] = mmWave_LoS_NLoS_channel[u] @ s_BS[u]
+
+                tracking_s_BS[u,] = np.sqrt(Pt[u]) * tracking_s_BS[u,]
+                tracking_user_signal = mmWave_LoS_NLoS_channel[u] @ tracking_s_BS[u]
             
             # user received signal noise-less including interference
             y_user = mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0) 
             genie_y_user = mmWave_LoS_NLoS_channel @ np.sum(genie_s_BS, axis=0)
+            tracking_y_user = mmWave_LoS_NLoS_channel @ np.sum(tracking_s_BS, axis=0)
 
             # genie-aided rate
             genie_rate[:,n], genie_sinr[:,n], interference_db = compute_communication_rate(genie_y_user, genie_user_signal, noise_power, N_UEs, N_samples) 
 
-            genie_datapool -= ((genie_rate[:,n] >= 4) * ue_type )
+            genie_datapool -= ((genie_rate[:,n] >= 4)  )
             genie_datapool[genie_datapool < 0] = 0
+
+            # tracking-aided rate
+            tracking_rate[:,n], tracking_sinr[:,n], _ = compute_communication_rate(tracking_y_user, tracking_user_signal, noise_power, N_UEs, N_samples)
+
+            tracking_datapool -= ((tracking_rate[:,n] >= 4*np.ones((N_UEs))) )
+            tracking_datapool[tracking_datapool < 0] = 0
 
 
             # calculate communication rate of each user
             rate[:,n], sinr[:,n], interference_db = compute_communication_rate(y_user, user_signal, noise_power, N_UEs, N_samples)
             
-            datapool -= ((rate[:,n] >= [4,4]) * ue_type )
+            datapool -= ((rate[:,n] >= 4*np.ones((N_UEs))) * ue_type )
             datapool[datapool < 0] = 0
             if np.sum(datapool) == 0:
                 break   
             
-            genie_y_BS = mono_LoS_channel @ np.sum(genie_s_BS,axis=0) + ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)))
+            noise = ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)))
+
+            genie_y_BS = mono_LoS_channel @ np.sum(genie_s_BS,axis=0) + noise
+
+            # received echos at BS tracking
+            tracking_y_BS = mono_LoS_channel @ np.sum(tracking_s_BS,axis=0) + noise
 
             # received echos at BS
-            y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0)  +  ( np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)) + 1j * np.random.normal(0, np.sqrt(noise_power/2), size = (number_of_antennas, N_samples)))
+            y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0)  +  noise
             
             # Estimate AoDs from the echo
             aod = estimate_AoD_from_echo(y_BS, waveform, N_UEs, N_samples, N_fft, number_of_antennas)
             # estimation error
             error[l,:,n] = np.abs(aod - AoD)
+
+            # Estimate AoDs from the echo
+            tracking_aod = estimate_AoD_from_echo(tracking_y_BS, waveform, N_UEs, N_samples, N_fft, number_of_antennas)
 
             echo_bf[l,n,:] = np.mean(np.abs(np.conj(transmit_beam) @ y_BS)**2, axis = 1)
 
@@ -283,6 +315,7 @@ for nPt in range(np.size(Pt_mW)):
         # calculate the percentage of transmitted packets    
         heu_transmitted_rate[l] = (total_num_packets - np.sum(datapool))/total_num_packets
         genie_transmitted_rate[l] = (total_num_packets - np.sum(genie_datapool))/total_num_packets
+        tracking_transmitted_rate[l] = (total_num_packets - np.sum(tracking_datapool))/total_num_packets
 
         transmission_time[l] = n
 
@@ -331,14 +364,19 @@ ax.plot(heu_transmitted_rate_cdf, yvals, '-')
 genie_transmitted_rate_cdf = np.sort(genie_transmitted_rate)
 yvals = np.arange(len(genie_transmitted_rate))/float(len(genie_transmitted_rate)-1)
 ax.plot(genie_transmitted_rate_cdf, yvals, '-')
-ax.legend(['Heuristic', 'Genie'])
-# ax.set_ylabel('CDF')
-# ax.set_xlabel('Packet throughput')
+#
+tracking_transmitted_rate_cdf = np.sort(tracking_transmitted_rate)
+yvals = np.arange(len(tracking_transmitted_rate))/float(len(tracking_transmitted_rate)-1)
+ax.plot(tracking_transmitted_rate_cdf, yvals, '-')
+#
+ax.legend(['Heuristic', 'Genie', 'Beam Tracking'])
+ax.set_ylabel('CDF')
+ax.set_xlabel('Packet throughput')
 
 # # %%
 # # # plot beam pattern
 # # plot_beam_pattern(y_BS, number_of_antennas)
-# plot_road_trraffic(env.unwrapped.road_matrix, N_UEs, user_positions)
+plot_road_trraffic(env.unwrapped.road_matrix, N_UEs, user_positions)
 
 # # plot_nmse_vs_snr(SNR_echo, nmse, var_aod)
 

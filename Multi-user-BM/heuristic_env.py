@@ -25,7 +25,7 @@ torch.set_default_dtype(torch.float32)
 
 # %%
 env = gym.make('BeamManagementEnv-v1', 0, if_training=False)
-num_episodes = 1000
+num_episodes = 100
 episode_durations = []
 reward_done= []
 num_sensing_slot = []
@@ -62,21 +62,25 @@ for i_episode in range(num_episodes):
 
         if ji == 1: 
         # set the action for the next step
-            action_array = (info['est_error'] > (2*env.unwrapped.beamwidth*np.ones((2)) ) )#*random.randint(1,4)
+            action_array = (info['est_error'] > (env.unwrapped.beamwidth/2*np.ones((env.unwrapped.N_UEs)) ) )#*random.randint(1,4)
         elif ji == 2:
-            action_array = (np.sqrt(info['crlb']) > (2*env.unwrapped.beamwidth*np.ones((2)) ) )#*random.randint(1,4)
-        else:
-            action_array = (np.sqrt(info['crlb_aodest']) > (2*env.unwrapped.beamwidth*np.ones((2)) ) )
+            action_array = (np.sqrt(info['crlb']) > (2*env.unwrapped.beamwidth*np.ones((env.unwrapped.N_UEs)) ) )#*random.randint(1,4)
+        elif ji==3:
+            action_array = (np.sqrt(info['crlb_aodest']) > (env.unwrapped.beamwidth/2*np.ones((env.unwrapped.N_UEs)) ) )
+        else: 
+            action_array = (info['rate'] < 4*np.ones((env.unwrapped.N_UEs)) )
 
         action = action_array # action space is multiDiscrete
         # action = 0  
         # for i in range(env.unwrapped.N_UEs):
         #     action += action_array[i]*2**(env.unwrapped.N_UEs - i - 1)
-
+        
         if done:
             episode_durations.append(t + 1)
             reward_done.append(reward_episode)
             break
+
+        estimation_error.append(info['est_error'])
 
     reward_list.append(reward_episode)
 
@@ -84,8 +88,7 @@ for i_episode in range(num_episodes):
     throughput.append(thp)
     num_sensing_slot.append(info['num_sensing_slots'])
     #sensing_slots_ratio.append(info['num_sensing_slots']/(t+1))
-    estimation_error.append(info['est_error'])
-
+    
     print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
 
 print('Complete')
@@ -116,9 +119,9 @@ yvals = np.arange(len(data_cdf))/float(len(data_cdf)-1)
 ax.plot(data_cdf, yvals, '-')
 
 # %%
-# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'Heuristic_crlb_aod_est', throughput)
+# np.savetxt('Multi-user-BM/results_bm/Thp_Rician' + 'Heuristic_crlb_aod_est', throughput)
 
-# np.savetxt('Multi-user-BM/results_bm/Er_' + 'Heuristic_crlb_aod_est', estimation_error)
+# np.savetxt('Multi-user-BM/results_bm/Er__rician' + 'Heuristic_crlb_aod_est', estimation_error)
 
 
 # np.savetxt('Multi-user-BM/results_bm/Reward_' + 'Heuristic', reward_list)
