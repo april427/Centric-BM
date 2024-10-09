@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 #from collections import namedtuple, deque
 from itertools import count
 import numpy as np
-import pandas as pd
 
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
 
 from beam_management_env_letter import BeamManagementEnv
 from channel_functions import *
+from plot_functions import *
 
 import torch
 import torch.nn as nn
@@ -25,7 +25,7 @@ torch.set_default_dtype(torch.float32)
 
 # %%
 env = gym.make('BeamManagementEnv-v1', 0, if_training=False)
-num_episodes = 100
+num_episodes = 1
 episode_durations = []
 reward_done= []
 num_sensing_slot = []
@@ -96,6 +96,7 @@ print('Complete')
 # print(np.mean(sum_reward))
 # print(np.mean(th_episode))
 
+# plot_road_trraffic(env.unwrapped.road_matrix, env.unwrapped.N_UEs, position_ue_list)
 # %%
 figure_handle = plt.figure()
 ax = figure_handle.add_subplot()

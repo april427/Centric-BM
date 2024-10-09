@@ -17,7 +17,6 @@ def road(cross_pos):
     map_width = 100
     map_length = 100
     single_lane_width = 5
-    #cross_pos = np.array([[27, 80], [30, 70]])
 
     road_matrix = np.zeros((map_width, map_length))
     road_matrix[cross_pos[0,0] - single_lane_width:(cross_pos[0,0]+ single_lane_width), :] = 1
@@ -30,9 +29,9 @@ def road(cross_pos):
 
     return road_matrix
 
-def set_direction(user_pos, cross_pos, single_lane_width, N_cross=4):
+def set_direction(user_pos, cross_center, single_lane_width, N_cross=4):
     '''Set the direction of the user based on the closest cross center'''
-    cross_center = np.array(list(itertools.product(cross_pos[0], cross_pos[1])))
+    #cross_center = np.array(list(itertools.product(cross_pos[0], cross_pos[1])))
 
     dis = np.zeros((N_cross))
     for j in range(N_cross):

@@ -18,7 +18,7 @@ episode_durations = []
 # variable initialization
 N_UEs = 3#env.unwrapped.N_UEs
 TTI = env.unwrapped.num_steps 
-episode =  100
+episode =  1
 N_samples = env.unwrapped.N_samples # number of samples
 number_of_antennas = env.unwrapped.number_of_antennas
 base_station_position = env.unwrapped.base_station_position
