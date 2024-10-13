@@ -7,10 +7,10 @@ from gymnasium import spaces
 import random
 from scipy.linalg import hadamard
 from road import *
+import math
 
 
-random.seed(1)
-np.random.seed(1)
+# random.seed(1)
 
 def bernoulli(p):
     return 1 if random.random() <= p else 0
@@ -22,13 +22,13 @@ class BeamManagementEnv(gym.Env):
         self.reward_inx = reward_inx
         self.if_training = if_training
 
-        self.N_UEs = 2
+        self.N_UEs = 3
         self.N_samples = 128 # number of sample per TTI
         self.number_of_antennas = 32  # number of antennas at the ULA BS
-        self.th = np.zeros((1000,))
+
         self.num_steps = 100 # number of steps per episode
         self.config = np.zeros((self.N_UEs,))
-        self.action_space = spaces.MultiDiscrete(np.ones(self.N_UEs) * 2)#spaces.Discrete(2**self.N_UEs) # #gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
+        self.action_space = spaces.MultiDiscrete(np.ones(self.N_UEs) * 3)#spaces.Discrete(2**self.N_UEs) # #gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
         self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs*3 + self.N_UEs *2 + 1,)) #gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs *4 + 1,))
         self.waveform = hadamard(self.N_samples)
         self.waveform[[0,-1],:] = self.waveform[[-1,0],:]
@@ -42,7 +42,7 @@ class BeamManagementEnv(gym.Env):
         self.d_ULA = np.arange(self.number_of_antennas) * self.lambda_ / 2  # ULA with half-wavelength spacing
         self.codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
 
-        self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas)
+        self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas) 
         
         self.current_beam = np.empty([self.N_UEs,], dtype = object)  # current beam direction
         self.current_traffic = np.zeros(
@@ -87,22 +87,6 @@ class BeamManagementEnv(gym.Env):
 
         self.diff_sensing_weight = np.zeros((3,self.N_UEs))
         self.est_error = np.zeros((self.N_UEs,), dtype=np.float32)
-
-
-        # for i in range(self.N_UEs):
-        #     self.d[i] = np.linalg.norm(self.base_station_position - self.user_positions[
-        #         i])  # euclidean distance between the BS and the UEs
-
-        #     self.AoD[i] = compute_AoD_at_BS(self.base_station_position, self.user_positions[i])  # current AoD
-
-        #     self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i])  # current array response
-
-        #     self.reflection_coefficient[i] = self.lambda_ * 5/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of a vehicle
-
-        #     self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
-
-        #     mono_LoS_channel += compute_mono_static_channel(self.number_of_antennas, self.AoD[i], self.reflection_coefficient[i])
-        #     self.current_beam[i] = np.argmax(np.abs(self.codebook @ self.mmWave_LoS_NLoS_channel[i]))
         
         self.power_threshold = 5/(2*self.beamwidth**2)/(self.number_of_antennas)**4 # beamwidth*1e9 
         self.R_threshold = 2**4 -1
@@ -134,51 +118,40 @@ class BeamManagementEnv(gym.Env):
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
         ############ set limited options for initial positions ###########
-        initial_pos_training = np.array([[[20., 72.], [31., 18.],[60., 69.],[78.,  7.],[87., 68.]], 
-        [[24., 12.], [27., 91.], [44.,65.],[78., 11.],[80. ,81.]],
-        [[11. ,26.],[25., 12.],[36. ,25.],[68. ,29.],[81. ,77.]],
-        [[15. ,69.],[26., 18.],[45., 27.],[79., 40.],[85. ,65.]],
+        initial_pos_training = np.array([[[20., 72.], [78., 7.],[60., 69.],[31., 18.],[87., 68.]], 
+        [ [27., 91.], [44.,65.],[24., 12.],[78., 11.],[80. ,81.]],
+        [[36. ,25.],[68. ,29.],[11. ,26.],[25., 12.],[81. ,77.]],
+        [[15. ,69.],[79., 40.],[45., 27.],[26., 18.],[85. ,65.]],
         [[12., 72.], [27.,96.],[58., 32.],[78. ,97.],[88., 34.]], 
-        [[22., 48.],[31., 70.],[62., 33.],[72., 70.],[81.,  8.]]] )
+        [[22., 48.],[31., 70.],[62., 33.],[72., 70.],[81.,  8.]],
+        [[19., 33.],[29., 87.],[44., 28.],[77., 72.],[81., 84.]],
+        [[23., 11.],[30., 43.],[42., 30.],[75., 80.],[80., 94.]],
+        [[ 0., 28.],[75., 83.],[48., 71.],[30., 96.],[81., 37.]],
+        [[ 3., 30.],[30., 24.],[46., 70.],[75., 28.],[82., 44.]],
+        [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
+        [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
 
-        initial_config = np.array([[[0, 0],[2, 2],[1, 1],[4, 2],[1, 1]], 
-                            [[2, 2],[3, 3],[4, 2],[4, 2],[4, 2]],
-                                [[0, 0],[2, 2],[1, 1],[1 ,1],[4, 2]],
-                                [[0 ,0],[2, 2],[1, 1],[4, 2],[4, 2]],
+        initial_config = np.array([[[0, 0],[4, 2],[1, 1],[2, 2],[1, 1]], 
+                                [[3, 3],[4, 2],[2, 2],[4, 2],[4, 2]],
+                                [[1, 1],[1 ,1],[0, 0],[2, 2],[4, 2]],
+                                [[0 ,0],[4, 2],[1, 1],[2, 2],[4, 2]],
                                 [[0, 0], [3, 3],[4 ,2],[4 ,2],[4, 2]],
-                                [[4, 2],[4, 2],[4, 2],[1, 1],[4, 2]]] )
+                                [[4, 2],[4, 2],[4, 2],[1, 1],[4, 2]],
+                                [[0, 0],[3, 3],[1, 1],[4, 2],[3, 3]],
+                                [[2, 2],[3, 3],[1, 1],[4, 2],[3, 3]],
+                                [[0, 0],[4,2],[1, 1],[3,3],[3, 3]],
+                                [[0, 0],[2, 2],[1, 1],[4, 2],[3, 3]],
+                                [[4, 2],[1, 1],[0, 0], [2, 2], [1, 1]],
+                                [[0, 0],[3,3],[1, 1],[4, 2], [4,2]]] )
 
         initial_if_turned = np.array([False, False, False, False, False])
 
         if self.if_training:
-            dice = np.random.randint(0, 5)
+            dice = np.random.randint(0, 11)
             self.user_positions = initial_pos_training[dice, 0:self.N_UEs,:]
             self.config = initial_config[dice, 0:self.N_UEs,:]
             self.if_turned = initial_if_turned[0:self.N_UEs]
-            # if dice == 0:
-            #     self.user_positions = np.array([[27., 65.],[79., 42.]])
-            #     self.config = np.array([[4,2],[4,2]])
-            #     self.if_turned = np.array([False, False])
-            # elif dice == 1:
-            #     self.user_positions = np.array([[31., 39.],[59., 72.]])
-            #     self.config = np.array([[3,3],[1,1]])
-            #     self.if_turned = np.array([False, False])
-            # elif dice == 2:
-            #     self.user_positions = np.array([[23., 79.],[61., 29.]])
-            #     self.config = np.array([[3,3],[1,1]])
-            #     self.if_turned = np.array([False, False])
-            # elif dice == 3:
-            #     self.user_positions = np.array([[14., 33.],[75., 34.]])
-            #     self.config = np.array([[4,2],[4,2]])
-            #     self.if_turned = np.array([False, False])
-            # elif dice == 4:
-            #     self.user_positions = np.array([[30., 21.],[75., 74.]])
-            #     self.config = np.array([[2,2],[1,1]])
-            #     self.if_turned = np.array([False, False])
-            # elif dice == 5:
-            #     self.user_positions = np.array([[35., 73.],[64., 33.]])
-            #     self.config = np.array([[4,2],[4,2]])
-            #     self.if_turned = np.array([False, False])
+            
         else:
             self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
         self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
@@ -295,15 +268,48 @@ class BeamManagementEnv(gym.Env):
                     temp = np.sort(self.previous_beam[i])
                     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
                         mask = (temp != 0) & (temp != 1)
-                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[-1, 0, 1], self.number_of_antennas)
+                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[-2, -1, 0], self.number_of_antennas)
                     else:
-                        self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
+                        self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], self.number_of_antennas)
                 else:
-                    self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
+                    self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], self.number_of_antennas)
 
                 self.counter_sensing_slots[i] += 1
 
-            # elif action[i] == 2:
+            elif action[i] == 2:
+                self.ue_type[i] = 0
+
+                if self.previous_beam[i].size > 1:
+                    temp = np.sort(self.previous_beam[i])
+                    if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
+                        mask = (temp != 0) & (temp != 1)
+                        self.current_beam[i,] = np.mod(np.max(temp[mask])+[0,1,2], self.number_of_antennas)
+                    else:
+                        self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0,1,2], self.number_of_antennas)
+                else:
+                    self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0,1,2], self.number_of_antennas)
+
+                self.counter_sensing_slots[i] += 1
+
+            elif action[i] == 7: # genie beams 
+                self.ue_type[i] = 1 # all CU
+                self.current_beam[i,] = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.AoD[i]))))
+
+            # elif action[i] == 5:  # heuristic method action
+            #     self.ue_type[i] = 0
+            #     index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.aod[i]))))
+            #     if np.sqrt(self.crlb_aodest[i])/self.beamwidth/2 < 1:
+            #         self.current_beam[i,] = np.mod(index + np.array([-1, 0, 1]), self.number_of_antennas)
+            #     else: 
+            #         temp = range(index - math.floor(np.sqrt(self.crlb_aodest[i])/self.beamwidth/2), index + math.ceil(np.sqrt(self.crlb_aodest[i])/self.beamwidth/2))
+            #         self.current_beam[i,] = np.unique(np.mod(temp, self.number_of_antennas) )
+
+            #     self.counter_sensing_slots[i] += 1
+            else:
+                raise ValueError('Invalid action')
+
+
+            """ # elif action[i] == 2:
             #     self.ue_type[i] = 0
             #     self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], self.number_of_antennas)
             #     self.counter_sensing_slots[i] += 1
@@ -314,15 +320,15 @@ class BeamManagementEnv(gym.Env):
             # elif action[i] == 4:
             #     self.ue_type[i] = 0
             #     self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0, 1, 2], self.number_of_antennas)
-            #     self.counter_sensing_slots[i] += 1
-            else:
-                raise ValueError('Invalid action')
+            #     self.counter_sensing_slots[i] += 1 """
+            
+            
             
             if self.current_beam[i].size == 1:
                 transmit_beam[i,] = self.codebook[self.current_beam[i],:]
                 xi[i] = np.abs(transmit_beam[i,] @ self.mmWave_LoS_NLoS_channel[i])**2
             else:
-                transmit_beam[i,] = np.sqrt(1/3)*self.codebook[self.current_beam[i],:].sum(axis=0)
+                transmit_beam[i,] = np.sqrt(1/len(self.current_beam[i]))*self.codebook[self.current_beam[i],:].sum(axis=0)
                 xi[i] = self.reflection_coefficient[i]**2 *self.N_samples * np.abs(self.a_BS[i] @ (transmit_beam[i,]))**2
            
         # allocation power
@@ -334,8 +340,21 @@ class BeamManagementEnv(gym.Env):
 
             # user targeted signal
             user_signal[i] = self.mmWave_LoS_NLoS_channel[i,] @ s_BS[i,] 
+ 
+        # compute the user received signal, noiseless
+        y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
 
-            # Calculate CRLB estimates
+        # compute the echo signal at the BS
+        self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
+
+        self.aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
+        
+        # compute the estimation error
+        self.est_error = np.abs(self.aod - self.AoD)
+
+        # Calculate CRLB estimates
+        for i in range(self.N_UEs):
+                        
             a_BS_est[i,] = compute_ULA_response(self.number_of_antennas, self.AoD[i]) 
             derivative_a_BS = np.array([np.exp(-1j * np.pi * ll * np.cos(self.AoD[i]))*(1j * np.pi * ll * np.sin(self.AoD[i])) for ll in range(self.number_of_antennas)])
 
@@ -345,16 +364,8 @@ class BeamManagementEnv(gym.Env):
             a_BS_est[i,] = compute_ULA_response(self.number_of_antennas, self.aod[i]) 
             derivative_a_BS = np.array([np.exp(-1j * np.pi * ll * np.cos(self.aod[i]))*(1j * np.pi * ll * np.sin(self.aod[i])) for ll in range(self.number_of_antennas)])
 
-            self.crlb_aodest[i] = 0.5/ self.N_samples/ abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas * np.dot(a_BS_est[i], transmit_beam[i,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - 2*np.real( np.dot( derivative_a_BS, a_BS_est[i])) ) #6/(np.pi**2 * abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas )**2)/(self.number_of_antennas**2 - 1) / np.sin(self.AoD[i])**2 #
- 
-        # compute the user received signal, noiseless
-        y_user = self.mmWave_LoS_NLoS_channel @ np.sum(s_BS,axis=0)
-
-        # compute the echo signal at the BS
-        self.y_BS = mono_LoS_channel @ np.sum(s_BS,axis=0) + ( np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)) + 1j * np.random.normal(0, np.sqrt(self.noise_power/2), size = (self.number_of_antennas, self.N_samples)))
-
-        self.aod = estimate_AoD_from_echo(self.y_BS, self.waveform, self.N_UEs, self.N_samples, 1024, self.number_of_antennas)
-        self.est_error = np.abs(self.aod - self.AoD)
+            self.crlb_aodest[i] = 0.5/ self.N_samples/ abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas * np.dot(a_BS_est[i], transmit_beam[i,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - 2*np.real( np.dot( derivative_a_BS, a_BS_est[i])) ) 
+            self.crlb_aodest[i] = (np.pi/6)**2 if math.isinf(self.crlb_aodest[i]) else self.crlb_aodest[i]
 
         # compute the beamforming output at the BS
         # beamforming output
