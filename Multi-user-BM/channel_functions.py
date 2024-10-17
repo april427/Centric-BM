@@ -64,12 +64,12 @@ def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient
     """
     mmWave_LOS_channel = np.sqrt(M) * wavelength / (4 *np.pi * d) * blockage_coefficient  * np.conj(a_BS).T
 
-    # non_Los_channel = np.sqrt(1/2) * wavelength / (4 *np.pi * d) * blockage_coefficient * (np.random.randn(1, M) + 1j * np.sqrt(1/2) * np.random.randn(1, M))
+    non_Los_channel = np.sqrt(1/2) * wavelength / (4 *np.pi * d) * blockage_coefficient * (np.random.randn(1, M) + 1j * np.sqrt(1/2) * np.random.randn(1, M))
 
-    # K_db = 10
-    # K = 10**(K_db/10)
+    K_db = 10
+    K = 10**(K_db/10)
 
-    # mmWave_LOS_channel = np.sqrt(K/(1+K))*mmWave_LOS_channel + np.sqrt(1/(1+K))*non_Los_channel
+    mmWave_LOS_channel = np.sqrt(K/(1+K))*mmWave_LOS_channel + np.sqrt(1/(1+K))*non_Los_channel
 
     return mmWave_LOS_channel
 

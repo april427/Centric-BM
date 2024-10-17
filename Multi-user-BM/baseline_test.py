@@ -20,12 +20,14 @@ from beam_management_env_letter import BeamManagementEnv
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 
-rinx = 0
+rinx = 1
 env = gym.make("BeamManagementEnv-v1", reward_inx=rinx, if_training=False)
 #check_env(env)
 
 log_dir = "baseline_result/" + model_type + "_"+ str(env.unwrapped.N_UEs) +"ue_" + str(rinx) + "reward_inx/"
+print("N_UEs=", env.unwrapped.N_UEs, " reward_inx=", rinx)
 
+sensing_slots_ratio = []
 #env = Monitor(env, log_dir)
 # %%
 ################################## Evaluate ####################################
@@ -35,9 +37,9 @@ ax = figure_handle.add_subplot()
 for ri in range(5,6):
 #   log_dir = "baseline_result/" + model_type + "_reward_inx_" + str(ri) + "/"
   model = PPO.load(log_dir + "BeamManagementEnv")
-# model = PPO.load("PPO_BeamManagementEnv-v1_1")
+  #model = PPO.load("PPO_BeamManagementEnv-v1")
 
-  num_episodes = 100
+  num_episodes = 1000
   num_steps = 100
   reward_done = []
   reward_list = []
@@ -50,11 +52,18 @@ for ri in range(5,6):
       current_ep_reward = 0
       obs,_ = env.reset()
       reward_episode = 0
+      noted = []
 
       for t in range(num_steps):
           action, _states = model.predict(obs)
+          # print(action)
           obs, rewards, dones, _, info = env.step(action)
           reward_episode += rewards
+
+          for i in range(env.unwrapped.N_UEs):
+                if info['buffer'][i] == 0 and i not in noted:
+                    noted.append(i)
+                    sensing_slots_ratio.append(info['num_sensing_slots'][i]/(t+1))
 
           if dones:
               reward_done.append(reward_episode)
@@ -62,27 +71,31 @@ for ri in range(5,6):
               break
           
           estimation_error.append(info['est_error'])
+
       
       if t == num_steps - 1:  
           reward_list.append(reward_episode)       
       
       thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
       throughput.append(thp)
+      
+      #sensing_slots_ratio.append(info['num_sensing_slots']/(t+1))
 
       print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
 
   thp_cdf = np.sort(throughput)
   yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
-  ax.plot(thp_cdf, yvals, '-')
+  ax.plot(thp_cdf, yvals, 'o')
   ax.set_xlabel('Throughput')
   ax.set_ylabel('CDF')
-ax.legend(['0','1','2','3','4','5'])
-plt.show()
-# %%
-# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'PPO_rician', throughput)
 
-# np.savetxt('Multi-user-BM/results_bm/Er_' + 'PPO_rician', estimation_error)
+plt.show()
+
+# %%
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + 'PPO_rician'+ "_"+ str(env.unwrapped.N_UEs) +"ue_" + str(rinx) + "reward_inx_v=20", throughput)
+
+# np.savetxt('Multi-user-BM/results_bm/SR_' + 'PPO_rician' + "_"+ str(env.unwrapped.N_UEs) +"ue_" + str(rinx) + "reward_inx_v=20", sensing_slots_ratio)
 
 # model.save(log_dir + "BeamManagementEnv-v1_1")
 # %%

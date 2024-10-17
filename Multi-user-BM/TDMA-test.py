@@ -13,7 +13,8 @@ import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Multi-user-BM/')
 
 from beam_management_env_letter import BeamManagementEnv
-from plot_functions import *
+from plot_functions import plot_road_trraffic
+from channel_functions import base
 
 import torch
 import torch.nn as nn
@@ -21,13 +22,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 torch.set_default_dtype(torch.float32)
-experiment_number = random.randint(0, 1000000000)
 
 # %%
 def N_TDMA(N, N_UEs): # S - C - C... 
-    b = 5
+    b = 2 
     indices = []
-    a = 2*np.ones(N_UEs, dtype = int)
+    a = np.ones(N_UEs, dtype = int)
     ind = sum([a[i]*b**(N_UEs-i-1) for i in range(N_UEs)])
     indices.append(ind)
     # indices.extend([np.zeros(N_UEs, dtype = int)])
@@ -40,8 +40,8 @@ def N_TDMA(N, N_UEs): # S - C - C...
     return indices
 
 # %%
-env = gym.make('BeamManagementEnv-v1')
-num_episodes = 500
+env = gym.make('BeamManagementEnv-v1', 0, if_training=False)
+num_episodes = 1000
 episode_durations = []
 reward_episode = []
 num_sensing_slot = []
@@ -50,8 +50,11 @@ action_list = []
 num_steps = 100
 action = 0
 counter = 0
-N=8
+N=35
 list_actions = N_TDMA(N, env.unwrapped.N_UEs)
+for i in range(len(list_actions)):
+    list_actions[i] = base(2, list_actions[i], env.unwrapped.N_UEs)
+
 sum_reward = []
 th_episode = []
 
@@ -65,17 +68,17 @@ for i_episode in range(num_episodes):
     total_packets = sum(env.unwrapped.datapool)
     state = torch.tensor(state, dtype=torch.float32)
     position_ue_list = []
+    noted =[]
 
     l_a = 0
     reward_episode = 0
     for t in range(num_steps):
-        action = int(list_actions[l_a])
+        action = list_actions[l_a]
         action_list.append(action)
         observation, reward, terminated,_, info = env.step(action)
         # print(observation)
         position_ue_list.append(info['ue_position'])
         reward_episode += reward
-
 
         l_a += 1
         if l_a >= len(list_actions):
@@ -93,7 +96,7 @@ for i_episode in range(num_episodes):
     num_sensing_slot.append(info['num_sensing_slots'])
     #sensing_slots_ratio.append(info['num_sensing_slots']/(t+1))
 
-    print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
+    # print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
 
 print('Complete')
 
@@ -107,11 +110,15 @@ ax.set_xlabel('Throughput')
 ax.set_ylabel('CDF')
 ax.legend(['{}-TDMA'.format(N)])
 
+# plot_road_trraffic(env.unwrapped.road_matrix, env.unwrapped.N_UEs, np.array(position_ue_list))
 
 
+# %%
 
-# np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA_v=30', throughput)
-# np.savetxt('Multi-user-BM/results_bm/Reward_' + str(N) + 'TDMA', reward_list)
+# np.savetxt('Multi-user-BM/results_bm/Thp_' + str(N) + 'TDMA_2UE_rician_v=15', throughput)
+
+
+# np.savetxt('Multi-user-BM/results_bm/Reward_' + str(N) + 'TDMA_', reward_list)
 
 
 #%%

@@ -58,8 +58,8 @@ def plot_road_trraffic(road_matrix, N_UEs, user_positions):
         ax.plot(ue_pos_x,ue_pos_y, marker="o")
         ax.quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=5, pivot="mid")  
         # hold the plot   
-    figure_handle.xlim(0,100)
-    figure_handle.ylim(0,100) 
+    # figure_handle.xlim(0,100)
+    # figure_handle.ylim(0,100) 
     figure_handle.show()
 
 def plot_nmse_vs_snr(SNR_echo, nmse, var_aod):

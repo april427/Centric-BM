@@ -24,11 +24,12 @@ torch.set_default_dtype(torch.float32)
 
 
 # %%
-env = gym.make('BeamManagementEnv-v1', 0, if_training=False)
-num_episodes = 1
+env = gym.make('BeamManagementEnv-v1', reward_inx = 0, if_training=False)
+num_episodes = 1000
 episode_durations = []
 reward_done= []
 num_sensing_slot = []
+sensing_slots_ratio = []
 throughput = []
 
 num_steps = 100
@@ -49,7 +50,7 @@ for i_episode in range(num_episodes):
     reward_episode = 0
 
     action = np.zeros((env.unwrapped.N_UEs))
-
+    noted = []
    
     for t in range(num_steps):
 
@@ -62,19 +63,29 @@ for i_episode in range(num_episodes):
 
         if ji == 1: 
         # set the action for the next step
-            action_array = (info['est_error'] > (env.unwrapped.beamwidth/2*np.ones((env.unwrapped.N_UEs)) ) )#*random.randint(1,4)
-        elif ji == 2:
-            action_array = (np.sqrt(info['crlb']) > (2*env.unwrapped.beamwidth*np.ones((env.unwrapped.N_UEs)) ) )#*random.randint(1,4)
-        elif ji==3:
-            action_array = (np.sqrt(info['crlb_aodest']) > (env.unwrapped.beamwidth/2*np.ones((env.unwrapped.N_UEs)) ) )
+            action_array = (info['est_error'] > (env.unwrapped.beamwidth/2)) #np.ones((env.unwrapped.N_UEs)) ) #*random.randint(1,4)
+        
+        elif ji == 2: # true crlb
+            action_array = (np.sqrt(info['crlb']) > (env.unwrapped.beamwidth/2 ) ) *5 #*random.randint(1,4)
+        
+        elif ji==3: # crlb estimates
+            action_array = (np.sqrt(info['crlb_aodest']) > env.unwrapped.beamwidth/2 ) *  5 
+        
+        elif ji==4:  # genie beams 
+            action_array = np.array(7*np.ones(env.unwrapped.N_UEs))
         else: 
-            action_array = (info['rate'] < 4*np.ones((env.unwrapped.N_UEs)) )
+            raise ValueError('Invalid criterion')
 
         action = action_array # action space is multiDiscrete
         # action = 0  
         # for i in range(env.unwrapped.N_UEs):
         #     action += action_array[i]*2**(env.unwrapped.N_UEs - i - 1)
         
+        for i in range(env.unwrapped.N_UEs):
+                if info['buffer'][i] == 0 and i not in noted:
+                    noted.append(i)
+                    sensing_slots_ratio.append(info['num_sensing_slots'][i]/(t+1))
+
         if done:
             episode_durations.append(t + 1)
             reward_done.append(reward_episode)
@@ -86,10 +97,9 @@ for i_episode in range(num_episodes):
 
     thp = 1 - np.sum(env.unwrapped.datapool)/ total_packets
     throughput.append(thp)
-    num_sensing_slot.append(info['num_sensing_slots'])
-    #sensing_slots_ratio.append(info['num_sensing_slots']/(t+1))
+
     
-    print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
+    # print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
 
 print('Complete')
 # print(np.mean(mean_packet_rate_episode))
@@ -105,25 +115,28 @@ yvals = np.arange(len(tdma_thp_cdf))/float(len(tdma_thp_cdf)-1)
 ax.plot(tdma_thp_cdf, yvals, '-')
 ax.set_xlabel('Throughput')
 ax.set_ylabel('CDF')
-ax.legend('Heuristic Env')
+ax.legend(['Heuristic Env'])
 
 #%%
-fig,ax = plt.subplots()
+#fig,ax = plt.subplots()
 # #ax.plot(reward_done)
 # ax.plot(reward_list)
 # fig.show()
 
 
-er = np.concatenate(estimation_error).ravel().tolist()
-data_cdf = np.sort(er)
-yvals = np.arange(len(data_cdf))/float(len(data_cdf)-1)
-ax.plot(data_cdf, yvals, '-')
+# er = np.concatenate(estimation_error).ravel().tolist()
+# data_cdf = np.sort(er)
+# yvals = np.arange(len(data_cdf))/float(len(data_cdf)-1)
+# ax.plot(data_cdf, yvals, '-')
 
 # %%
-# np.savetxt('Multi-user-BM/results_bm/Thp_Rician' + 'Heuristic_crlb_aod_est', throughput)
+
+# np.savetxt('Multi-user-BM/results_bm/Thp_heuristic_crlb_est'+'_2UE_rician_v=30', throughput)
+# np.savetxt('Multi-user-BM/results_bm/SR_heuristic_crlb_est'+'_2UE_rician_v=30', sensing_slots_ratio)
+
+
 
 # np.savetxt('Multi-user-BM/results_bm/Er__rician' + 'Heuristic_crlb_aod_est', estimation_error)
 
 
-# np.savetxt('Multi-user-BM/results_bm/Reward_' + 'Heuristic', reward_list)
 # %%

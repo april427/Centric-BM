@@ -11,14 +11,14 @@ from beam_management_env_letter import BeamManagementEnv
 from plot_functions import *
 from road import *
 
-env = gym.make('BeamManagementEnv-v1')
+env = gym.make('BeamManagementEnv-v1', 0, if_training=False)
 episode_durations = []
 
 # %%
 # variable initialization
-N_UEs = 3#env.unwrapped.N_UEs
-TTI = env.unwrapped.num_steps 
-episode =  1
+N_UEs = 5#env.unwrapped.N_UEs
+TTI = 1#env.unwrapped.num_steps 
+episode =  10
 N_samples = env.unwrapped.N_samples # number of samples
 number_of_antennas = env.unwrapped.number_of_antennas
 base_station_position = env.unwrapped.base_station_position
@@ -104,31 +104,8 @@ for nPt in range(np.size(Pt_mW)):
 
         # initialize user positions in every episode
         user_positions[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UEs, env.unwrapped.single_lane_width)
-        # dice = np.random.randint(0, 5)
-        # if dice == 0:
-        #     user_positions[0,:,:] = np.array([[27., 65.],[79., 42.]])
-        #     config = np.array([[4,2],[4,2]])
-        #     if_turned = np.array([False, False])
-        # elif dice == 1:
-        #     user_positions[0,:,:] = np.array([[31., 39.],[59., 72.]])
-        #     config = np.array([[3,3],[1,1]])
-        #     if_turned = np.array([False, False])
-        # elif dice == 2:
-        #     user_positions[0,:,:] = np.array([[23., 79.],[61., 29.]])
-        #     config = np.array([[3,3],[1,1]])
-        #     if_turned = np.array([False, False])
-        # elif dice == 3:
-        #     user_positions[0,:,:] = np.array([[14., 33.],[75., 34.]])
-        #     config = np.array([[4,2],[4,2]])
-        #     if_turned = np.array([False, False])
-        # elif dice == 4:
-        #     user_positions[0,:,:] = np.array([[30., 21.],[75., 74.]])
-        #     config = np.array([[2,2],[1,1]])
-        #     if_turned = np.array([False, False])
-        # elif dice == 5:
-        #     user_positions[0,:,:] = np.array([[35., 73.],[64., 33.]])
-        #     config = np.array([[4,2],[4,2]])
-        #     if_turned = np.array([False, False])
+
+        print(user_positions[0,:,:], config, if_turned)
         
         for i in range(N_UEs):
             
@@ -317,12 +294,12 @@ for nPt in range(np.size(Pt_mW)):
         genie_transmitted_rate[l] = (total_num_packets - np.sum(genie_datapool))/total_num_packets
         tracking_transmitted_rate[l] = (total_num_packets - np.sum(tracking_datapool))/total_num_packets
 
-        transmission_time[l] = n
+        # transmission_time[l] = n
 
         sinr_user.append(sinr)
         genie_sinr_user.append(genie_sinr)
 
-        user_count_sensing[l] = user_count_sensing[l] / (n+1) 
+        # user_count_sensing[l] = user_count_sensing[l] / (n+1) 
         #SNR_user[nPt, l, :] = 10*np.log10(np.mean(Pt[u]* pathloss,axis=1) /noise_power)
         #SNR_echo[nPt, l, :] = 10*np.log10( np.mean((Pt[u]* number_of_antennas**2 * reflection_coefficient**2)) /(noise_power*number_of_antennas))
 

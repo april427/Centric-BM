@@ -22,14 +22,14 @@ class BeamManagementEnv(gym.Env):
         self.reward_inx = reward_inx
         self.if_training = if_training
 
-        self.N_UEs = 3
+        self.N_UEs = 2
         self.N_samples = 128 # number of sample per TTI
         self.number_of_antennas = 32  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
         self.config = np.zeros((self.N_UEs,))
         self.action_space = spaces.MultiDiscrete(np.ones(self.N_UEs) * 3)#spaces.Discrete(2**self.N_UEs) # #gym.spaces.Box(low=0, high = 1, shape=(self.N_UEs,)) 
-        self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs*3 + self.N_UEs *2 + 1,)) #gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs *4 + 1,))
+        self.observation_space = gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs*3 + self.N_UEs *1 + 1,)) #gym.spaces.Box(low=0, high=np.inf, shape=(self.N_UEs *4 + 1,))
         self.waveform = hadamard(self.N_samples)
         self.waveform[[0,-1],:] = self.waveform[[-1,0],:]
 
@@ -118,29 +118,29 @@ class BeamManagementEnv(gym.Env):
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
         ############ set limited options for initial positions ###########
-        initial_pos_training = np.array([[[20., 72.], [78., 7.],[60., 69.],[31., 18.],[87., 68.]], 
-        [ [27., 91.], [44.,65.],[24., 12.],[78., 11.],[80. ,81.]],
-        [[36. ,25.],[68. ,29.],[11. ,26.],[25., 12.],[81. ,77.]],
-        [[15. ,69.],[79., 40.],[45., 27.],[26., 18.],[85. ,65.]],
-        [[12., 72.], [27.,96.],[58., 32.],[78. ,97.],[88., 34.]], 
-        [[22., 48.],[31., 70.],[62., 33.],[72., 70.],[81.,  8.]],
-        [[19., 33.],[29., 87.],[44., 28.],[77., 72.],[81., 84.]],
-        [[23., 11.],[30., 43.],[42., 30.],[75., 80.],[80., 94.]],
-        [[ 0., 28.],[75., 83.],[48., 71.],[30., 96.],[81., 37.]],
-        [[ 3., 30.],[30., 24.],[46., 70.],[75., 28.],[82., 44.]],
-        [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
-        [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
+        initial_pos_training = np.array([[[36., 33.],[24., 62.],[72., 26.],[77., 68.],[17., 29.]],
+            [[17., 28.],[22., 66.],[83., 30.],[79., 74.],[20., 27.]],  
+            [[36., 25.],[26., 75.],[89., 30.],[77., 64.],[31., 29.]] ,
+            [[18., 25.],[25., 77.],[71., 32.],[78., 76.],[32., 31.]] ,
+            [[36., 25.],[26., 64.],[86., 27.],[75., 61.],[23., 31.]] ,
+            [[31., 25.],[24., 78.],[87., 30.],[76., 62.],[27., 26.]] ,
+            [[30., 29.],[23., 74.],[73., 25.],[78., 79.],[30., 32.]] ,
+            [[28., 32.],[25., 63.],[77., 25.],[77., 62.],[18., 34.]] ,
+            [[31., 27.],[26., 67.],[74., 26.],[75., 69.],[31., 26.]] ,
+            [[30., 34.],[22., 72.],[88., 28.],[75., 68.],[20., 34.]],
+            [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
+            [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
 
-        initial_config = np.array([[[0, 0],[4, 2],[1, 1],[2, 2],[1, 1]], 
-                                [[3, 3],[4, 2],[2, 2],[4, 2],[4, 2]],
-                                [[1, 1],[1 ,1],[0, 0],[2, 2],[4, 2]],
-                                [[0 ,0],[4, 2],[1, 1],[2, 2],[4, 2]],
-                                [[0, 0], [3, 3],[4 ,2],[4 ,2],[4, 2]],
-                                [[4, 2],[4, 2],[4, 2],[1, 1],[4, 2]],
-                                [[0, 0],[3, 3],[1, 1],[4, 2],[3, 3]],
-                                [[2, 2],[3, 3],[1, 1],[4, 2],[3, 3]],
-                                [[0, 0],[4,2],[1, 1],[3,3],[3, 3]],
-                                [[0, 0],[2, 2],[1, 1],[4, 2],[3, 3]],
+        initial_config = np.array([[[1, 1],[2, 2],[0, 0],[4, 2],[0, 0]] ,
+                                [[0, 0],[4, 2],[4, 2],[4, 2],[0, 0]] ,
+                                [[4, 2],[4, 2],[1, 1],[2, 2],[4, 2]] ,
+                                [[4, 2],[3, 3],[0, 0],[3, 3],[4, 2]] ,
+                                [[4, 2],[2, 2],[1, 1],[4, 2],[4, 2]] ,
+                                [[4, 2],[3, 3],[1, 1],[2, 2],[4, 2]] ,
+                                [[4, 2],[4, 2],[4, 2],[3, 3],[4, 2]],
+                                [[4, 2],[2, 2],[4, 2],[2, 2],[0, 0]],
+                                [[4, 2],[4, 2],[0, 0],[4, 2],[4, 2]] ,
+                                [[4, 2],[4, 2],[1, 1],[4, 2],[0, 0]], 
                                 [[4, 2],[1, 1],[0, 0], [2, 2], [1, 1]],
                                 [[0, 0],[3,3],[1, 1],[4, 2], [4,2]]] )
 
@@ -295,14 +295,14 @@ class BeamManagementEnv(gym.Env):
                 self.ue_type[i] = 1 # all CU
                 self.current_beam[i,] = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.AoD[i]))))
 
-            # elif action[i] == 5:  # heuristic method action
-            #     self.ue_type[i] = 0
-            #     index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.aod[i]))))
-            #     if np.sqrt(self.crlb_aodest[i])/self.beamwidth/2 < 1:
-            #         self.current_beam[i,] = np.mod(index + np.array([-1, 0, 1]), self.number_of_antennas)
-            #     else: 
-            #         temp = range(index - math.floor(np.sqrt(self.crlb_aodest[i])/self.beamwidth/2), index + math.ceil(np.sqrt(self.crlb_aodest[i])/self.beamwidth/2))
-            #         self.current_beam[i,] = np.unique(np.mod(temp, self.number_of_antennas) )
+            elif action[i] == 5:  # heuristic method action
+                self.ue_type[i] = 0
+                index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.aod[i]))))
+                num_beams = math.ceil(np.sqrt(self.crlb_aodest[i]) / self.beamwidth/2)
+                if num_beams >5 :
+                    num_beams = 5
+                temp = range(index - num_beams, index + num_beams)
+                self.current_beam[i,] = np.unique(np.mod(temp, self.number_of_antennas) )
 
             #     self.counter_sensing_slots[i] += 1
             else:
@@ -429,7 +429,7 @@ class BeamManagementEnv(gym.Env):
     def _get_state(self):
         #return (np.concatenate((self.echo_bf, self.diff_sensing_weight,self.datapool,[self.total_traffic_episode],self.ue_type)))
         #return (np.concatenate((self.echo_bf, self.diff_sensing_weight)))
-        return (np.concatenate((self.memory.flatten(),self.datapool,[self.total_traffic_episode], self.ue_type), dtype = np.float32))
+        return (np.concatenate((self.memory.flatten(),[self.total_traffic_episode], self.ue_type), dtype = np.float32))
     
     
 

@@ -5,7 +5,7 @@ import itertools
 def sample_velocity():
     """Sample velocity from exponential and normal distributions"""
     
-    linear_velocity = np.random.normal(loc = 20, scale=2) 
+    linear_velocity = np.random.normal(loc = 20, scale=2)  # scale is standard deviation
     if linear_velocity < 0:
         linear_velocity = 0
     # sample linear velocity from exponential distribution
@@ -64,9 +64,15 @@ def user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width):
     A = np.where(road_matrix == 1)
     
     for i in range(N_UEs):
-        indices = np.random.choice(np.arange(i*len(A[1])/N_UEs, (i+1)*len(A[1])/N_UEs-1, dtype=int), replace=False)
+
+        if np.mod(i,2) == 0:
+            user_pos[i,:] = cross_center[np.mod(i,4), :] + [np.random.randint(-20,20), np.random.randint(-single_lane_width, single_lane_width)]
+        else:
+            user_pos[i,:] = cross_center[np.mod(i,4), :] + [ np.random.randint(-single_lane_width, single_lane_width), np.random.randint(-20,20*i)]
+
+        # indices = np.random.choice(np.arange(i*len(A[1])/N_UEs, (i+1)*len(A[1])/N_UEs-1, dtype=int), replace=False)
+        # user_pos[i,:] = [A[0][indices], A[1][indices]]
         if_turned[i] = False
-        user_pos[i,:] = [A[0][indices], A[1][indices]]
         config[i,0] = set_direction(user_pos[i,:], cross_center, single_lane_width)
         config[i,1] = config[i,0] if config[i,0] != 4 else 2
     return user_pos, config, if_turned
