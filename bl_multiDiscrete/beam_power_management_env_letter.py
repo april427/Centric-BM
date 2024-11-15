@@ -144,39 +144,74 @@ class BeamManagementEnv(gym.Env):
         mono_LoS_channel = np.zeros((self.number_of_antennas, self.number_of_antennas), dtype = complex) 
         self.reflection_coefficient = np.zeros((self.N_UEs,))
 
+        # ############ set limited options for initial positions ###########
+        # if self.if_training:
+        #     dice = np.random.randint(0, 5)
+        #     if dice == 0:
+        #         self.user_positions = np.array([[27., 65.],[79., 42.]])
+        #         self.config = np.array([[4,2],[4,2]])
+        #         self.if_turned = np.array([False, False])
+        #     elif dice == 1:
+        #         self.user_positions = np.array([[31., 39.],[59., 72.]])
+        #         self.config = np.array([[3,3],[1,1]])
+        #         self.if_turned = np.array([False, False])
+        #     elif dice == 2:
+        #         self.user_positions = np.array([[23., 79.],[61., 29.]])
+        #         self.config = np.array([[3,3],[1,1]])
+        #         self.if_turned = np.array([False, False])
+        #     elif dice == 3:
+        #         self.user_positions = np.array([[14., 33.],[75., 34.]])
+        #         self.config = np.array([[4,2],[4,2]])
+        #         self.if_turned = np.array([False, False])
+        #     elif dice == 4:
+        #         self.user_positions = np.array([[30., 21.],[75., 74.]])
+        #         self.config = np.array([[2,2],[1,1]])
+        #         self.if_turned = np.array([False, False])
+        #     elif dice == 5:
+        #         self.user_positions = np.array([[35., 73.],[64., 33.]])
+        #         self.config = np.array([[4,2],[4,2]])
+        #         self.if_turned = np.array([False, False])
+
         ############ set limited options for initial positions ###########
+        initial_pos_training = np.array([[[36., 33.],[24., 62.],[72., 26.],[77., 68.],[17., 29.]],
+            [[17., 28.],[22., 66.],[83., 30.],[79., 74.],[20., 27.]],  
+            [[36., 25.],[26., 75.],[89., 30.],[77., 64.],[31., 29.]] ,
+            [[18., 25.],[25., 77.],[71., 32.],[78., 76.],[32., 31.]] ,
+            [[36., 25.],[26., 64.],[86., 27.],[75., 61.],[23., 31.]] ,
+            [[31., 25.],[24., 78.],[87., 30.],[76., 62.],[27., 26.]] ,
+            [[30., 29.],[23., 74.],[73., 25.],[78., 79.],[30., 32.]] ,
+            [[28., 32.],[25., 63.],[77., 25.],[77., 62.],[18., 34.]] ,
+            [[31., 27.],[26., 67.],[74., 26.],[75., 69.],[31., 26.]] ,
+            [[30., 34.],[22., 72.],[88., 28.],[75., 68.],[20., 34.]],
+            [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
+            [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
+
+        initial_config = np.array([[[1, 1],[2, 2],[0, 0],[4, 2],[0, 0]] ,
+                                [[0, 0],[4, 2],[4, 2],[4, 2],[0, 0]] ,
+                                [[4, 2],[4, 2],[1, 1],[2, 2],[4, 2]] ,
+                                [[4, 2],[3, 3],[0, 0],[3, 3],[4, 2]] ,
+                                [[4, 2],[2, 2],[1, 1],[4, 2],[4, 2]] ,
+                                [[4, 2],[3, 3],[1, 1],[2, 2],[4, 2]] ,
+                                [[4, 2],[4, 2],[4, 2],[3, 3],[4, 2]],
+                                [[4, 2],[2, 2],[4, 2],[2, 2],[0, 0]],
+                                [[4, 2],[4, 2],[0, 0],[4, 2],[4, 2]] ,
+                                [[4, 2],[4, 2],[1, 1],[4, 2],[0, 0]], 
+                                [[4, 2],[1, 1],[0, 0], [2, 2], [1, 1]],
+                                [[0, 0],[3,3],[1, 1],[4, 2], [4,2]]] )
+
+        initial_if_turned = np.array([False, False, False, False, False])
+
         if self.if_training:
-            dice = np.random.randint(0, 5)
-            if dice == 0:
-                self.user_positions = np.array([[27., 65.],[79., 42.]])
-                self.config = np.array([[4,2],[4,2]])
-                self.if_turned = np.array([False, False])
-            elif dice == 1:
-                self.user_positions = np.array([[31., 39.],[59., 72.]])
-                self.config = np.array([[3,3],[1,1]])
-                self.if_turned = np.array([False, False])
-            elif dice == 2:
-                self.user_positions = np.array([[23., 79.],[61., 29.]])
-                self.config = np.array([[3,3],[1,1]])
-                self.if_turned = np.array([False, False])
-            elif dice == 3:
-                self.user_positions = np.array([[14., 33.],[75., 34.]])
-                self.config = np.array([[4,2],[4,2]])
-                self.if_turned = np.array([False, False])
-            elif dice == 4:
-                self.user_positions = np.array([[30., 21.],[75., 74.]])
-                self.config = np.array([[2,2],[1,1]])
-                self.if_turned = np.array([False, False])
-            elif dice == 5:
-                self.user_positions = np.array([[35., 73.],[64., 33.]])
-                self.config = np.array([[4,2],[4,2]])
-                self.if_turned = np.array([False, False])
+            dice = np.random.randint(0, 11)
+            self.user_positions = initial_pos_training[dice, 0:self.N_UEs,:]
+            self.config = initial_config[dice, 0:self.N_UEs,:]
+            self.if_turned = initial_if_turned[0:self.N_UEs]
+
         else:
             self.user_positions, self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UEs, self.single_lane_width)
         self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UEs)
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
 
-        # y_BS = np.zeros((self.number_of_antennas, self.N_samples), dtype = complex) 
         Pt = np.ones(self.N_UEs) * (self.Pt_mW/self.N_UEs)
         xi = np.zeros((self.N_UEs,))
         s_BS = np.zeros((self.N_UEs, self.number_of_antennas, self.N_samples), dtype=complex) 
@@ -292,18 +327,6 @@ class BeamManagementEnv(gym.Env):
                     self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
 
                 self.counter_sensing_slots[i] += 1
-            # elif action[i] == 2:
-            #     self.ue_type[i] = 0
-            #     self.current_beam[i,] = np.mod(np.min(self.previous_beam[i])+[-2, -1, 0], self.number_of_antennas)
-            #     self.counter_sensing_slots[i] += 1
-            # elif action[i] == 3:
-            #     self.ue_type[i] = 0
-            #     self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[-1, 0, 1], self.number_of_antennas)
-            #     self.counter_sensing_slots[i] += 1
-            # elif action[i] == 4:
-            #     self.ue_type[i] = 0
-            #     self.current_beam[i,] = np.mod(np.max(self.previous_beam[i])+[0, 1, 2], self.number_of_antennas)
-            #     self.counter_sensing_slots[i] += 1
             else:
                 raise ValueError('Invalid action')
             
@@ -369,8 +392,8 @@ class BeamManagementEnv(gym.Env):
         if self.reward_inx == 0:
             reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) )*np.sum( self.R - self.rate_threshold*np.ones(self.N_UEs) > 0 )
         elif self.reward_inx == 1:
-            # hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 1)
-            reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * np.sum( sinr - 7 ) + 0.1*np.sum( (1-self.ue_type) * 10*np.log10(self.beamwidth*2*np.pi/180/self.est_error ) )
+            hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
+            reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * np.sum( self.ue_type*(hyper_sinr_commu - 7) ) + 0.1*np.sum( (1-self.ue_type) * 10*np.log10(self.beamwidth/self.est_error ) )
         elif self.reward_inx == 2:
             hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
             hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 1)

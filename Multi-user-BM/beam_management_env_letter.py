@@ -297,14 +297,25 @@ class BeamManagementEnv(gym.Env):
 
             elif action[i] == 5:  # heuristic method action
                 self.ue_type[i] = 0
-                index = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.aod[i]))))
+                index = np.argmax(np.abs(self.codebook @ (compute_ULA_response(self.number_of_antennas, self.aod[i]))))
                 num_beams = math.ceil(np.sqrt(self.crlb_aodest[i]) / self.beamwidth/2)
                 if num_beams >5 :
                     num_beams = 5
                 temp = range(index - num_beams, index + num_beams)
                 self.current_beam[i,] = np.unique(np.mod(temp, self.number_of_antennas) )
+                self.counter_sensing_slots[i] += 1
 
-            #     self.counter_sensing_slots[i] += 1
+            elif action[i] == 6:  # heuristic method action True CRLB
+                self.ue_type[i] = 0
+                index = np.argmax(np.abs(self.codebook @ (compute_ULA_response(self.number_of_antennas, self.aod[i]))))
+                # num_beams = 0 if np.isinf(self.crlb[i]) else math.ceil(np.sqrt(self.crlb[i]) / self.beamwidth/2)
+                num_beams = math.ceil(np.sqrt(self.crlb[i]) / self.beamwidth/2)
+                if num_beams >5 :
+                    num_beams =5
+                temp = range(index - num_beams, index + num_beams)
+                self.current_beam[i,] = np.unique(np.mod(temp, self.number_of_antennas) )
+
+                self.counter_sensing_slots[i] += 1
             else:
                 raise ValueError('Invalid action')
 
@@ -364,7 +375,7 @@ class BeamManagementEnv(gym.Env):
             a_BS_est[i,] = compute_ULA_response(self.number_of_antennas, self.aod[i]) 
             derivative_a_BS = np.array([np.exp(-1j * np.pi * ll * np.cos(self.aod[i]))*(1j * np.pi * ll * np.sin(self.aod[i])) for ll in range(self.number_of_antennas)])
 
-            self.crlb_aodest[i] = 0.5/ self.N_samples/ abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas * np.dot(a_BS_est[i], transmit_beam[i,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - 2*np.real( np.dot( derivative_a_BS, a_BS_est[i])) ) 
+            self.crlb_aodest[i] = 0.2/ self.N_samples/ abs(np.sqrt(Pt[i])* self.reflection_coefficient[i] * self.number_of_antennas * np.dot(a_BS_est[i], transmit_beam[i,] ) )**2 / ( np.linalg.norm(derivative_a_BS)**2 - 2*np.real( np.dot( derivative_a_BS, a_BS_est[i])) ) 
             self.crlb_aodest[i] = (np.pi/6)**2 if math.isinf(self.crlb_aodest[i]) else self.crlb_aodest[i]
 
         # compute the beamforming output at the BS

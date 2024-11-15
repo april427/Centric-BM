@@ -19,10 +19,10 @@ from beam_power_management_env_letter import BeamManagementEnv
 
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
-log_dir = "baseline_result/" + model_type + "_power_rician/"
+log_dir = "baseline_result/beam_power/" + model_type + "_power_rician/"
 
 
-env = gym.make("BeamManagementEnv-v1", reward_inx = 0, if_training=False)
+env = gym.make("BeamManagementEnv-v1", reward_inx = 1, if_training=False)
 #check_env(env)
 env = Monitor(env, log_dir)
 # %%
@@ -34,7 +34,7 @@ ax = figure_handle.add_subplot()
 model = PPO.load(log_dir + "BeamManagementEnv")
 # model = PPO.load("PPO_BeamManagementEnv-v1_1")
 
-num_episodes = 1000
+num_episodes = 100
 num_steps = 100
 reward_done = []
 reward_list = []
@@ -73,7 +73,6 @@ yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 ax.plot(thp_cdf, yvals, '-')
 ax.set_xlabel('Throughput')
 ax.set_ylabel('CDF')
-ax.legend(['0','1','2','3','4','5'])
 plt.show()
 # %%
 # np.savetxt('Multi-user-BM/results_bm/Thp_' + 'PPO_test', throughput)

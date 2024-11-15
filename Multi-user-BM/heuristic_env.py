@@ -25,7 +25,7 @@ torch.set_default_dtype(torch.float32)
 
 # %%
 env = gym.make('BeamManagementEnv-v1', reward_inx = 0, if_training=False)
-num_episodes = 1000
+num_episodes = 100
 episode_durations = []
 reward_done= []
 num_sensing_slot = []
@@ -35,7 +35,7 @@ throughput = []
 num_steps = 100
 
 counter = 0
-ji = 1
+ji = 1     # 1: AoD-Genie   2: --  3: AoD-based, 4: genie
 
 sum_reward = []
 th_episode = []
@@ -63,12 +63,14 @@ for i_episode in range(num_episodes):
 
         if ji == 1: 
         # set the action for the next step
-            action_array = (info['est_error'] > (env.unwrapped.beamwidth/2)) #np.ones((env.unwrapped.N_UEs)) ) #*random.randint(1,4)
+            action_array = (info['est_error'] > (env.unwrapped.beamwidth/2))*5 
+
+        elif ji == 2: 
+            info['crlb'][np.isinf(info['crlb'])] = 1e-5
+            action_array = (np.sqrt(info['crlb']) > (env.unwrapped.beamwidth/2 ) ) *6 
+            print(action_array)
         
-        elif ji == 2: # true crlb
-            action_array = (np.sqrt(info['crlb']) > (env.unwrapped.beamwidth/2 ) ) *5 #*random.randint(1,4)
-        
-        elif ji==3: # crlb estimates
+        elif ji==3: # crlb estimates, all estimate 
             action_array = (np.sqrt(info['crlb_aodest']) > env.unwrapped.beamwidth/2 ) *  5 
         
         elif ji==4:  # genie beams 
