@@ -215,12 +215,12 @@ x_rg = rg_mapper(x) # batch_size, num_tx, num_streams_per_tx, num_ofdm_symbols, 
 # Calculate distances between BS and each UT for each batch
 Rd = np.zeros((batch_size, N_UTs)) # distance between BS and UTs
 aod = np.zeros((batch_size, N_UTs)) # AoD at the BS
-a_s = np.zeros((batch_size, N_UTs)) # BS-UT-BS path loss 
+reflection_coefficient = np.zeros((batch_size, N_UTs)) # BS-UT-BS path loss 
 a_c = np.zeros((batch_size, N_UTs)) # BS-UT path loss
 for s in range(batch_size):
     for i in range(N_UTs):
         Rd[s, i] = np.linalg.norm(ut_loc[s, i, :] - bs_loc.numpy()[0, 0, :])
-        a_s[s, i] = 1e-2#wavelength * 5 / (4* np.pi)**(1.5) / (Rd[s, i]**2) # path loss, RCS = 5 
+        reflection_coefficient[s, i] = wavelength * 5 / (4* np.pi)**(1.5) / (Rd[s, i]**2) # path loss, RCS = 5 
         a_c[s,i] = (wavelength / (4 * np.pi * Rd[s,i]))**2
         aod[s,i] = compute_AoD_at_BS(bs_loc.numpy()[0, 0, :], ut_loc[s, i, :])
 
@@ -236,7 +236,7 @@ for s in range(batch_size):
 H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)
         
 H_BS = tf.zeros([batch_size, 1 , number_of_antennas, 1, number_of_antennas, rg.num_ofdm_symbols, fft_size])
-H_BS, A_t = freqency_sensing_channel(batch_size, rg.num_ofdm_symbols, fft_size , number_of_antennas, N_UTs, subcarrier_spacing, rg.ofdm_symbol_duration, a_s, ut_velocities.numpy(), wavelength, tau_s, aod)
+H_BS, A_t = freqency_sensing_channel(batch_size, rg.num_ofdm_symbols, fft_size , number_of_antennas, N_UTs, subcarrier_spacing, rg.ofdm_symbol_duration, reflection_coefficient, ut_velocities.numpy(), wavelength, tau_s, aod)
 H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)    
 
 ########################################################################################
@@ -325,8 +325,7 @@ for u in range(N_UTs):
     R_estimate[u] = - 3e8*indices[u,1]/(2*subcarrier_spacing*num_rangebin)
     v_estiamte[u] = 3e8*indices[u,0]/(2*rg.ofdm_symbol_duration*carrier_frequency*num_dopplerbin) 
     print(''.join(['R estimate: ', str(R_estimate[u]), ' v estimate: ', str(v_estiamte[u]), '\nR_real: ', str(Rd[0,u]), ' v_real: ', str(ut_velocities[0,u,0])]))
-# %%
-
+# %% Plot user locations
 for i in range(N_UTs):
     ue_pos_x = ut_loc[:,i,0]
     ue_pos_y = ut_loc[:,i,1]
@@ -345,3 +344,5 @@ plt.legend(['UE1','','UE2','', 'UE3', ''])
 plt.show()
 
 
+
+# %%
