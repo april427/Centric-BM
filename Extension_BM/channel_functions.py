@@ -17,7 +17,7 @@ def dft_codebook(n, m):
     Returns:
         codebook (numpy.ndarray): A numpy array of shape (n, m) representing the codebook.
     """
-    dft_matrix = np.ones((m, m)) * complex(1, 0)
+    dft_matrix = np.ones((m, m), dtype=np.complex64) * complex(1, 0) 
     for i in range(1, m+1):
         dft_matrix[i-1,:] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i - 1 - m)/m) for j in range(n)])
     return dft_matrix

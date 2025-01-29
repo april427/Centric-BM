@@ -1,4 +1,13 @@
 import numpy as np
+import matplotlib.pyplot
+from sionna.mimo import StreamManagement
+from sionna.ofdm import ResourceGridMapper, LSChannelEstimator, LMMSEEqualizer, RemoveNulledSubcarriers
+from sionna.fec.ldpc.encoding import LDPC5GEncoder
+from sionna.fec.ldpc.decoding import LDPC5GDecoder
+
+from sionna.mapping import Mapper, Demapper
+from sionna.utils import BinarySource, ebnodb2no, QAMSource
+from sionna.utils.metrics import compute_ber
 
 def cuboid_data(center, size=(1,1,1)):
     # suppose axis direction: x: to left; y: to inside; z: to upper
@@ -44,3 +53,70 @@ def plotMatrix(ax, x, y, z, data, cmap="jet", cax=None, alpha=0.1):
         cbar.set_ticks(np.unique(data))
         # set the colorbar transparent as well
         cbar.solids.set(alpha=alpha)      
+
+
+def gen_tx_signal(rg, N_UTs, batch_size):
+    # Generate the transmitted signal in the frequency domain
+    # rg: ResourceGrid object
+    # N_UTs: Number of UTs
+    # return: tx_signal_fd: 3D array of the transmitted signal in the frequency domain
+    
+    num_bits_per_symbol = 2 # QPSK modulation
+    coderate = 0.5 # The code rate
+    n = int(rg.num_data_symbols*num_bits_per_symbol) # Number of coded bits
+    k = int(n*coderate) # Number of information bits
+
+    # The binary source will create batches of information bits
+    binary_source = BinarySource()
+    qam_source = QAMSource(num_bits_per_symbol)
+
+    # The encoder maps information bits to coded bits
+    encoder = LDPC5GEncoder(k, n)
+
+    # The mapper maps blocks of information bits to constellation symbols
+    mapper = Mapper("qam", num_bits_per_symbol)
+
+    # The resource grid mapper maps symbols onto an OFDM resource grid
+    rg_mapper = ResourceGridMapper(rg)
+    
+    b = binary_source([batch_size, 1, rg.num_streams_per_tx, encoder.k])
+    c = encoder(b)
+    x = mapper(c)
+    x_rg = rg_mapper(x) # batch_size, num_tx, num_streams_per_tx, num_ofdm_symbols, fft_size
+
+    return x_rg, encoder, b
+
+def decode_rx_signal(y_UT, rg, N_UTs, encoder, b, ebno_db):
+
+    num_streams_per_tx = N_UTs # Number of transmitted streams is equal to the number of UTs
+    rx_tx_association = np.ones([N_UTs, 1])
+
+    sm = StreamManagement(rx_tx_association, num_streams_per_tx,)
+
+    num_bits_per_symbol = 2 # QPSK modulation
+    coderate = 0.5 # The code rate
+    # This function removes nulled subcarriers from any tensor having the shape of a resource grid
+    remove_nulled_scs = RemoveNulledSubcarriers(rg)
+
+    ls_est = LSChannelEstimator(rg, interpolation_type="nn")
+
+    # The LMMSE equalizer will provide soft symbols together with noise variance estimates
+    lmmse_equ = LMMSEEqualizer(rg, sm)
+
+    # The demapper produces LLR for all coded bits
+    demapper = Demapper("app", "qam", num_bits_per_symbol)
+
+    # The decoder provides hard-decisions on the information bits
+    decoder = LDPC5GDecoder(encoder, hard_out=True)
+
+    no = ebnodb2no(ebno_db, num_bits_per_symbol, coderate, rg)
+
+    h_hat, err_var = ls_est ([y_UT, no])
+    x_hat, no_eff = lmmse_equ([y_UT, h_hat, err_var, no])
+    llr = demapper([x_hat, no_eff])
+    b_hat = decoder(llr)
+    ber = np.zeros(N_UTs)
+    for uu in range(N_UTs): 
+        ber[uu] = compute_ber(b[:,:,uu,:], b_hat[:,:,uu,:])
+
+    return ber
