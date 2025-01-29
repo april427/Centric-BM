@@ -72,7 +72,7 @@ from beam_management_env_letter import BeamManagementEnv
 from channel_functions import *
 from util_functions import *
 
-env = gym.make('BeamManagementEnv-v1', reward_inx = 0, if_training=False)
+env = gym.make('BeamManagementEnv-v1', if_training=False)
 
 ########################################################################################
 # %%
@@ -82,8 +82,8 @@ wavelength = 3e8 / carrier_frequency
 direction = "downlink"
 N_UTs = 2 # env.unwrapped.N_UTs 
 batch_size = 1 # number of steps
-number_of_antennas = 16
-fft_size = 128
+number_of_antennas = 4
+fft_size = 8
 subcarrier_spacing = 30e3
 TTI = 1 # channel coherence time
 
@@ -144,16 +144,16 @@ rx_tx_association = np.ones([N_UTs, 1])
 
 sm = StreamManagement(rx_tx_association, num_streams_per_tx,)
 #  resource grid
-rg = ResourceGrid(num_ofdm_symbols=14, 
+rg = ResourceGrid(num_ofdm_symbols=7,
                   fft_size=fft_size,
                   subcarrier_spacing=subcarrier_spacing,
                   num_tx = 1, # one BS
                   num_streams_per_tx=num_streams_per_tx, 
-                  cyclic_prefix_length=20,
+                  #cyclic_prefix_length=20,
                   pilot_pattern="kronecker",
-                  pilot_ofdm_symbol_indices=[2,11]
-                 )
-rg.show()
+                  pilot_ofdm_symbol_indices=[2]
+                  )
+rg.show();
 
 ########################################################################################
 # %%
@@ -248,12 +248,14 @@ codebook = dft_codebook(number_of_antennas, number_of_antennas)
 tx_sig_shape = list(x_rg.shape) #[batch_size, num_tx, num_tx_antennas, num_ofdm_symbols, fft_size]
 tx_sig_shape[2] = number_of_antennas
 tx_sig_fd = tf.zeros(tx_sig_shape, dtype=x_rg.dtype)
+tx_sig_fd_ut = np.zeros([batch_size, N_UTs, number_of_antennas, rg.num_ofdm_symbols, rg.fft_size], dtype = np.complex64)
+y_UT_eff = np.zeros([batch_size, N_UTs, 1, rg.num_ofdm_symbols, rg.fft_size], dtype = np.complex64)
 
 # the first beam is set with known AoDs
-current_beam = np.empty([TTI, N_UTs], dtype = object) 
+current_beam = np.empty([TTI, N_UTs,], dtype = object) 
 
 for u in range(N_UTs):
-    current_beam[0, u] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
+    current_beam[0, u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
 
 channel_freq = ApplyOFDMChannel(add_awgn=False)
 
@@ -267,13 +269,41 @@ n3 = np.array(range(num_anglebin))
 
 # %%
 z_BS = np.zeros([batch_size, 1, N_UTs, num_dopplerbin, num_rangebin], dtype = np.complex64)
+transmit_beam = np.zeros([number_of_antennas, N_UTs], dtype = np.complex64)
 for nTTI in range(TTI):
-    beam_index = current_beam[nTTI, :].astype('int')
-    tx_sig_fd = tf.einsum('kj,nijom -> nikom', codebook[:,beam_index], x_rg)
+    tx_sig_fd = tf.zeros([1,1,number_of_antennas, rg.num_ofdm_symbols, rg.fft_size], dtype=x_rg.dtype)
+    for u in range(N_UTs):
+        beam_index = current_beam[nTTI, u,]
+        transmit_beam[:,u] = np.sum(codebook[:,beam_index],axis = 1) if np.size(beam_index) > 1 else codebook[:,beam_index]
+        # dedicated signal for each user
+        tx_sig_fd_ut[:,u,:,:,:] = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,u],1), tf.expand_dims(x_rg[:,:,u,:,:],2))
+        # dedicated received signal at the UE
+        temp = channel_freq([ tf.expand_dims(tx_sig_fd_ut[:,u,:,:,:],1), H_UT])
+        y_UT_eff[:,u,:,:,:] = temp[:,u,:,:,:] # received signal targeted for the UE
+
+
+    tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, x_rg)
     
+    # # dedicated signal for each user
+    # tx_sig_fd_0 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,0],1), tf.expand_dims(x_rg[:,:,0,:,:],2))
+    # tx_sig_fd_1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,1],1), tf.expand_dims(x_rg[:,:,1,:,:],2))
+
     # Apply the OFDM channel
     y_UT = channel_freq([tx_sig_fd, H_UT])
+    # y_UT_0 = channel_freq([tx_sig_fd_0, H_UT])
+    # y_UT_1 = channel_freq([tx_sig_fd_1, H_UT])
+    
+    # spectral efficiency
+    y_UT_pow = np.squeeze(np.square(np.abs(y_UT)))
+    sig_pow = np.squeeze(np.square(np.abs(y_UT_eff)))
 
+    inter_pow = y_UT_pow - sig_pow
+    inter_pow[inter_pow<0] = 0
+    sinr_pow = (sig_pow/(inter_pow + no))
+    SE = np.sum(np.sum(np.log2(1+sinr_pow), axis=-1), axis = -1)/(rg.num_ofdm_symbols*rg.fft_size)
+
+
+    # detection
     h_hat, err_var = ls_est ([y_UT, no])
     x_hat, no_eff = lmmse_equ([y_UT, h_hat, err_var, no])
     llr = demapper([x_hat, no_eff])
@@ -284,7 +314,8 @@ for nTTI in range(TTI):
 
     y_BS = channel_freq([tx_sig_fd, H_BS])
 
-    y_BS2 = np.einsum('uj, nijom->niuom ' , np.transpose(np.conj((codebook[:,beam_index]))), y_BS)
+    # y_BS2 = np.einsum('uj, nijom->niuom ' , np.transpose(np.conj((codebook[:,beam_index]))), y_BS)
+    y_BS2 = np.einsum('uj, nijom->niuom ' , np.transpose(((transmit_beam))), y_BS)
     y_BS2 = tf.multiply(y_BS2, tf.math.conj(x_rg[nTTI,]))
 
 z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
@@ -303,8 +334,9 @@ z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
 indices = np.zeros([N_UTs, 2])
 R_estimate = np.zeros(N_UTs)
 v_estiamte = np.zeros(N_UTs)
-fig1 = plt.figure()
+
 for u in range(N_UTs):
+    fig1 = plt.figure()
     ax1 = fig1.add_subplot(projection = '3d')
     _x = np.arange(num_rangebin)
     _y = np.arange(num_dopplerbin)
