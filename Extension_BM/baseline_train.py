@@ -3,7 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from stable_baselines3 import  PPO, DQN
+from stable_baselines3 import  PPO, DDPG
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
@@ -62,7 +62,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         return True
 
 # %%
-model_type = "PPO"
+model_type = "DDPG"
 model_class = getattr(sys.modules[__name__], model_type)
 env = gym.make("BeamManagementEnv-v1",  if_training=True)
 
@@ -70,7 +70,7 @@ log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue"
 os.makedirs(log_dir, exist_ok=True)
 env = Monitor(env, log_dir)
 
-model = model_class("MlpPolicy", env, verbose=1)
+model = model_class("MlpPolicy", env, learning_rate=1e-4, verbose=1)
 timesteps = 1e5
 
 

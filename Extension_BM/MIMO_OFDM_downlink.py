@@ -283,7 +283,7 @@ for nTTI in range(TTI):
 
 
     tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, x_rg)
-    
+
     # # dedicated signal for each user
     # tx_sig_fd_0 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,0],1), tf.expand_dims(x_rg[:,:,0,:,:],2))
     # tx_sig_fd_1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,1],1), tf.expand_dims(x_rg[:,:,1,:,:],2))
