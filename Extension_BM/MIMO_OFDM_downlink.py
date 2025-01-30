@@ -72,7 +72,7 @@ from beam_management_env_letter import BeamManagementEnv
 from channel_functions import *
 from util_functions import *
 
-env = gym.make('BeamManagementEnv-v1', if_training=False)
+env = gym.make('BeamManagementEnv-v2', if_training=False)
 
 ########################################################################################
 # %%

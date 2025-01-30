@@ -64,14 +64,14 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 # %%
 model_type = "DDPG"
 model_class = getattr(sys.modules[__name__], model_type)
-env = gym.make("BeamManagementEnv-v1",  if_training=True)
+env = gym.make("BeamManagementEnv-v2",  if_training=True)
 
 log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue"  
 os.makedirs(log_dir, exist_ok=True)
 env = Monitor(env, log_dir)
 
 model = model_class("MlpPolicy", env, learning_rate=1e-4, verbose=1)
-timesteps = 1e5
+timesteps = 5e3
 
 
 # %%
@@ -80,8 +80,9 @@ timesteps = 1e5
 callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
 model.learn(total_timesteps=timesteps, callback=callback)
 
-plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v1")
+plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v2")
 plt.show()
 
 model.save(log_dir + "BeamManagementEnv")
+
 # %%

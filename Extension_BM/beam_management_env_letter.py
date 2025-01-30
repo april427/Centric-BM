@@ -278,7 +278,7 @@ class BeamManagementEnv(gym.Env):
         ########################################################################
         #                              action mask              
         ########################################################################
-        action_beam = np.floor(action[0:self.number_of_antennas]*self.N_UTs).astype('int')
+        action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
         action_power = action[self.number_of_antennas:]
 
         if np.sum(action_power) == 0:
@@ -387,40 +387,15 @@ class BeamManagementEnv(gym.Env):
         self.datapool[self.datapool < 0] = 0
 
         # reward
-        reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
-###########################################################
+        reward = (3 + np.exp(3*(self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
 
-
-
-        # #reward for communication
-        # if self.reward_inx == 0:
-        #     reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) )*np.sum( self.R - self.SE_threshold*np.ones(self.N_UTs) > 0 )
-        # elif self.reward_inx == 1:
-        #     reward = (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) * np.sum( self.R - self.SE_threshold*np.ones(self.N_UTs) > 0 ) + 0.1*np.sum( (1-self.ue_type) * 10*np.log10(self.beamwidth*2*np.pi/180/self.est_error ) )
-        # elif self.reward_inx == 2:
-        #     hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0.2, 10) #snr in dB
-        #     hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 1)
-        #     reward = np.sum(hyper_sinr_commu * self.ue_type ) + 0.25 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
-        # elif self.reward_inx == 3:
-        #     # reward using hyperbolic tagent function, no penalization
-        #     hyper_sinr_commu = hyperbolic_func(sinr, 0.8, 0, 10) #snr in dB
-        #     hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0, 1)
-        #     reward = np.sum(hyper_sinr_commu * self.ue_type ) + 0.25 * np.sum((1-self.ue_type) * hyper_sinr_sensing)
-        # elif self.reward_inx == 4:
-        #     # reward uses beamforming output
-        #     reward = np.sum(0.75 * (sinr -12) * self.ue_type + 0.25* (echo_bf_db - 20) * (1-self.ue_type))
-        # elif self.reward_inx == 5:
-        #             # reward considers transmitted packets and echo_bf
-        #     hyper_sinr_sensing = hyperbolic_func(echo_bf_db,  0.03, 0.4, 1)
-        #     reward = 3*np.sum(self.R - self.R_threshold*np.ones(self.N_UTs) > 0)
-        #     reward += np.sum((1-self.ue_type) * hyper_sinr_sensing)
   
 
         if np.sum(self.datapool) == 0:
             done = True
         
-        return self._get_state(), reward, done, truncated, {
-                                                 }
+        return self._get_state(), reward, done, truncated, {'buffer': self.datapool.copy(), 
+                                                            'total_traffic': self.total_traffic_episode}
 
 
     def _get_state(self):
@@ -428,4 +403,4 @@ class BeamManagementEnv(gym.Env):
     
     
 
-register(id='BeamManagementEnv-v1', entry_point=BeamManagementEnv)
+register(id='BeamManagementEnv-v2', entry_point=BeamManagementEnv)
