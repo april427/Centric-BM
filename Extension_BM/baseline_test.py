@@ -39,23 +39,23 @@ num_steps = 100
 reward_done = []
 reward_list = []
 throughput = []
-estimation_error = []
+error_range = np.zeros((num_episodes, env.unwrapped.N_UTs))
+error_speed = np.zeros((num_episodes, env.unwrapped.N_UTs))
 
 for ep in range(1, num_episodes+1):
 
     obs,_ = env.reset()
     reward_episode = 0
-    noted = []
+    er = np.zeros(env.unwrapped.N_UTs)
+    ev = np.zeros(env.unwrapped.N_UTs)
 
     for t in range(num_steps):
         action, _states = model.predict(obs)
         # print(action)
         obs, rewards, dones, _, info = env.step(action)
         reward_episode += rewards
-
-        # for i in range(env.unwrapped.N_UTs):
-        #     if info['buffer'][i] == 0 and i not in noted:
-        #         noted.append(i)
+        er += info['nmse_R']
+        ev += info['nmse_v']
 
         if dones:
             reward_done.append(reward_episode)
@@ -64,7 +64,9 @@ for ep in range(1, num_episodes+1):
         
         # estimation_error.append(info['est_error'])
 
-    
+    error_range[ep-1,] = er/(t+1)
+    error_speed[ep-1,] = ev/(t+1)
+
     if t == num_steps - 1:  
         reward_list.append(reward_episode)       
     

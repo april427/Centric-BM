@@ -84,6 +84,9 @@ def gen_tx_signal(rg, N_UTs, batch_size):
     x = mapper(c)
     x_rg = rg_mapper(x) # batch_size, num_tx, num_streams_per_tx, num_ofdm_symbols, fft_size
 
+    # ebno_db=10
+    # noise_power = ebnodb2no(ebno_db, num_bits_per_symbol, coderate, rg)
+
     return x_rg, encoder, b
 
 def decode_rx_signal(y_UT, rg, N_UTs, encoder, b, ebno_db):

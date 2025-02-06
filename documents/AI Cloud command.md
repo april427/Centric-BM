@@ -26,3 +26,7 @@ scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_logs/BeamManagementEnv-v1/PPO_B
 scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/PPO_logs/BeamManagementEnv-v1/ ./PPO_logs
 
 (. means current directly in my local machine)
+
+
+---
+scp -r Extension_BM fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~
