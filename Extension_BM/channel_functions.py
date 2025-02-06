@@ -90,8 +90,8 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
     alpha = np.zeros([N],dtype = complex)
     H_f = np.array(np.zeros([Nt, Nsym,Nc],dtype = complex))
     for i in range(N):
-        A_t[:,i] = np.sqrt(1/Nt) * np.exp(-1j*np.pi*n_t*np.sin(fai1[i])) # Array response of the transmit antenna normalized
-        aa = np.sqrt(1/sigma_2_alpha/N)
+        A_t[:,i] = 1/np.sqrt(Nt) * np.exp(-1j*np.pi*n_t*np.sin(fai1[i])) # Array response of the transmit antenna normalized
+        aa = np.sqrt(sigma_2_alpha/N)
         alpha[i] = aa 
             
     for k in range(Nc):

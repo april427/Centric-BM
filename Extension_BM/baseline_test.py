@@ -16,7 +16,7 @@ import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 from beam_management_env_letter import BeamManagementEnv
 
-model_type = "DDPG"
+model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 
 
@@ -43,8 +43,6 @@ estimation_error = []
 
 for ep in range(1, num_episodes+1):
 
-    state = env.reset()
-    current_ep_reward = 0
     obs,_ = env.reset()
     reward_episode = 0
     noted = []

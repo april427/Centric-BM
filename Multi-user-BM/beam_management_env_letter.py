@@ -173,7 +173,7 @@ class BeamManagementEnv(gym.Env):
 
             self.a_BS[i] = compute_ULA_response(self.number_of_antennas, self.AoD[i])  # current array response
 
-            self.reflection_coefficient[i] = self.lambda_ * 5/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of a vehicle
+            self.reflection_coefficient[i] = self.lambda_ * 5/ self.d[i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5^2 is the RCS of a vehicle
 
             self.mmWave_LoS_NLoS_channel[i] = compute_mmWave_LoS_NLoS_channel(self.number_of_antennas, self.a_BS[i], self.d[i], self.lambda_)  # current LoS channel
 

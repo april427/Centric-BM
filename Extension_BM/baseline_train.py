@@ -62,7 +62,7 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
         return True
 
 # %%
-model_type = "DDPG"
+model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 env = gym.make("BeamManagementEnv-v2",  if_training=True)
 
@@ -77,7 +77,7 @@ timesteps = 5e3
 # %%
 ################################### Learn a model #################################
 # Create the callback: check every episode
-callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
+callback = SaveOnBestTrainingRewardCallback(check_freq=100, log_dir=log_dir)
 model.learn(total_timesteps=timesteps, callback=callback)
 
 plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v2")
