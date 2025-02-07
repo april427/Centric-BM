@@ -85,4 +85,3 @@ plt.show()
 
 model.save(log_dir + "BeamManagementEnv")
 
-# %%

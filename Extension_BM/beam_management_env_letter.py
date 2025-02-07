@@ -38,14 +38,13 @@ class BeamManagementEnv(gym.Env):
         self.number_of_antennas = 32  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
-        self.config = np.zeros((self.N_UTs,))
 
         ##################################################
         #          Define action and state space
         ##################################################
         self.action_space = Box(low =np.concatenate((np.array
                                                      ([0]*self.number_of_antennas), np.array([1]*self.N_UTs))), high = np.concatenate((np.array([1]*self.number_of_antennas), np.array([2]*self.N_UTs))),shape = (self.number_of_antennas+ self.N_UTs, ))
-        self.observation_space = Box(low=0, high=np.inf, shape=(self.N_UTs*6 + self.number_of_antennas + self.N_UTs,)) 
+        self.observation_space = Box(low=0, high=np.inf, shape=(self.N_UTs*14*3 + self.number_of_antennas + 4*self.N_UTs,)) 
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -73,10 +72,8 @@ class BeamManagementEnv(gym.Env):
         self.SE_threshold = 4  # rate threshold for each UE
         self.SE = np.zeros((self.N_UTs,))  # spectral efficiency of each UE
 
-        self.Pt_mW = (10**(15/10))*(10**(109/10))  # 15dbm in linear scale
+        self.Pt_mW = (10**(25/10))*(10**(109/10))  # 15dbm in linear scale
         self.noise_power = 10**(-109/10)*10**(109/10)  # -109 dbm in linear scale, 10**(109/10) is normalization
-
-        self.codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
 
         self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas) 
         
@@ -86,7 +83,6 @@ class BeamManagementEnv(gym.Env):
 
         self.datapool = np.zeros((self.N_UTs, ), dtype=np.float32)  # number of packets of each UE in the buffer
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
-        self.previous_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
         self.bs_loc = tf.expand_dims(tf.expand_dims(tf.constant([50, 50, 0], dtype = tf.float32),axis=0),axis=0)  # BS position
 
@@ -106,18 +102,12 @@ class BeamManagementEnv(gym.Env):
         self.nmse_R = np.zeros((self.N_UTs)) # normalized MSE of delay estimation
         self.nmse_v = np.zeros((self.N_UTs))
 
-        self.crlb = np.zeros((self.N_UTs)) # CRLB estimation error
-
         # define the road traffic scenario
         self.cross_pos = np.array([[27, 80], [30, 70]])
         self.road_matrix = road(self.cross_pos)
         self.single_lane_width = 5
 
         # self.ut_loc[0,:,:], self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width)
-        
-        self.num_rangebin = int(self.fft_size)*3
-        self.num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
-        self.num_anglebin = self.number_of_antennas
 
 
     def reset(self, seed=None):
@@ -126,8 +116,6 @@ class BeamManagementEnv(gym.Env):
         self.cstep = 0
         self.done = False
         self.current_beam = np.empty([self.N_UTs,], dtype=object)
- 
-        self.previous_beam = np.empty([self.N_UTs,], dtype=object)  # previsou beam direction
 
         self.Rd = np.zeros((1,self.N_UTs))
         self.AoD = np.zeros((self.N_UTs))
@@ -138,6 +126,8 @@ class BeamManagementEnv(gym.Env):
         H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_users, num_subcarriers, num_BS_antennas ]
 
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
+
+        codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
 
         ########################################################################
         #                set limited options for initial positions              #
@@ -233,14 +223,14 @@ class BeamManagementEnv(gym.Env):
 
         self.action_beam = np.zeros((self.number_of_antennas))
         for u in range(self.N_UTs):
-            self.current_beam[u,] = np.argmax(np.abs(np.transpose((A_t[:,0,u])) @ self.codebook))
+            self.current_beam[u,] = np.argmax(np.abs(np.transpose((A_t[:,0,u])) @ codebook))
             self.action_beam[self.current_beam[u]] = u+1
 
         beam_index = self.current_beam.astype('int')
-        transmit_beam = np.matmul(self.codebook[:,beam_index] , np.diag(np.sqrt(self.action_power))).astype(np.complex64)
+        transmit_beam = np.matmul(codebook[:,beam_index] , np.diag(np.sqrt(self.action_power))).astype(np.complex64)
         tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
 
-        for u in range(self.N_UTs):
+        for i in range(self.N_UTs):
             tx_sig_fd_ut[:,i,:,:,:] = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
             
             # dedicated received signal at the UE
@@ -265,24 +255,28 @@ class BeamManagementEnv(gym.Env):
 
         # beamformed output of the sensing signal
         y_BS2 = np.einsum('uj, nijom->niuom ' , 
-                          np.transpose(np.conj((self.codebook[:,beam_index]))), 
+                          np.transpose(((codebook[:,beam_index]))), 
                           y_BS)
         y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg[0,]))
-        echo_bf_db = 10*np.log10(np.squeeze(np.mean(np.mean(np.abs(y_BS2), axis = -1), axis =-1)))
+        echo_bf_db = 10*np.log10(np.squeeze(np.mean(np.abs(y_BS2)**2, axis = -1)))
 
         self.memory = np.array([echo_bf_db, echo_bf_db, echo_bf_db], dtype = np.float32)
 
-        z_BS = np.fft.fft2(y_BS2, [self.num_dopplerbin, self.num_rangebin])
+        num_rangebin = int(self.fft_size)*3
+        num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
+        # num_anglebin = self.number_of_antennas
+
+        z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
         top = np.abs(z_BS[0,0,u,:,:]).ravel()
         indices = np.zeros([self.N_UTs, 2])
         for u in range(self.N_UTs):
             indices[u,:] = np.concatenate(np.unravel_index(np.argsort(top, axis=None)[-1:], z_BS[0,0,u,:,:].shape)).astype('int')
             # fft shift
-            indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(self.num_dopplerbin/2) else indices[u,0] - self.num_dopplerbin
-            indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(self.num_rangebin/2) else indices[u,1] - self.num_rangebin
+            indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(num_dopplerbin/2) else indices[u,0] - num_dopplerbin
+            indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(num_rangebin/2) else indices[u,1] - num_rangebin
 
-        self.R_estimate = - 3e8*indices[:,1]/(2*self.rg.subcarrier_spacing * self.num_rangebin)
-        self.v_estiamte = 3e8 * indices[:,0]/(2 * self.rg.ofdm_symbol_duration * self.carrier_frequency * self.num_dopplerbin)
+        self.R_estimate = - 3e8*indices[:,1]/(2*self.rg.subcarrier_spacing * num_rangebin)
+        self.v_estiamte = 3e8 * indices[:,0]/(2 * self.rg.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
         
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.rg.fft_size/self.rg.subcarrier_spacing)
         self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.rg.num_ofdm_symbols/self.carrier_frequency/self.rg.ofdm_symbol_duration)
@@ -302,7 +296,8 @@ class BeamManagementEnv(gym.Env):
         truncated = False
         self.cstep += 1
 
-        self.previous_beam = self.current_beam.copy()
+        codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
+
         self.current_beam = np.empty([self.N_UTs,], dtype=object)
         ########################################################################
         #                              action mask              
@@ -310,11 +305,6 @@ class BeamManagementEnv(gym.Env):
         self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
         self.action_beam[self.action_beam == (1+self.N_UTs)] = 0 # set the illegal action to 0
         self.action_power = action[self.number_of_antennas:]
-
-        # if np.sum(self.action_power) == 0:
-        #     print(self.action_power)
-        #     print(self.action_beam)
-        #     self.action_power = np.ones(self.N_UTs) * (1/self.N_UTs) # evenly distribute power if no power is allocated
 
         for i in range(self.N_UTs):
             self.current_beam[i,] = np.squeeze(np.argwhere(self.action_beam == (i+1)))
@@ -360,9 +350,9 @@ class BeamManagementEnv(gym.Env):
             if beam_index.size == 0:
                 continue
             elif beam_index.size == 1:
-                transmit_beam[:, i] = self.codebook[:, beam_index] * np.sqrt(Pt[i])
+                transmit_beam[:, i] = codebook[:, beam_index] * np.sqrt(Pt[i])
             else:
-                transmit_beam[:, i] = np.sum( (self.codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1) 
+                transmit_beam[:, i] = np.sum( (codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1) 
             
             
             tx_sig_fd_ut[:,i,:,:,:] = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
@@ -394,48 +384,50 @@ class BeamManagementEnv(gym.Env):
         ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, 10) 
         
         # beamformed output of the sensing signal
-        y_BS2 = np.einsum('uj, nijom->niuom ' , np.transpose(np.conj(transmit_beam)), y_BS)
+        y_BS2 = np.einsum('uj, nijom->niuom ' , np.transpose((transmit_beam)), y_BS)
         y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
 
-        echo_bf_db = 10*np.log10(np.squeeze(np.mean(np.mean(np.abs(y_BS2), axis = -1), axis =-1)))
+        echo_bf_db = 10*np.log10(np.squeeze(np.mean(np.abs(y_BS2)**2, axis = -1)))
         self.memory = np.roll(self.memory, -2)
         self.memory[-1] = echo_bf_db
         self.memory[self.memory < 0] = 0
 
-        z_BS = np.fft.fft2(y_BS2, [self.num_dopplerbin, self.num_rangebin])
+        num_rangebin = int(self.fft_size)*3
+        num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
+
+        z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
 
         # Doppler and range estimation
         indices = np.zeros([self.N_UTs, 2])
-        R_estimate = np.zeros(self.N_UTs)
-        v_estiamte = np.zeros(self.N_UTs)
+
         for u in range(self.N_UTs):
             top = np.abs(z_BS[0,0,u,:,:]).ravel()
             indices[u,:] = np.concatenate(np.unravel_index(np.argsort(top, axis=None)[-1:], z_BS[0,0,u,:,:].shape)).astype('int')
             # fft shift
-            indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(self.num_dopplerbin/2) else indices[u,0]-self.num_dopplerbin
-            indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(self.num_rangebin/2) else indices[u,1]-self.num_rangebin
+            indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(num_dopplerbin/2) else indices[u,0]-num_dopplerbin
+            indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(num_rangebin/2) else indices[u,1]-num_rangebin
 
-            R_estimate[u] = - 3e8*indices[u,1]/(2*self.rg.subcarrier_spacing*self.num_rangebin)
-            v_estiamte[u] = 3e8*indices[u,0]/(2*self.rg.ofdm_symbol_duration*self.carrier_frequency*self.num_dopplerbin) 
+            self.R_estimate[u] = - 3e8*indices[u,1]/(2*self.rg.subcarrier_spacing*num_rangebin)
+            self.v_estiamte[u] = 3e8*indices[u,0]/(2*self.rg.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin) 
 
         # normalized MSE of delay and Doppler
-        self.nmse_R = np.abs(R_estimate - self.Rd[0,] ) / (3e8/2/self.rg.fft_size/self.rg.subcarrier_spacing)
-        self.nmse_v = np.abs(v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.rg.num_ofdm_symbols/self.carrier_frequency/self.rg.ofdm_symbol_duration)
+        self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.rg.fft_size/self.rg.subcarrier_spacing)
+        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.rg.num_ofdm_symbols/self.carrier_frequency/self.rg.ofdm_symbol_duration)
 
         #update buffer
-        self.datapool = self.datapool - ([0.001]*np.ones(self.N_UTs) - ber > 0)
+        self.datapool = self.datapool - ([0.01]*np.ones(self.N_UTs) - ber > 0)
         self.datapool[self.datapool < 0] = 0
 
         # reward
         #reward =   np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
-        reward =   np.sum(  [0.001]*np.ones(self.N_UTs) - ber > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
+        reward =  10* np.sum(  [0.01]*np.ones(self.N_UTs) - ber > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
   
 
         if np.sum(self.datapool) == 0:
             done = True
         
-        return self._get_state(), reward, done, truncated, {'buffer': self.datapool.copy(), 
-                                                            'total_traffic': self.total_traffic_episode, 'nmse_R': self.nmse_R, 'nmse_v': self.nmse_v,}
+        return self._get_state(), reward, done, truncated, {'buffer': self.datapool.copy(),
+        'total_traffic': self.total_traffic_episode, 'nmse_R': self.nmse_R, 'nmse_v': self.nmse_v,'BER': ber}
 
 
     def _get_state(self):

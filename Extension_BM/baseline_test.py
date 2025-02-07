@@ -12,6 +12,7 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_r
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import BaseCallback
 
+
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 from beam_management_env_letter import BeamManagementEnv
@@ -20,69 +21,95 @@ model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 
 
-env = gym.make("BeamManagementEnv-v2",  if_training=False)
+env = gym.make("BeamManagementEnv-v2",  if_training=True)
 #check_env(env)
 
 log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue/" 
 print("N_UTs=", env.unwrapped.N_UTs)
 
 # %%
+from line_profiler import LineProfiler
+
+profiler = LineProfiler()
+# Wrap your step function
+profiler.add_function(env.step)
+
+@profiler
+def run_testing(env, model_class, log_dir):
+# 
 ################################## Evaluate ####################################
-figure_handle = plt.figure()
-ax = figure_handle.add_subplot()
+    model = model_class.load(log_dir + "best_model")
 
+    num_episodes = 10
+    num_steps = 100
+    reward_done = []
+    reward_list = []
+    throughput = []
+    error_range = np.zeros((num_episodes, env.unwrapped.N_UTs))
+    error_speed = np.zeros((num_episodes, env.unwrapped.N_UTs))
+    BER  = np.zeros((num_episodes, env.unwrapped.N_UTs))
 
-model = model_class.load(log_dir + "best_model")
+    for ep in range(1, num_episodes+1):
 
-num_episodes = 1000
-num_steps = 100
-reward_done = []
-reward_list = []
-throughput = []
-error_range = np.zeros((num_episodes, env.unwrapped.N_UTs))
-error_speed = np.zeros((num_episodes, env.unwrapped.N_UTs))
+        obs,_ = env.reset()
+        reward_episode = 0
+        er = np.zeros(env.unwrapped.N_UTs)
+        ev = np.zeros(env.unwrapped.N_UTs)
+        ber = np.zeros(env.unwrapped.N_UTs)
 
-for ep in range(1, num_episodes+1):
+        for t in range(num_steps):
+            action, _states = model.predict(obs)
+            # print(action)
+            obs, rewards, dones, _, info = env.step(action)
+            reward_episode += rewards
+            er += info['nmse_R']
+            ev += info['nmse_v']
+            ber += info['BER']
 
-    obs,_ = env.reset()
-    reward_episode = 0
-    er = np.zeros(env.unwrapped.N_UTs)
-    ev = np.zeros(env.unwrapped.N_UTs)
+            if dones:
+                reward_done.append(reward_episode)
+                print("all transmitted")
+                break
+            
+            # estimation_error.append(info['est_error'])
 
-    for t in range(num_steps):
-        action, _states = model.predict(obs)
-        # print(action)
-        obs, rewards, dones, _, info = env.step(action)
-        reward_episode += rewards
-        er += info['nmse_R']
-        ev += info['nmse_v']
+        error_range[ep-1,] = er/(t+1)
+        error_speed[ep-1,] = ev/(t+1)
+        BER[ep-1,] = ber/(t+1)
 
-        if dones:
-            reward_done.append(reward_episode)
-            print("all transmitted")
-            break
+        if t == num_steps - 1:  
+            reward_list.append(reward_episode)       
         
-        # estimation_error.append(info['est_error'])
-
-    error_range[ep-1,] = er/(t+1)
-    error_speed[ep-1,] = ev/(t+1)
-
-    if t == num_steps - 1:  
-        reward_list.append(reward_episode)       
-    
-    thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
-    print(info['buffer'])
-    throughput.append(thp)
-    
-    print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
+        thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
+        print(info['buffer'])
+        throughput.append(thp)
+        
+        print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
 
-thp_cdf = np.sort(throughput)
-yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
-ax.plot(thp_cdf, yvals, 'o')
-ax.set_xlabel('Throughput')
-ax.set_ylabel('CDF')
+    thp_cdf = np.sort(throughput)
+    yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 
-plt.show()
+    # 
+    figure_handle = plt.figure()
+    ax = figure_handle.add_subplot()
+    ax.plot(thp_cdf, yvals, 'o')
+    ax.set_xlabel('Throughput')
+    ax.set_ylabel('CDF')
 
+    figure_handle = plt.figure()
+    ax1 = figure_handle.add_subplot()
+    ax1.plot(error_range[:,0])
+    ax1.plot(error_speed[:,0])
+    ax1.plot(error_range[:,1])
+    ax1.plot(error_speed[:,1])
+    ax1.legend(['error_range_0', 'error_speed_0', 'error_range_1', 'error_speed_1'])
+    plt.show()
+
+
+# %%
+run_testing(env, model_class, log_dir)
+# %%
+# Print results        
+profiler.print_stats()
 # %%
