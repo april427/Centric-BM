@@ -1,3 +1,4 @@
+#%%
 import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,6 +17,7 @@ import time
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 from beam_management_env_letter import BeamManagementEnv
+import pandas as pd
 
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
@@ -27,7 +29,7 @@ env = gym.make("BeamManagementEnv-v2",  if_training=False)
 log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr3e-4/" 
 print("N_UTs=", env.unwrapped.N_UTs)
 
-# 
+# %%
 ################################## Evaluate ####################################
 model = model_class.load(log_dir + "best_model")
 
@@ -52,14 +54,14 @@ for ep in range(1, num_episodes+1):
 
     for t in range(num_steps):
         action, _states = model.predict(obs)
-        # st1 = time.time()
+        st1 = time.time()
         obs, rewards, dones, _, info = env.step(action)
-        # et1 = time.time()
-        # print("step time: ", et1-st1)
+        et1 = time.time()
+        print("step time: ", et1-st1)
         reward_episode += rewards
         er += info['nmse_R']
         ev += info['nmse_v']
-        ber += info['BER']
+        #ber += info['BER']
 
         if dones:
             reward_done.append(reward_episode)
@@ -70,7 +72,7 @@ for ep in range(1, num_episodes+1):
 
     error_range[ep-1,] = er/(t+1)
     error_speed[ep-1,] = ev/(t+1)
-    BER[ep-1,] = ber/(t+1)
+    #BER[ep-1,] = ber/(t+1)
 
     if t == num_steps - 1:  
         reward_list.append(reward_episode)       
@@ -103,4 +105,20 @@ ax1.set_ylabel('Normalized Error')
 plt.show()
 
 
+
+# %%
+# np.savetxt('RL_mimo_ofdm/results/Thp_' + 'PPO'+ "_"+ str(env.unwrapped.N_UEs) +"ue", throughput)
+
+monitor_file = log_dir + "monitor.csv"
+monitor_data = pd.read_csv(monitor_file, skiprows=1)
+
+print(monitor_data.head())
+
+# Plotting the 'r' column from the monitor.csv file
+plt.figure()
+plt.plot(monitor_data['r'])
+plt.xlabel('Timesteps')
+plt.ylabel('Reward')
+plt.title('Reward over Time')
+plt.show()
 # %%

@@ -111,7 +111,7 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
         # tau -- Two-way delay of each path [1, N_UE]
         # fai1 -- Angle of departure of each path [1, N_UE]
 
-    Tau = Nc  # Maximum delay spread
+    # Tau = Nc  # Maximum delay spread
 
     n_t = np.array(range(Nt)).reshape(Nt,1)
     if fai1 is None:
@@ -127,11 +127,20 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
 
     A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, batch_size, N_UTs), order = 'F')
 
-    for s in range(batch_size):  
-        for o in range(Nsym):                      
-            for k in range(Nc):
-                for u in range(N_UTs):
-                    H_f[s, 0,:,0,:, o, k] += np.outer(np.dot( np.conj(A_t[:,s,u]),reflection_coefficient[s,u]*np.exp(1j* k *omega_R[s,u]) * np.exp(1j* o *omega_v[s,u])),A_t[:,s,u] )
+    # Vectorized computation
+    reflection_coefficient = reflection_coefficient[:, :, np.newaxis, np.newaxis, np.newaxis]
+    omega_R = omega_R[:, :, np.newaxis, np.newaxis, np.newaxis]
+    omega_v = omega_v[:, :, np.newaxis, np.newaxis, np.newaxis]
+
+    exp_omega_R = np.exp(1j * np.arange(Nc) * omega_R)
+    exp_omega_v = np.exp(1j * np.arange(Nsym)[:, np.newaxis] * omega_v)
+
+    for s in range(batch_size):
+        for u in range(N_UTs):
+            A_t_conj = np.conj(A_t[:, s, u])
+            A_t_outer = np.outer(A_t_conj, A_t[:, s, u])
+            H_f[s, 0, :, 0, :, :, :] += reflection_coefficient[s, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[s, u] * exp_omega_v[s, u]
+
         
     return H_f, A_t
     
