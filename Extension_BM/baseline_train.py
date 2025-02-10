@@ -66,12 +66,13 @@ model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 env = gym.make("BeamManagementEnv-v2",  if_training=True)
 
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue"  
+log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr3e-4" 
+
 os.makedirs(log_dir, exist_ok=True)
 env = Monitor(env, log_dir)
 
-model = model_class("MlpPolicy", env, learning_rate=1e-4, verbose=1)
-timesteps = 5e3
+model = model_class("MlpPolicy", env, learning_rate=3e-4, verbose=1)
+timesteps = 2e4
 
 
 # %%

@@ -14,6 +14,7 @@ from sionna.mimo import StreamManagement
 from sionna.ofdm import ResourceGrid
 from sionna.channel import ApplyOFDMChannel
 from util_functions import *
+import time
 
 
 class BeamManagementEnv(gym.Env):
@@ -34,7 +35,7 @@ class BeamManagementEnv(gym.Env):
     def __init__(self,  if_training = 1):
         self.if_training = if_training
 
-        self.N_UTs = 2
+        self.N_UTs = 3
         self.number_of_antennas = 32  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
@@ -53,7 +54,7 @@ class BeamManagementEnv(gym.Env):
         scenario = "rma"
         direction = "downlink"
         self.batch_size = 1 # batch size
-        self.fft_size = 128
+        self.fft_size = 144
         subcarrier_spacing = 30e3
         num_streams_per_tx = self.N_UTs # Number of transmitted streams is equal to the number of UTs
         rx_tx_association = np.ones([self.N_UTs, 1])
@@ -78,8 +79,8 @@ class BeamManagementEnv(gym.Env):
         self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas) 
         
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
-        self.action_beam = np.zeros((self.number_of_antennas))  # action beam direction
-        self.action_power = np.zeros((self.N_UTs))  # action power allocation
+        # self.action_beam = np.zeros((self.number_of_antennas))  # action beam direction
+        # self.action_power = np.zeros((self.N_UTs))  # action power allocation
 
         self.datapool = np.zeros((self.N_UTs, ), dtype=np.float32)  # number of packets of each UE in the buffer
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
@@ -92,10 +93,10 @@ class BeamManagementEnv(gym.Env):
 
         self.dt = 0.01  # time step 10 ms
 
-        self.Rd = np.zeros((1,self.N_UTs))
-        self.AoD = np.zeros((self.N_UTs))
-        self.aod = np.zeros((self.N_UTs))
-        self.a_BS = np.zeros((self.N_UTs, self.number_of_antennas), dtype=complex) 
+        # self.Rd = np.zeros((1,self.N_UTs))
+        # self.AoD = np.zeros((self.N_UTs))
+        # self.aod = np.zeros((self.N_UTs))
+        # self.a_BS = np.zeros((self.N_UTs, self.number_of_antennas), dtype=complex) 
         
         self.reflection_coefficient = np.zeros((1,self.N_UTs))
         
@@ -192,8 +193,8 @@ class BeamManagementEnv(gym.Env):
 
         H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)
         
-        H_BS = tf.zeros([self.batch_size, 1 , self.number_of_antennas, 1, 
-                         self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size])
+        # H_BS = tf.zeros([self.batch_size, 1 , self.number_of_antennas, 1, 
+        #                  self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size])
         H_BS, A_t = freqency_sensing_channel(self.batch_size, 
                                              self.rg.num_ofdm_symbols, 
                                              self.fft_size , 
@@ -223,11 +224,12 @@ class BeamManagementEnv(gym.Env):
 
         self.action_beam = np.zeros((self.number_of_antennas))
         for u in range(self.N_UTs):
-            self.current_beam[u,] = np.argmax(np.abs(np.transpose((A_t[:,0,u])) @ codebook))
+            self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
             self.action_beam[self.current_beam[u]] = u+1
 
         beam_index = self.current_beam.astype('int')
         transmit_beam = np.matmul(codebook[:,beam_index] , np.diag(np.sqrt(self.action_power))).astype(np.complex64)
+        transmit_beam = tf.convert_to_tensor(transmit_beam, dtype = tf.complex64)
         tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
 
         for i in range(self.N_UTs):
@@ -239,28 +241,26 @@ class BeamManagementEnv(gym.Env):
 
         # Apply the OFDM channel
         y_UT = channel_freq([tx_sig_fd, H_UT, self.noise_power])
-        # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, 10) 
+        # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
 
         # spectral efficiency
-        y_UT_pow = np.squeeze(np.square(np.abs(y_UT)))
-        sig_pow = np.squeeze(np.square(np.abs(y_UT_eff)))
+        y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
+        sig_pow = tf.squeeze(tf.square(tf.abs(y_UT_eff)))
 
         inter_pow = y_UT_pow - sig_pow
-        inter_pow[inter_pow<0] = 0
-        sinr_pow = (sig_pow/(inter_pow + self.noise_power))
+        inter_pow = tf.where(inter_pow < 0, tf.zeros_like(inter_pow), inter_pow)
+        sinr_pow = sig_pow/tf.add(inter_pow ,self.noise_power)
         # sinr_db = 10*np.log10(sinr_pow)
-        self.SE = np.sum(np.sum(np.log2(1+sinr_pow), axis=-1), axis = -1)/(self.rg.num_ofdm_symbols*self.rg.fft_size)
+        self.SE = tf.reduce_sum(tf.reduce_sum(tf.math.log(1+sinr_pow), axis=-1), axis = -1)/(self.rg.num_ofdm_symbols*self.rg.fft_size)
     
         y_BS = channel_freq([tx_sig_fd, H_BS, self.noise_power])
 
         # beamformed output of the sensing signal
-        y_BS2 = np.einsum('uj, nijom->niuom ' , 
-                          np.transpose(((codebook[:,beam_index]))), 
-                          y_BS)
-        y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg[0,]))
-        echo_bf_db = 10*np.log10(np.squeeze(np.mean(np.abs(y_BS2)**2, axis = -1)))
+        y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
+        y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
+        echo_bf_db = 10 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.square(tf.abs(y_BS2)), axis=-1))) / tf.math.log(10.0)
 
-        self.memory = np.array([echo_bf_db, echo_bf_db, echo_bf_db], dtype = np.float32)
+        self.memory = np.array([echo_bf_db.numpy(), echo_bf_db.numpy(), echo_bf_db.numpy()], dtype = np.float32)
 
         num_rangebin = int(self.fft_size)*3
         num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
@@ -299,30 +299,20 @@ class BeamManagementEnv(gym.Env):
         codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
 
         self.current_beam = np.empty([self.N_UTs,], dtype=object)
-        ########################################################################
-        #                              action mask              
-        ########################################################################
-        self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
-        self.action_beam[self.action_beam == (1+self.N_UTs)] = 0 # set the illegal action to 0
-        self.action_power = action[self.number_of_antennas:]
 
-        for i in range(self.N_UTs):
-            self.current_beam[i,] = np.squeeze(np.argwhere(self.action_beam == (i+1)))
-            if self.current_beam[i].size == 0:
-                self.action_power[i] = 0
-        Pt = self.action_power/np.sum(self.action_power) * self.Pt_mW
-
+        ################################################################
+        #  update velocities and positions and generate channels
+        ################################################################
+        
         H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_users, num_subcarriers, num_BS_antennas ]
-        H_BS = tf.zeros([self.batch_size, 1 , self.number_of_antennas, 1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size])
+        #H_BS = tf.zeros([self.batch_size, 1 , self.number_of_antennas, 1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size])
         
         channel_freq = ApplyOFDMChannel(add_awgn=True)
-
-        #update velocities and positions
+        
         self.ut_velocities[:,:,0:2] = np.random.normal(loc = 20, scale=2, size = (self.batch_size, self.N_UTs, 2))
         for s in range(1, self.batch_size):
             for i in range(self.N_UTs):
                 self.ut_loc[s, i,:], self.config[s,i], self.if_turned[s,i] = update_positions(self.ut_loc[s,i,:], self.cross_pos, np.array([self.ut_velocities[s,i,0]]), 0.1, self.single_lane_width, self.config[s,i], self.if_turned[s,i])
-
         for i in range(self.N_UTs):
 
             self.Rd[0,i] = np.linalg.norm(self.bs_loc[0,0,:] - self.ut_loc[0,i,])  
@@ -338,7 +328,38 @@ class BeamManagementEnv(gym.Env):
         H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)    
         H_BS, A_t = freqency_sensing_channel(self.batch_size, self.rg.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.rg.subcarrier_spacing, self.rg.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
         H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)
-        ##
+
+        #############################################################
+        #                         action mask              
+        #############################################################
+        if isinstance(action, str):
+            if action == 'random':
+                self.current_beam = np.random.choice(self.number_of_antennas, size = self.N_UTs, replace = False)
+                self.action_beam = np.zeros((self.number_of_antennas))
+                self.action_beam[self.current_beam] = np.arange(1, self.N_UTs+1)
+                self.action_power = [1]*self.N_UTs
+
+            elif (action == 'greedy'):
+                self.action_beam = np.zeros((self.number_of_antennas))
+                for u in range(self.N_UTs):
+                    self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
+                    self.action_beam[self.current_beam[u]] = u+1
+                self.action_power = [1]*self.N_UTs
+                    ########### RL action ################
+        else:        
+            self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
+            self.action_beam[self.action_beam == (1+self.N_UTs)] = 0 # set the illegal action to 0
+            self.action_power = action[self.number_of_antennas:]
+
+            for i in range(self.N_UTs):
+                self.current_beam[i,] = np.squeeze(np.argwhere(self.action_beam == (i+1)))
+                if self.current_beam[i].size == 0:
+                    self.action_power[i] = 0
+        
+        Pt = self.action_power/np.sum(self.action_power) * self.Pt_mW
+        #############################################################
+        #               generate transmitted signal
+        #############################################################
         tx_sig_fd_ut = np.zeros([self.batch_size, self.N_UTs, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
         y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.rg.num_ofdm_symbols, self.rg.fft_size], dtype = np.complex64)
 
@@ -361,35 +382,39 @@ class BeamManagementEnv(gym.Env):
             temp = channel_freq([ tf.expand_dims(tx_sig_fd_ut[:,i,:,:,:],1), H_UT, 0])
             y_UT_eff[:,i,:,:,:] = temp[:,i,:,:,:] # received signal targeted for the UE
         
-
+        transmit_beam = tf.convert_to_tensor(transmit_beam, dtype = tf.complex64)
         # transmitted signal at the BS
         tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
-            
+
+        #############################################################
+        #               Received signal
+        #############################################################
+
         # Apply the OFDM channel
         y_UT = channel_freq([tx_sig_fd, H_UT, self.noise_power])
         y_BS = channel_freq([tx_sig_fd, H_BS, self.noise_power])
 
         # spectral efficiency
-        y_UT_pow = np.squeeze(np.square(np.abs(y_UT)))
-        sig_pow = np.squeeze(np.square(np.abs(y_UT_eff)))
+        y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
+        sig_pow = tf.squeeze(tf.square(tf.abs(y_UT_eff)))
 
         inter_pow = y_UT_pow - sig_pow
-        inter_pow[inter_pow<0] = 0
-        sinr_pow = (sig_pow/(inter_pow + self.noise_power))
+        inter_pow = tf.where(inter_pow < 0, tf.zeros_like(inter_pow), inter_pow)
+        sinr_pow = sig_pow/tf.add(inter_pow ,self.noise_power)
         # sinr_db= 10*np.log10(sinr_pow)
         # sinr_db[np.isinf(sinr_db)] = 0
-        self.SE = np.sum(np.sum(np.log2(1+sinr_pow), axis=-1), axis = -1)/(self.rg.num_ofdm_symbols*self.rg.fft_size)
+        self.SE = tf.reduce_sum(tf.reduce_sum(tf.math.log(1+sinr_pow), axis=-1), axis = -1)/(self.rg.num_ofdm_symbols*self.rg.fft_size)
 
         # BER of receivers
-        ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, 10) 
+        ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
         
         # beamformed output of the sensing signal
-        y_BS2 = np.einsum('uj, nijom->niuom ' , np.transpose((transmit_beam)), y_BS)
+        y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
         y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
 
-        echo_bf_db = 10*np.log10(np.squeeze(np.mean(np.abs(y_BS2)**2, axis = -1)))
+        echo_bf_db = 10 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.square(tf.abs(y_BS2)), axis=-1))) / tf.math.log(10.0)
         self.memory = np.roll(self.memory, -2)
-        self.memory[-1] = echo_bf_db
+        self.memory[-1] = echo_bf_db.numpy()
         self.memory[self.memory < 0] = 0
 
         num_rangebin = int(self.fft_size)*3
@@ -422,7 +447,6 @@ class BeamManagementEnv(gym.Env):
         #reward =   np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
         reward =  10* np.sum(  [0.01]*np.ones(self.N_UTs) - ber > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
   
-
         if np.sum(self.datapool) == 0:
             done = True
         
@@ -432,7 +456,7 @@ class BeamManagementEnv(gym.Env):
 
     def _get_state(self):
         return (np.concatenate((self.memory.flatten(), self.SE, self.R_estimate, self.v_estiamte, self.action_beam, self.action_power), dtype = np.float32))
-    
+
     
 
 register(id='BeamManagementEnv-v2', entry_point=BeamManagementEnv)
