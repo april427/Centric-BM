@@ -18,25 +18,12 @@ import time
 
 
 class BeamManagementEnv(gym.Env):
-    def generate_actions(self, num_users):
-        """ Generate a set of actions that sum to 1 for the given number of users. """
-        # Use a fixed granularity for simplicity (e.g., fractions of 0.1)
-        granularity = 4  # 6 discrete steps for each user
-        action_space = []
-
-        for combination in product(range(granularity + 1), repeat=num_users):
-            total = sum(combination)
-            if total == granularity:
-                # Convert counts to fractions
-                action_space.append([x / granularity for x in combination])
-        
-        return np.array(action_space)
 
     def __init__(self,  if_training = 1):
         self.if_training = if_training
 
         self.N_UTs = 3
-        self.number_of_antennas = 32  # number of antennas at the ULA BS
+        self.number_of_antennas = 16  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
 
@@ -44,7 +31,7 @@ class BeamManagementEnv(gym.Env):
         #          Define action and state space
         ##################################################
         self.action_space = Box(low =np.concatenate((np.array([0]*self.number_of_antennas), np.array([1]*self.N_UTs))), high = np.concatenate((np.array([1]*self.number_of_antennas), np.array([2]*self.N_UTs))),shape = (self.number_of_antennas+ self.N_UTs, ))
-        self.observation_space = Box(low=0, high=np.inf, shape=(self.N_UTs*14*3 + self.number_of_antennas + 4*self.N_UTs,)) 
+        self.observation_space = Box(low=0, high=np.inf, shape=(self.N_UTs*3 + self.number_of_antennas + 3*self.N_UTs,)) 
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -253,7 +240,7 @@ class BeamManagementEnv(gym.Env):
         # beamformed output of the sensing signal
         y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
         y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
-        echo_bf_db = 10 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.square(tf.abs(y_BS2)), axis=-1))) / tf.math.log(10.0)
+        echo_bf_db = 10 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.square(tf.abs(y_BS2)), axis=[-2,-1]))) / tf.math.log(10.0)
 
         self.memory = np.array([echo_bf_db.numpy(), echo_bf_db.numpy(), echo_bf_db.numpy()], dtype = np.float32)
 
@@ -355,7 +342,7 @@ class BeamManagementEnv(gym.Env):
                     ########### RL action ################
         else:        
             self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
-            self.action_beam[self.action_beam == (1+self.N_UTs)] = 0 # set the illegal action to 0
+            self.action_beam[self.action_beam == (1+self.N_UTs)] = self.N_UTs # set the illegal action to 0
             self.action_power = action[self.number_of_antennas:]
 
             for i in range(self.N_UTs):
@@ -415,7 +402,7 @@ class BeamManagementEnv(gym.Env):
         y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
         y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
 
-        echo_bf_db = 20 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.abs(y_BS2), axis=-1))) / tf.math.log(10.0)
+        echo_bf_db = 20 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.abs(y_BS2), axis=[-2,-1]))) / tf.math.log(10.0)
         self.memory = np.roll(self.memory, -2)
         self.memory[-1] = echo_bf_db.numpy()
         self.memory[self.memory < 0] = 0
@@ -452,7 +439,7 @@ class BeamManagementEnv(gym.Env):
 
         # reward
         #reward =   np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
-        reward =  np.sum( buffer_update ) 
+        reward =  np.sum( 5/(1+np.exp(2-self.SE)) - 2.5) 
         #- np.sum(self.nmse_R) - np.sum(self.nmse_v)
   
         done = np.sum(self.datapool) == 0
@@ -462,8 +449,7 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (np.concatenate((self.memory.flatten(), self.SE, self.R_estimate, self.v_estiamte, self.action_beam, self.action_power), dtype = np.float32))
+        return (np.concatenate((self.memory.flatten(), self.R_estimate, self.v_estiamte, self.action_beam, self.action_power), dtype = np.float32))
 
-    
 
 register(id='BeamManagementEnv-v2', entry_point=BeamManagementEnv)

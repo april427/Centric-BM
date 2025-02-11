@@ -26,7 +26,7 @@ model_class = getattr(sys.modules[__name__], model_type)
 env = gym.make("BeamManagementEnv-v2",  if_training=False)
 #check_env(env)
 
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr3e-4/" 
+log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4/" 
 print("N_UTs=", env.unwrapped.N_UTs)
 
 # %%
@@ -54,10 +54,10 @@ for ep in range(1, num_episodes+1):
 
     for t in range(num_steps):
         action, _states = model.predict(obs)
-        st1 = time.time()
+        # st1 = time.time()
         obs, rewards, dones, _, info = env.step(action)
-        et1 = time.time()
-        print("step time: ", et1-st1)
+        # et1 = time.time()
+        # print("step time: ", et1-st1)
         reward_episode += rewards
         er += info['nmse_R']
         ev += info['nmse_v']
@@ -109,16 +109,16 @@ plt.show()
 # %%
 # np.savetxt('RL_mimo_ofdm/results/Thp_' + 'PPO'+ "_"+ str(env.unwrapped.N_UEs) +"ue", throughput)
 
-monitor_file = log_dir + "monitor.csv"
-monitor_data = pd.read_csv(monitor_file, skiprows=1)
+# monitor_file = log_dir + "monitor.csv"
+# monitor_data = pd.read_csv(monitor_file, skiprows=1)
 
-print(monitor_data.head())
+# print(monitor_data.head())
 
-# Plotting the 'r' column from the monitor.csv file
-plt.figure()
-plt.plot(monitor_data['r'])
-plt.xlabel('Timesteps')
-plt.ylabel('Reward')
-plt.title('Reward over Time')
-plt.show()
+# # Plotting the 'r' column from the monitor.csv file
+# plt.figure()
+# plt.plot(monitor_data['r'])
+# plt.xlabel('Timesteps')
+# plt.ylabel('Reward')
+# plt.title('Reward over Time')
+# plt.show()
 # %%
