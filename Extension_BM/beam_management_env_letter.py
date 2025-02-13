@@ -23,14 +23,14 @@ class BeamManagementEnv(gym.Env):
         self.if_training = if_training
 
         self.N_UTs = 3
-        self.number_of_antennas = 16  # number of antennas at the ULA BS
+        self.number_of_antennas = 8  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
 
         ##################################################
         #          Define action and state space
         ##################################################
-        self.action_space = Box(low =np.concatenate((np.array([0]*self.number_of_antennas), np.array([1]*self.N_UTs))), high = np.concatenate((np.array([1]*self.number_of_antennas), np.array([2]*self.N_UTs))),shape = (self.number_of_antennas+ self.N_UTs, ))
+        self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
         self.observation_space = Box(low=0, high=np.inf, shape=(self.N_UTs*3 + self.number_of_antennas + 3*self.N_UTs,)) 
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
@@ -327,13 +327,13 @@ class BeamManagementEnv(gym.Env):
         #                         action mask              
         #############################################################
         if isinstance(action, str):
-            if action == 'random':
+            if action == 'random':  # Random beam selection
                 self.current_beam = np.random.choice(self.number_of_antennas, size = self.N_UTs, replace = False)
                 self.action_beam = np.zeros((self.number_of_antennas))
                 self.action_beam[self.current_beam] = np.arange(1, self.N_UTs+1)
                 self.action_power = [1]*self.N_UTs
 
-            elif (action == 'greedy'):
+            elif (action == 'greedy'): # Greedy beam selec
                 self.action_beam = np.zeros((self.number_of_antennas))
                 for u in range(self.N_UTs):
                     self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
@@ -343,7 +343,7 @@ class BeamManagementEnv(gym.Env):
         else:        
             self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
             self.action_beam[self.action_beam == (1+self.N_UTs)] = self.N_UTs # set the illegal action to 0
-            self.action_power = action[self.number_of_antennas:]
+            self.action_power = np.ones(self.N_UTs)
 
             for i in range(self.N_UTs):
                 self.current_beam[i,] = np.squeeze(np.argwhere(self.action_beam == (i+1)))
@@ -365,9 +365,16 @@ class BeamManagementEnv(gym.Env):
             elif beam_index.size == 1:
                 transmit_beam[:, i] = codebook[:, beam_index] * np.sqrt(Pt[i])
             else:
-                transmit_beam[:, i] = np.sum( (codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1) 
-            
+                transmit_beam[:, i] = np.sum( (codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1)    
+        
         transmit_beam = tf.convert_to_tensor(transmit_beam, dtype = tf.complex64)
+        
+        if not isinstance(action, str):
+            Pt = np.ones(self.N_UTs) * (self.Pt_mW/self.N_UTs)
+            AA = tf.einsum('kjom, ji -> kiom', tf.squeeze(H_UT), transmit_beam)
+            xi = tf.linalg.tensor_diag_part(tf.reduce_mean(tf.square(tf.abs(AA)), axis = [-2,-1]))
+            Pt = dynamic_power_allocation(self.R_estimate, xi, Pt, self.Pt_mW, np.ones([self.N_UTs,], dtype=np.int32), [0,3], self.N_UTs,self.datapool ) 
+
         # transmitted signal at the BS
         tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
 
@@ -385,6 +392,24 @@ class BeamManagementEnv(gym.Env):
         # Apply the OFDM channel
         y_UT = channel_freq([tx_sig_fd, H_UT, self.noise_power])
         y_BS = channel_freq([tx_sig_fd, H_BS, self.noise_power])
+
+        # MUSIC algorithm to estimate angle of arrivals
+        # Correct calculation of correlation matrix R
+        y_BS_reshaped = tf.reshape(y_BS, [self.batch_size, -1])
+        R = tf.matmul(y_BS_reshaped, y_BS_reshaped, adjoint_a=True) / self.batch_size
+        eigvals, eigvecs = tf.linalg.eigh(R)
+        noise_space = eigvecs[:, :-self.N_UTs]
+
+        angles = np.linspace(-np.pi/2, np.pi/2, 180)
+        music_spectrum = np.zeros_like(angles, dtype=np.float32)
+
+        for i, angle in enumerate(angles):
+            steering_vector = np.exp(1j * np.pi * np.arange(self.number_of_antennas) * np.sin(angle))
+            steering_vector = tf.convert_to_tensor(steering_vector, dtype=tf.complex64)
+            music_spectrum[i] = 1 / tf.reduce_sum(tf.abs(tf.einsum('i,ij->j', steering_vector, noise_space))**2)
+
+        estimated_angles = angles[np.argsort(music_spectrum)[-self.N_UTs:]]
+        self.estimated_angles = np.sort(estimated_angles)
 
         # spectral efficiency
         y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
@@ -449,7 +474,7 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (np.concatenate((self.memory.flatten(), self.R_estimate, self.v_estiamte, self.action_beam, self.action_power), dtype = np.float32))
+        return (np.concatenate((self.memory.flatten(), self.R_estimate, self.v_estiamte, self.action_beam, self.SE), dtype = np.float32))
 
 
 register(id='BeamManagementEnv-v2', entry_point=BeamManagementEnv)

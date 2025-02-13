@@ -25,7 +25,7 @@ torch.set_default_dtype(torch.float32)
 
 # %%
 env = gym.make('BeamManagementEnv-v1', reward_inx = 0, if_training=False)
-num_episodes = 100
+num_episodes = 700
 episode_durations = []
 reward_done= []
 num_sensing_slot = []
@@ -35,7 +35,7 @@ throughput = []
 num_steps = 100
 
 counter = 0
-ji = 1     # 1: AoD-Genie   2: --  3: AoD-based, 4: genie
+ji = 3     # 1: AoD-Genie   2: --  3: AoD-based, 4: genie
 
 sum_reward = []
 th_episode = []
@@ -104,6 +104,7 @@ for i_episode in range(num_episodes):
     # print("Episode : {} \t Throughput: {}".format(i_episode, round(thp,2)), flush = True)
 
 print('Complete')
+
 # print(np.mean(mean_packet_rate_episode))
 # print(np.mean(sum_reward))
 # print(np.mean(th_episode))
@@ -140,5 +141,27 @@ ax.legend(['Heuristic Env'])
 
 # np.savetxt('Multi-user-BM/results_bm/Er__rician' + 'Heuristic_crlb_aod_est', estimation_error)
 
+# %%
+# np.savetxt(log_dir+'/aod_based', reward_list)
+# import pandas as pd
+# log_dir = "baseline_result/" + 'PPO' + "_2" +"ue_" + "1reward_inx_allinits/"
+
+# monitor_file = log_dir + "monitor.csv"
+# monitor_data = pd.read_csv(monitor_file, skiprows=1)
+
+# reward_AoD_aided = np.genfromtxt(log_dir + "genie_aid", delimiter=',', names=True)
+# reward_AoD_based = np.genfromtxt(log_dir + "aod_based", delimiter=',', names=True)
+# print(monitor_data.head())
+
+# # Plotting the 'r' column from the monitor.csv file
+# fig,ax = plt.subplots()
+# ax.plot(reward_AoD_aided[0:400])
+# ax.plot(reward_AoD_based[0:400])
+# ax.plot(monitor_data['r'][0:400])
+# ax.set_xlabel('Episodes')
+# ax.set_ylabel('Averaged rewards')
+# ax.legend(('AoD-Genie','AoD-Based','PPO'))
+# # plt.title('Reward over Time')
+# plt.show()
 
 # %%
