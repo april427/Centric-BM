@@ -99,23 +99,3 @@ plt.show()
 
 # model.save(log_dir + "BeamManagementEnv-v1_1")
 # %%
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-log_dir = "baseline_result/" + 'PPO' + "_2" +"ue_" + "1reward_inx_allinits/"
-
-np.savetxt('log_dir/genie_aid', reward_list)
-monitor_file = log_dir + "monitor.csv"
-monitor_data = pd.read_csv(monitor_file, skiprows=1)
-
-print(monitor_data.head())
-
-# Plotting the 'r' column from the monitor.csv file
-plt.figure()
-plt.plot(monitor_data['r'])
-plt.xlabel('Timesteps')
-plt.ylabel('Reward')
-plt.title('Reward over Time')
-plt.show()
-# %%
