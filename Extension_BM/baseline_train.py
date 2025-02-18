@@ -12,6 +12,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import BaseCallback
+import time
 
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM')
@@ -65,14 +66,14 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 env = gym.make("BeamManagementEnv-v2",  if_training=True)
-
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4" 
+check_env(env, warn=True)
+log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4/" 
 
 os.makedirs(log_dir, exist_ok=True)
 env = Monitor(env, log_dir)
 
-model = model_class("MlpPolicy", env, learning_rate=2e-4, verbose=1)
-timesteps = 1e5
+model = model_class("MlpPolicy", env, learning_rate=1e-4, verbose=1)
+timesteps = 5e4
 
 
 # %%
@@ -81,8 +82,8 @@ timesteps = 1e5
 callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
 model.learn(total_timesteps=timesteps, callback=callback)
 
-plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v2")
-plt.show()
+# plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v2")
+# plt.show()
 
-model.save(log_dir + "BeamManagementEnv")
+model.save(log_dir + "best_model")
 

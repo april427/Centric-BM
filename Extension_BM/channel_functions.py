@@ -213,6 +213,12 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
     """
     
     counter = -1
+    if d.ndim != 1:
+        d = np.squeeze(d, 0)
+    d = d * (datapool != 0)
+    d[xi==0] = 0
+    if np.all(d == 0):
+        return Pt
     sorted_user = np.argsort(d)
     weak_ue_ind = sorted_user[counter]
     if ue_type[weak_ue_ind] == 1: # CU
@@ -226,7 +232,7 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
 
     if np.sum(Pt) - Pt_mW < 0: # more power is available
 
-        Pt = Pt + (Pt_mW - np.sum(Pt))*(datapool != 0) / (np.count_nonzero(datapool)) # equal allocation of the remaining power
+        Pt = Pt + (Pt_mW - np.sum(Pt)) / (np.count_nonzero(d)) # equal allocation of the remaining power
     else:
         while np.sum(Pt) - Pt_mW > 0 :
             Pt[sorted_user[counter]] -= (np.sum(Pt) - Pt_mW)

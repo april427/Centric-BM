@@ -25,7 +25,7 @@ reward_list = []
 throughput = []
 error_range = np.zeros((num_episodes, env.unwrapped.N_UTs))
 error_speed = np.zeros((num_episodes, env.unwrapped.N_UTs))
-BER  = np.zeros((num_episodes, env.unwrapped.N_UTs))
+# BER  = np.zeros((num_episodes, env.unwrapped.N_UTs))
 
 for ep in range(1, num_episodes+1):
 
@@ -33,7 +33,7 @@ for ep in range(1, num_episodes+1):
     reward_episode = 0
     er = np.zeros(env.unwrapped.N_UTs)
     ev = np.zeros(env.unwrapped.N_UTs)
-    ber = np.zeros(env.unwrapped.N_UTs)
+    # ber = np.zeros(env.unwrapped.N_UTs)
 
     for t in range(num_steps):
         # print(action)
@@ -43,7 +43,7 @@ for ep in range(1, num_episodes+1):
         reward_episode += rewards
         er += info['nmse_R']
         ev += info['nmse_v']
-        ber += info['BER']
+        #ber += info['BER']
 
         if dones:
             reward_done.append(reward_episode)
@@ -54,7 +54,7 @@ for ep in range(1, num_episodes+1):
 
     error_range[ep-1,] = er/(t+1)
     error_speed[ep-1,] = ev/(t+1)
-    BER[ep-1,] = ber/(t+1)
+    # BER[ep-1,] = ber/(t+1)
 
     if t == num_steps - 1:  
         reward_list.append(reward_episode)       

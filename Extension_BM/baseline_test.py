@@ -67,7 +67,7 @@ for ep in range(1, num_episodes+1):
             reward_done.append(reward_episode)
             print("all transmitted")
             break
-        
+
         # estimation_error.append(info['est_error'])
 
     error_range[ep-1,] = er/(t+1)
