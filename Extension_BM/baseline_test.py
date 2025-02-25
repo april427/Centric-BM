@@ -3,7 +3,7 @@ import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 
-from stable_baselines3 import  PPO, DDPG
+from stable_baselines3 import  PPO, DDPG, A2C
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
@@ -28,12 +28,13 @@ env = gym.make("BeamManagementEnv-v2",  if_training=False)
 
 log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4/" 
 print("N_UTs=", env.unwrapped.N_UTs)
+print(log_dir)
 
 # %%
 ################################## Evaluate ####################################
 model = model_class.load(log_dir + "best_model")
 
-num_episodes = 50
+num_episodes = 10
 num_steps = 100
 reward_done = []
 reward_list = []
@@ -76,7 +77,7 @@ for ep in range(1, num_episodes+1):
 
     if t == num_steps - 1:  
         reward_list.append(reward_episode)       
-    
+    print(reward_episode)
     thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
     print(info['buffer'])
     throughput.append(thp)
@@ -97,9 +98,8 @@ ax.set_ylabel('CDF')
 figure_handle = plt.figure()
 ax1 = figure_handle.add_subplot()
 for i in range(env.unwrapped.N_UTs):
-    ax1.plot(error_range[:,i])
-    ax1.plot(error_speed[:,i])
-ax1.legend(['error_range_0', 'error_speed_0', 'error_range_1', 'error_speed_1'])
+    ax1.plot(error_range[:,i], '-o')
+    ax1.plot(error_speed[:,i],'--x')
 ax1.set_xlabel('Episodes')
 ax1.set_ylabel('Normalized Error')
 plt.show()

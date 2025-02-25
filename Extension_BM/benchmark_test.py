@@ -50,14 +50,13 @@ for ep in range(1, num_episodes+1):
             print("all transmitted")
             break
         
-        # estimation_error.append(info['est_error'])
 
     error_range[ep-1,] = er/(t+1)
     error_speed[ep-1,] = ev/(t+1)
     # BER[ep-1,] = ber/(t+1)
 
-    if t == num_steps - 1:  
-        reward_list.append(reward_episode)       
+
+    reward_list.append(reward_episode)       
     
     thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
     print(info['buffer'])
@@ -65,11 +64,18 @@ for ep in range(1, num_episodes+1):
     
     print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
+    print("Reward: ", reward_episode)
+
 
 thp_cdf = np.sort(throughput)
 yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 
-# 
+#
+# Plotting
+figure_handle = plt.figure()
+ax = figure_handle.add_subplot()
+ax.plot(reward_list, '-.') 
+#
 figure_handle = plt.figure()
 ax = figure_handle.add_subplot()
 ax.plot(thp_cdf, yvals, 'o')
@@ -78,9 +84,9 @@ ax.set_ylabel('CDF')
 
 figure_handle = plt.figure()
 ax1 = figure_handle.add_subplot()
-ax1.plot(error_range[:,0])
-ax1.plot(error_speed[:,0])
-ax1.plot(error_range[:,1])
-ax1.plot(error_speed[:,1])
-ax1.legend(['error_range_0', 'error_speed_0', 'error_range_1', 'error_speed_1'])
+for i in range(env.unwrapped.N_UTs):
+    ax1.plot(error_range[:,i], '-o')
+    ax1.plot(error_speed[:,i],'--x')
+ax1.set_xlabel('Episodes')
+ax1.set_ylabel('Normalized Error')
 plt.show()

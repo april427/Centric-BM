@@ -264,9 +264,10 @@ def hyperbolic_func(x, A1, A2, c):
         A (float): scaling parameter how much it closes to c
         c (float): location c 
     '''
+    x = np.atleast_1d(x)
     y=np.zeros(np.size(x))
-    y[x>=c] = (1 - np.exp(- A1 * (x[x>=c] - c)))
-    y[x<c] = -1
+    y[x>=c] = 5*(1 - np.exp(- A1 * (x[x>=c] - c)))
+    y[x<c] = - 0.5
     #y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
     b = 12
     y[x>=c+b] = np.exp(-A2*(x[x>=c+b] - c - b )) 
