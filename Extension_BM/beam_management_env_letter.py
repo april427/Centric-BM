@@ -20,10 +20,11 @@ from matplotlib import pyplot as plt
 
 class BeamManagementEnv(gym.Env):
 
-    def __init__(self,  if_training = 1):
+    def __init__(self,  if_training = 1, if_debugging = 0):
         self.if_training = if_training
+        self.if_debugging = if_debugging
 
-        self.N_UTs = 1
+        self.N_UTs = 2 
         self.number_of_antennas = 16  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
@@ -34,7 +35,7 @@ class BeamManagementEnv(gym.Env):
         self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
         #self.action_space = MultiDiscrete(np.array([self.N_UTs+1]*self.number_of_antennas))
         #
-        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(2*self.number_of_antennas + 1*self.N_UTs,)) 
+        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 1*self.N_UTs,)) 
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -60,7 +61,7 @@ class BeamManagementEnv(gym.Env):
         self.SE_threshold = 4  # rate threshold for each UE
         self.SE = np.zeros((self.N_UTs,))  # spectral efficiency of each UE
 
-        self.Pt_mW = (10**(20/10))*(10**(109/10))  # 15dbm in linear scale
+        self.Pt_mW = (10**(15/10))*(10**(109/10))  # 15dbm in linear scale
         self.noise_power = 10**(-109/10)*10**(109/10)  # -109 dbm in linear scale, 10**(109/10) is normalization
 
         self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas) 
@@ -72,13 +73,13 @@ class BeamManagementEnv(gym.Env):
         self.datapool = np.zeros((self.N_UTs, ), dtype=np.float32)  # number of packets of each UE in the buffer
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
 
-        self.bs_loc = tf.expand_dims(tf.expand_dims(tf.constant([27, 50, 0], dtype = tf.float32),axis=0),axis=0)  # BS position
+        self.bs_loc = tf.expand_dims(tf.expand_dims(tf.constant([50, 20, 0], dtype = tf.float32),axis=0),axis=0)  # BS position
 
         self.ut_loc = np.zeros((self.batch_size, self.N_UTs, 3), dtype=np.float64)  # UE positions
         self.config = np.zeros((self.batch_size, self.N_UTs,2 ), dtype=int)
         self.if_turned = np.zeros((self.batch_size, self.N_UTs), dtype=bool)
 
-        self.dt = 1  # time step 10 ms
+        self.dt = 0.01  # time step 10 ms
 
         # self.Rd = np.zeros((1,self.N_UTs))
         # self.AoD = np.zeros((self.N_UTs))
@@ -98,7 +99,7 @@ class BeamManagementEnv(gym.Env):
         # self.ut_loc[0,:,:], self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width)
 
 
-    def reset(self, seed=None):
+    def reset(self, seed=32):
         super().reset(seed=seed)
 
         self.cstep = 0
@@ -147,20 +148,20 @@ class BeamManagementEnv(gym.Env):
 
         initial_if_turned = np.array([False, False, False, False, False])
 
-        if self.if_training:
-            dice = np.random.randint(0, 11)
-            self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
-            self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
-            self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
-        else:
+        # if self.if_training:
+        #     dice = np.random.randint(0, 11)
+        #     self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
+        #     self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
+        #     self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
+        # else:
 
-            self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
+        self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
 
         # set UT velocities and trajectories
         self.ut_velocities = np.zeros((self.batch_size, self.N_UTs, 3))
         self.ut_velocities[0,:,0:2] = np.transpose(np.random.multivariate_normal( 6*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2))) 
         
-        self.datapool = np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UTs)
+        self.datapool = np.random.binomial(n=40, p=0.6, size=self.N_UTs) if self.if_training else np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UTs)
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
         
         for i in range(self.N_UTs):
@@ -264,8 +265,9 @@ class BeamManagementEnv(gym.Env):
             AA = action_beam_mask.astype('complex64') * codebook
 
             # Compute BB using TensorFlow operations
-            BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
-            echo_bf_db[action_beam_mask] = BB[action_beam_mask]
+            # BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
+            # echo_bf_db[action_beam_mask] = BB[action_beam_mask]
+        echo_bf_db = tf.reduce_mean(tf.math.log1p(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(codebook), tf.squeeze(y_BS)))))/np.log(2), axis=[-2, -1]).numpy() 
         self.memory = np.array([echo_bf_db], dtype = np.float32)
 
         num_rangebin = int(self.fft_size)*3
@@ -383,22 +385,20 @@ class BeamManagementEnv(gym.Env):
         else:        
             self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
             self.action_beam[self.action_beam == (1+self.N_UTs)] = self.N_UTs # set the illegal action to 0
-            # self.action_beam = action
+            for u in range(self.N_UTs):
+                self.current_beam[u,] = np.squeeze(np.argwhere(self.action_beam == u+1))
             self.action_power = np.ones(self.N_UTs)
             Pt = np.ones(self.N_UTs) * (self.datapool !=0) * (self.Pt_mW/len(self.datapool!=0))
-            # transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
-            for i in range(self.N_UTs):
-                self.current_beam[i,] = np.squeeze(np.argwhere(self.action_beam == (i+1)))
-            #     if self.current_beam[i].size == 0:
-            #         self.action_power[i] = 0
-            #     elif self.current_beam[i].size > 1:
-            #         transmit_beam[:,i] = np.sum(codebook[:,self.current_beam[i]]/np.sqrt(self.current_beam[i].size), axis=1)
-            #     else: 
-            #         transmit_beam[:,i] = codebook[:,self.current_beam[i]] 
-            # transmit_beam = tf.convert_to_tensor(transmit_beam, dtype=tf.complex64) 
-            # AA = tf.einsum('kjom, ji -> kiom', tf.squeeze(H_UT), (transmit_beam))
-            # xi = tf.linalg.tensor_diag_part(tf.reduce_mean(tf.square(tf.abs(AA)), axis = [-2,-1]))
-            # Pt = dynamic_power_allocation(self.Rd, xi, Pt, self.Pt_mW, np.ones([self.N_UTs,], dtype=np.int32), [0,7], self.N_UTs,self.datapool )
+        
+        # Water-filling power allocation -- with known channel
+        transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
+        beam_genie = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,:])) @ codebook), axis=1)
+        transmit_beam = codebook[:,beam_genie]  
+        transmit_beam = tf.convert_to_tensor(transmit_beam, dtype=tf.complex64) 
+        AA = tf.einsum('kjom, ji -> kiom', tf.squeeze(H_UT,axis=[0,2,3]), (transmit_beam))
+        xi = tf.linalg.tensor_diag_part(tf.reduce_mean(tf.square(tf.abs(AA)), axis = [-2,-1]))
+        Pt = dynamic_power_allocation(self.Rd, xi, Pt, self.Pt_mW, np.ones([self.N_UTs,], dtype=np.int32), [0,2], self.N_UTs,self.datapool )
+            
 
         #############################################################
         #               generate transmitted signal
@@ -451,13 +451,13 @@ class BeamManagementEnv(gym.Env):
         # BER of receivers
         # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
         
-        y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
-        y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
+        # y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
+        # y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
 
         echo_bf_db = np.zeros([ self.number_of_antennas])
         num_rangebin = int(self.fft_size)*3
         num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
-        # plt.figure()
+        if self.if_debugging: plt.figure()
         num_subplots = self.N_UTs
         for u in range(self.N_UTs):
             # Assuming self.action_beam and codebook are already TensorFlow tensors
@@ -466,8 +466,8 @@ class BeamManagementEnv(gym.Env):
             AA = action_beam_mask.astype('complex64') * codebook
             coe = 1/np.sqrt(np.sum(action_beam_mask)) if np.sum(action_beam_mask) > 0 else 1
             # Compute BB using TensorFlow operations
-            BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
-            echo_bf_db[action_beam_mask] = BB[action_beam_mask]
+            # BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
+            # echo_bf_db[action_beam_mask] = BB[action_beam_mask]
             CC = tf.squeeze(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))
             CC = CC[action_beam_mask!=0]
             user_data = tf.broadcast_to(tf.squeeze(self.x_rg[:,:,u,]), (CC.shape))
@@ -480,13 +480,14 @@ class BeamManagementEnv(gym.Env):
             self.R_estimate[u] = - 3e8*max_idx[1]/(2*self.rg.subcarrier_spacing*num_rangebin)
             self.v_estiamte[u] = 3e8*max_idx[0]/(2*self.rg.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
 
-            # plt.subplot(num_subplots, 1, u+1)
-            # plt.imshow(np.square(np.abs(DD_spectrum)), aspect='auto', cmap='viridis')
-            # plt.colorbar()
-            # plt.title(f'Magnitude Spectrum {i+1}')
-            # plt.xlabel('Range Bin')
-            # plt.ylabel('Doppler Bin')
-
+            if self.if_debugging:
+                plt.subplot(num_subplots, 1, u+1)
+                plt.imshow(np.square(np.abs(DD_spectrum)), aspect='auto', cmap='viridis')
+                plt.colorbar()
+                plt.title(f'Magnitude Spectrum {i+1}')
+                plt.xlabel('Range Bin')
+                plt.ylabel('Doppler Bin')
+        echo_bf_db = tf.reduce_mean(tf.math.log1p(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(codebook), tf.squeeze(y_BS)))))/np.log(2), axis=[-2, -1]).numpy() 
         # plt.show()
         #self.memory = np.roll(self.memory, -2)
         self.memory = echo_bf_db
@@ -501,16 +502,40 @@ class BeamManagementEnv(gym.Env):
         #update buffer
         buffer_update = tf.cast(self.SE - 1.3 > 0, dtype=tf.int32)
         self.datapool = np.maximum(self.datapool - buffer_update, 0)
-
-
-        # reward
-        #reward =   np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
-        #reward =  float(np.sum( (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) /(1+np.exp(1.5-self.SE)) - 2) )
-        reward = float(np.sum( (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) )* hyperbolic_func(self.SE, A1=0.8, A2=0.3, c=1.2) + 0.05/(self.nmse_R) + 0.05/(self.nmse_v) ))
-
         terminated = bool(np.sum(self.datapool) == 0)
 
+        ###################################################################
+        #                       Reward Function
+        ###################################################################
+        #reward =   np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
+        #reward =  float(np.sum( (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) /(1+np.exp(1.5-self.SE)) - 2) )
+        if terminated:
+            reward = 50
+        else:
+            reward = float(np.sum(  hyperbolic_func(self.SE, A1=0.8, A2=0.3, c=1.1) + (self.nmse_R<0.2) + (self.nmse_v <0.2) ) - 1* (np.sum(self.action_beam!=0) > (3*self.N_UTs))  )
+            #(1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) )
+        
+        if self.if_debugging:
+            print(Pt, self.SE, self.current_beam)
+            plt.figure()
+            plt.plot(self.memory)
+            plt.xlabel("beam index")
+            print(beam_genie)
+            print(reward, self.datapool)
+            
+            A = tf.einsum('ij, jknp -> iknp', tf.linalg.adjoint(codebook), tf.squeeze(H_BS))
+            B = tf.square(tf.abs(tf.einsum('iknp, kq -> iqnp', A, codebook)))
+            C = tf.reduce_mean(tf.math.log1p(tf.square(tf.abs(B))), axis=[-2,-1])
+            D = tf.linalg.diag_part(C)
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.plot(D)
+            plt.xlabel("beam index")
 
+
+        if np.any(self.Rd[0,] > 100):
+            truncated = True
+        
         if np.isnan(reward):
             raise ValueError("NaN detected in reward")
         return self._get_state(), reward, terminated, truncated, {'buffer': self.datapool.copy(),
@@ -518,7 +543,8 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (np.concatenate((self.memory.flatten(), self.action_beam, 
+        return (np.concatenate((self.memory.flatten(), 
+                                #self.action_beam, 
                                 # self.R_estimate, self.v_estiamte, 
                                 self.datapool), dtype = np.float32))
 

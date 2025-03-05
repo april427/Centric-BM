@@ -22,11 +22,13 @@ import pandas as pd
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
 
+if_training=False
+if_debugging = False
 
-env = gym.make("BeamManagementEnv-v2",  if_training=False)
+env = gym.make("BeamManagementEnv-v2",  if_training=if_training, if_debugging = if_debugging)
 #check_env(env)
 
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4/" 
+log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + str(env.unwrapped.number_of_antennas)+ "Nt/" 
 print("N_UTs=", env.unwrapped.N_UTs)
 print(log_dir)
 
@@ -35,7 +37,7 @@ print(log_dir)
 model = model_class.load(log_dir + "best_model")
 
 num_episodes = 10
-num_steps = 100
+num_steps = 40 if if_training else 100 
 reward_done = []
 reward_list = []
 throughput = []

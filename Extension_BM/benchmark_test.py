@@ -16,9 +16,10 @@ import time
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 from beam_management_env_letter import BeamManagementEnv
-env = gym.make("BeamManagementEnv-v2",  if_training=False)
+if_training=True
+env = gym.make("BeamManagementEnv-v2",  if_training=if_training)
 
-num_episodes = 10
+num_episodes = 100
 num_steps = 100
 reward_done = []
 reward_list = []
@@ -70,7 +71,7 @@ for ep in range(1, num_episodes+1):
 thp_cdf = np.sort(throughput)
 yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 
-#
+# %%
 # Plotting
 figure_handle = plt.figure()
 ax = figure_handle.add_subplot()
@@ -78,7 +79,7 @@ ax.plot(reward_list, '-.')
 #
 figure_handle = plt.figure()
 ax = figure_handle.add_subplot()
-ax.plot(thp_cdf, yvals, 'o')
+ax.plot(thp_cdf, yvals, '-')
 ax.set_xlabel('Throughput')
 ax.set_ylabel('CDF')
 
@@ -90,3 +91,4 @@ for i in range(env.unwrapped.N_UTs):
 ax1.set_xlabel('Episodes')
 ax1.set_ylabel('Normalized Error')
 plt.show()
+# %%

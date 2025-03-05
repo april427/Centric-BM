@@ -13,6 +13,9 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_r
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import EvalCallback
 import pandas as pd
+import torch.nn as nn
+import argparse
+
 
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM')
@@ -20,16 +23,31 @@ from beam_management_env_letter import BeamManagementEnv
 from util_functions import SaveOnBestTrainingRewardCallback
 
 # %%
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--N_UTs', type=int, default=1, help='Number of UEs')
+    parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
+    parser.add_argument('--model', type=str, default='PPO', help='Model to train')
+    parser.add_argument('--timesteps', type=int, default=2e4, help='Number of timesteps to train')
+    return parser.parse_args()
+
+# %%
 model_type = "PPO"
 model_class = getattr(sys.modules[__name__], model_type)
-env = gym.make("BeamManagementEnv-v2",  if_training=True)
-check_env(env, warn=True)
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4/" 
+env = gym.make("BeamManagementEnv-v2",  if_training=True, if_debugging = False)
+# check_env(env, warn=True)
+log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + str(env.unwrapped.number_of_antennas)+ "Nt/" 
 
+policy_kwargs = {
+    "net_arch": [dict(pi=[256, 256], vf=[256, 256])],
+    "activation_fn": nn.ReLU
+}
+
+# %%
 os.makedirs(log_dir, exist_ok=True)
 env = Monitor(env, log_dir)
 
-model = model_class("MlpPolicy", env, learning_rate=3e-4, verbose=1)
+model = model_class("MlpPolicy", env, policy_kwargs=policy_kwargs, ent_coef=1e-4, learning_rate=1e-4, verbose=1)
 timesteps = 2e4
 
 
@@ -50,6 +68,13 @@ print(log_dir)
 #%%
 monitor_file = log_dir + "monitor.csv"
 monitor_data = pd.read_csv(monitor_file, skiprows=1)
-fig,ax = plt.subplots()
-ax.plot(monitor_data['r'])
+
+window_size = 100
+moving_average = monitor_data['r'].rolling(window=window_size).mean()
+
+fig, ax = plt.subplots()
+# ax.plot(monitor_data['r'], label='Reward')
+ax.plot(moving_average, label='Moving Average', color='orange')
+ax.legend()
 plt.show()
+# %%

@@ -170,3 +170,46 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                   self.model.save(self.save_path)
 
         return True
+    
+import torch
+import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from gymnasium import spaces
+# Define a custom feature extractor (neural network architecture)
+class CustomNetwork(BaseFeaturesExtractor):
+    def __init__(self, observation_space: spaces.Space, features_dim: int = 128):
+        super(CustomNetwork, self).__init__(observation_space, features_dim)
+        # Define the neural network layers
+        self.net = nn.Sequential(
+            nn.Linear(observation_space.shape[0], 128),  # Input layer: 40 -> 128
+            nn.ReLU(),                                  # Activation function
+            nn.Linear(128, 128),                        # Hidden layer: 128 -> 128
+            nn.ReLU(),                                   # Activation function
+        )
+        # Output dimension for the feature extractor
+        self.features_dim = features_dim
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        return self.net(observations)
+
+# Define the policy network (actor and critic)
+class CustomPolicy(nn.Module):
+    def __init__(self, observation_space: spaces.Space, action_space: spaces.Space):
+        super(CustomPolicy, self).__init__()
+        # Feature extractor (shared between actor and critic)
+        self.features_extractor = CustomNetwork(observation_space)
+        # Actor network (outputs mean and log standard deviation)
+        self.actor_mean = nn.Linear(128, action_space.shape[0])  # 128 -> 16 (mean)
+        self.actor_logstd = nn.Parameter(torch.zeros(action_space.shape[0]))  # Log std (16)
+        # Critic network (outputs value function)
+        self.critic = nn.Linear(128, 1)  # 128 -> 1 (value)
+
+    def forward(self, observations: torch.Tensor) -> tuple:
+        # Extract features
+        features = self.features_extractor(observations)
+        # Actor: compute mean and log standard deviation
+        mean = self.actor_mean(features)
+        log_std = self.actor_logstd
+        # Critic: compute value
+        value = self.critic(features)
+        return mean, log_std, value
