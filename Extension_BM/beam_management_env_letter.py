@@ -15,17 +15,17 @@ from sionna.ofdm import ResourceGrid
 from sionna.channel import ApplyOFDMChannel
 from util_functions import *
 import time
-from matplotlib import pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 class BeamManagementEnv(gym.Env):
 
-    def __init__(self,  if_training = 1, if_debugging = 0):
-        self.if_training = if_training
-        self.if_debugging = if_debugging
+    def __init__(self,  args):
+        self.if_training = args.if_training
+        self.if_debugging = args.if_debugging
 
-        self.N_UTs = 2 
-        self.number_of_antennas = 16  # number of antennas at the ULA BS
+        self.N_UTs = args.N_UTs  # number of UEs 
+        self.number_of_antennas = args.Nt  # number of antennas at the ULA BS
 
         self.num_steps = 100 # number of steps per episode
 
@@ -35,7 +35,7 @@ class BeamManagementEnv(gym.Env):
         self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
         #self.action_space = MultiDiscrete(np.array([self.N_UTs+1]*self.number_of_antennas))
         #
-        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 1*self.N_UTs,)) 
+        self.observation_space = Box(low=-np.inf, high=np.inf, shape=( 3*self.N_UTs,)) #1*self.number_of_antennas +
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -61,7 +61,7 @@ class BeamManagementEnv(gym.Env):
         self.SE_threshold = 4  # rate threshold for each UE
         self.SE = np.zeros((self.N_UTs,))  # spectral efficiency of each UE
 
-        self.Pt_mW = (10**(15/10))*(10**(109/10))  # 15dbm in linear scale
+        self.Pt_mW = (10**(args.Ptdbm/10))*(10**(109/10))  # 15dbm in linear scale
         self.noise_power = 10**(-109/10)*10**(109/10)  # -109 dbm in linear scale, 10**(109/10) is normalization
 
         self.beamwidth = 2*np.arcsin(1.2/self.number_of_antennas) 
@@ -457,8 +457,8 @@ class BeamManagementEnv(gym.Env):
         echo_bf_db = np.zeros([ self.number_of_antennas])
         num_rangebin = int(self.fft_size)*3
         num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
-        if self.if_debugging: plt.figure()
         num_subplots = self.N_UTs
+        import matplotlib.pyplot as plt    
         for u in range(self.N_UTs):
             # Assuming self.action_beam and codebook are already TensorFlow tensors
             action_beam_mask = np.equal(self.action_beam, u + 1)
@@ -543,10 +543,10 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (np.concatenate((self.memory.flatten(), 
+        return (np.concatenate((#self.memory.flatten(), 
                                 #self.action_beam, 
-                                # self.R_estimate, self.v_estiamte, 
+                                self.AoD, self.ut_velocities[0,: , 0], 
                                 self.datapool), dtype = np.float32))
 
 
-register(id='BeamManagementEnv-v2', entry_point=BeamManagementEnv)
+register(id='BeamManagementEnv-v3', entry_point=BeamManagementEnv)

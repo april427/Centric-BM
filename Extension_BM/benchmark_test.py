@@ -16,25 +16,30 @@ import time
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 from beam_management_env_letter import BeamManagementEnv
-if_training=True
-env = gym.make("BeamManagementEnv-v2",  if_training=if_training)
+
+from baseline_train import parse_args
+
+args = parse_args()
+
+args.if_training=True
+env = gym.make("BeamManagementEnv-v2",  args=args)
 
 num_episodes = 100
 num_steps = 100
 reward_done = []
 reward_list = []
 throughput = []
-error_range = np.zeros((num_episodes, env.unwrapped.N_UTs))
-error_speed = np.zeros((num_episodes, env.unwrapped.N_UTs))
-# BER  = np.zeros((num_episodes, env.unwrapped.N_UTs))
+error_range = np.zeros((num_episodes, args.N_UTs))
+error_speed = np.zeros((num_episodes, args.N_UTs))
+# BER  = np.zeros((num_episodes, args.N_UTs))
 
 for ep in range(1, num_episodes+1):
 
     obs,_ = env.reset()
     reward_episode = 0
-    er = np.zeros(env.unwrapped.N_UTs)
-    ev = np.zeros(env.unwrapped.N_UTs)
-    # ber = np.zeros(env.unwrapped.N_UTs)
+    er = np.zeros(args.N_UTs)
+    ev = np.zeros(args.N_UTs)
+    # ber = np.zeros(args.N_UTs)
 
     for t in range(num_steps):
         # print(action)
@@ -85,7 +90,7 @@ ax.set_ylabel('CDF')
 
 figure_handle = plt.figure()
 ax1 = figure_handle.add_subplot()
-for i in range(env.unwrapped.N_UTs):
+for i in range(args.N_UTs):
     ax1.plot(error_range[:,i], '-o')
     ax1.plot(error_speed[:,i],'--x')
 ax1.set_xlabel('Episodes')
