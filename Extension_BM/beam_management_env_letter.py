@@ -4,13 +4,13 @@ from channel_functions import *
 import gymnasium as gym
 from gymnasium.envs import register
 from gymnasium.spaces import Box, Dict, MultiDiscrete
-import random
-from scipy.linalg import hadamard
+# import random
+# from scipy.linalg import hadamard
 from exroad import *
 import tensorflow as tf
-from itertools import product
 
-from sionna.mimo import StreamManagement
+
+# from sionna.mimo import StreamManagement
 from sionna.ofdm import ResourceGrid
 from sionna.channel import ApplyOFDMChannel
 from util_functions import *
@@ -35,7 +35,7 @@ class BeamManagementEnv(gym.Env):
         self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
         #self.action_space = MultiDiscrete(np.array([self.N_UTs+1]*self.number_of_antennas))
         #
-        self.observation_space = Box(low=-np.inf, high=np.inf, shape=( 3*self.N_UTs,)) #1*self.number_of_antennas +
+        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 1*self.N_UTs,)) #
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -73,11 +73,11 @@ class BeamManagementEnv(gym.Env):
         self.datapool = np.zeros((self.N_UTs, ), dtype=np.float32)  # number of packets of each UE in the buffer
         self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
 
-        self.bs_loc = tf.expand_dims(tf.expand_dims(tf.constant([50, 20, 0], dtype = tf.float32),axis=0),axis=0)  # BS position
+        self.bs_loc = np.expand_dims(np.expand_dims(np.array([50, 20, 0], dtype=np.float32), axis=0), axis=0)   # BS position
 
-        self.ut_loc = np.zeros((self.batch_size, self.N_UTs, 3), dtype=np.float64)  # UE positions
-        self.config = np.zeros((self.batch_size, self.N_UTs,2 ), dtype=int)
-        self.if_turned = np.zeros((self.batch_size, self.N_UTs), dtype=bool)
+        self.ut_loc = np.zeros((1, self.N_UTs, 3), dtype=np.float64)  # UE positions
+        self.config = np.zeros((1, self.N_UTs,2 ), dtype=int)
+        self.if_turned = np.zeros((1, self.N_UTs), dtype=bool)
 
         self.dt = 0.01  # time step 10 ms
 
@@ -111,7 +111,7 @@ class BeamManagementEnv(gym.Env):
         channel_freq = ApplyOFDMChannel(add_awgn=True)
 
         N = 1 # consider one path
-        H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_users, num_subcarriers, num_BS_antennas ]
+        H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ofdm_symbols, fft_size ]
 
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
 
@@ -158,7 +158,7 @@ class BeamManagementEnv(gym.Env):
         self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
 
         # set UT velocities and trajectories
-        self.ut_velocities = np.zeros((self.batch_size, self.N_UTs, 3))
+        self.ut_velocities = np.zeros((1, self.N_UTs, 3))
         self.ut_velocities[0,:,0:2] = np.transpose(np.random.multivariate_normal( 6*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2))) 
         
         self.datapool = np.random.binomial(n=40, p=0.6, size=self.N_UTs) if self.if_training else np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UTs)
@@ -543,9 +543,9 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (np.concatenate((#self.memory.flatten(), 
+        return (np.concatenate((self.memory.flatten(), 
                                 #self.action_beam, 
-                                self.AoD, self.ut_velocities[0,: , 0], 
+                                #self.AoD, self.ut_velocities[0,: , 0], 
                                 self.datapool), dtype = np.float32))
 
 

@@ -28,11 +28,13 @@ def parse_args():
     parser.add_argument('--N_UTs', type=int, default=2, help='Number of UEs')
     parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
     parser.add_argument('--model', type=str, default='PPO', help='Model to train')
-    parser.add_argument('--timesteps', type=int, default=2e4, help='Number of timesteps to train')
+    parser.add_argument('--timesteps', type=int, default=4e4, help='Number of timesteps to train')
     parser.add_argument('--if_training', type=bool, default=True, help='Training or testing')
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
+    parser.add_argument('--cdir', type=str, default= 'echoandest', help='Log directory')
+
     args, unknown = parser.parse_known_args()
     return args
 
@@ -42,9 +44,9 @@ if __name__ == "__main__":
     args = parse_args()
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
-    env = gym.make("BeamManagementEnv-v3",  args = args)
+    env = gym.make(args.EnvID,  args = args)
     # check_env(env, warn=True)
-    log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + str(env.unwrapped.number_of_antennas)+ "Nt/" 
+    log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/"
 
     policy_kwargs = {
         "net_arch": [dict(pi=[256, 256], vf=[256, 256])],
@@ -55,7 +57,12 @@ if __name__ == "__main__":
     os.makedirs(log_dir, exist_ok=True)
     env = Monitor(env, log_dir)
 
-    model = model_class("MlpPolicy", env, policy_kwargs=policy_kwargs, ent_coef=1e-4, learning_rate=1e-4, verbose=1)
+    model_path = log_dir + "best_model.zip"
+    if os.path.exists(model_path):
+        model = model_class.load(model_path, env=env)
+    else:
+        model = model_class("MlpPolicy", env, policy_kwargs=policy_kwargs, ent_coef=1e-4, learning_rate=1e-4, verbose=1)
+
     timesteps = args.timesteps
 
 
@@ -87,4 +94,17 @@ if __name__ == "__main__":
     ax.grid()
     
     plt.show()
+# %%
+# Append data from one CSV to another
+# def append_csv(source_file, target_file):
+#     source_data = pd.read_csv(source_file)
+#     target_data = pd.read_csv(target_file, skiprows = 1)
+    
+#     combined_data = pd.concat([source_data, target_data])
+#     combined_data.to_csv(target_file, index=False)
+
+# # Example usage
+# source_file = 'RL_mimo_ofdm/monitor_0.csv'
+# target_file = 'RL_mimo_ofdm/monitor.csv'
+# append_csv(source_file, target_file)
 # %%

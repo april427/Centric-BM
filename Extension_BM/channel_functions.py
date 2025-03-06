@@ -118,14 +118,14 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
         fai1 = np.random.rand(1)*2*np.pi # Random angles of departure
     else:
         fai1 = np.array([fai1])
-    A_t = np.array(np.zeros([Nt, batch_size, N_UTs],dtype = complex))
+    A_t = np.array(np.zeros([Nt, 1, N_UTs],dtype = complex))
     H_f = np.array(np.zeros([batch_size, 1, Nt, 1, Nt, Nsym, Nc],dtype = complex))
 
     omega_A = - np.pi * np.sin(fai1) # batch_size x N_UTs
     omega_R = - 2*np.pi * subcarrier_spacing* tau # batch_size x N_UTs
     omega_v = 4*np.pi * ofdm_symbol_duration * ut_velocities[:,:,0] / wavelength # batch_size x N_UTs   
 
-    A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, batch_size, N_UTs), order = 'F')
+    A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, 1, N_UTs), order = 'F')
 
     # Vectorized computation
     reflection_coefficient = reflection_coefficient[:, :, np.newaxis, np.newaxis, np.newaxis]
@@ -135,13 +135,13 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
     exp_omega_R = np.exp(1j * np.arange(Nc) * omega_R)
     exp_omega_v = np.exp(1j * np.arange(Nsym)[:, np.newaxis] * omega_v)
 
-    for s in range(batch_size):
-        for u in range(N_UTs):
-            A_t_conj = np.conj(A_t[:, s, u])
-            A_t_outer = np.outer(A_t[:, s, u], A_t_conj)
-            H_f[s, 0, :, 0, :, :, :] += reflection_coefficient[s, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[s, u] * exp_omega_v[s, u]
-
-        
+    for u in range(N_UTs):
+        A_t_conj = np.conj(A_t[:, 0, u])
+        A_t_outer = np.outer(A_t[:, 0, u], A_t_conj)
+        H_f[0, 0, :, 0, :, :, :] += reflection_coefficient[0, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[0, u] * exp_omega_v[0, u]
+    for b in range(1, batch_size):
+        H_f[b, :] = H_f[0, :]
+    
     return H_f, A_t
     
 def compute_mono_static_channel(M, AoD, reflection_coefficient):
