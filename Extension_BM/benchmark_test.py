@@ -22,7 +22,7 @@ from baseline_train import parse_args
 args = parse_args()
 
 args.if_training=True
-env = gym.make("BeamManagementEnv-v2",  args=args)
+env = gym.make(args.EnvID,  args=args)
 
 num_episodes = 100
 num_steps = 100

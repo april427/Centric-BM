@@ -4,19 +4,16 @@ from channel_functions import *
 import gymnasium as gym
 from gymnasium.envs import register
 from gymnasium.spaces import Box, Dict, MultiDiscrete
-# import random
-# from scipy.linalg import hadamard
 from exroad import *
 import tensorflow as tf
 
 
-# from sionna.mimo import StreamManagement
-from sionna.ofdm import ResourceGrid
-from sionna.channel import ApplyOFDMChannel
+
+# from sionna.ofdm import ResourceGrid
+# from sionna.channel import ApplyOFDMChannel
 from util_functions import *
 import time
 # import matplotlib.pyplot as plt
-
 
 class BeamManagementEnv(gym.Env):
 
@@ -41,22 +38,24 @@ class BeamManagementEnv(gym.Env):
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
 
         # OFDM parameters
-
         self.batch_size = 1 # batch size
         self.fft_size = 144
-        subcarrier_spacing = 60e3
+        self.num_ofdm_symbols = 14
+        self.subcarrier_spacing = 60e3
+        self.cyclic_prefix_length = 20
+        self.ofdm_symbol_duration = (1. + self.cyclic_prefix_length/self.fft_size) / self.subcarrier_spacing
         num_streams_per_tx = self.N_UTs # Number of transmitted streams is equal to the number of UTs
         rx_tx_association = np.ones([self.N_UTs, 1])
         #  resource grid
-        self.rg = ResourceGrid(num_ofdm_symbols=14, 
-                               fft_size=self.fft_size,
-                               subcarrier_spacing=subcarrier_spacing,
-                               num_tx = 1, # one BS
-                               num_streams_per_tx=num_streams_per_tx, 
-                               cyclic_prefix_length=20,
-                               pilot_ofdm_symbol_indices=[2,11],
-                               pilot_pattern="kronecker"
-                               )
+ #       self.rg = ResourceGrid(num_ofdm_symbols=14, 
+                            #    fft_size=self.fft_size,
+                            #    subcarrier_spacing=subcarrier_spacing,
+                            #    num_tx = 1, # one BS
+                            #    num_streams_per_tx=num_streams_per_tx, 
+                            #    cyclic_prefix_length=20,
+                            #    pilot_ofdm_symbol_indices=[2,11],
+                            #    pilot_pattern="kronecker"
+                            #    )
 
         self.SE_threshold = 4  # rate threshold for each UE
         self.SE = np.zeros((self.N_UTs,))  # spectral efficiency of each UE
@@ -108,10 +107,10 @@ class BeamManagementEnv(gym.Env):
         self.Rd = np.zeros((1,self.N_UTs))
         self.AoD = np.zeros((self.N_UTs))
         
-        channel_freq = ApplyOFDMChannel(add_awgn=True)
+        # channel_freq = ApplyOFDMChannel(add_awgn=True)
 
         N = 1 # consider one path
-        H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ofdm_symbols, fft_size ]
+        H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ofdm_symbols, fft_size ]
 
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
 
@@ -168,44 +167,42 @@ class BeamManagementEnv(gym.Env):
 
             self.Rd[0,i] = np.linalg.norm(self.bs_loc[0,0,:] - self.ut_loc[0,i,:])  # euclidean distance between the BS and the UEs
 
-            self.AoD[i] = compute_AoD_at_BS(self.bs_loc.numpy()[0, 0, :], self.ut_loc[0,i,:])  # current AoD
+            self.AoD[i] = compute_AoD_at_BS(self.bs_loc[0, 0, :], self.ut_loc[0,i,:])  # current AoD
 
             self.reflection_coefficient[0,i] = self.wavelength * 10/ self.Rd[0,i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of vehicle
 
             amp_c = (self.wavelength / (4 * np.pi * self.Rd[0,i]))**2
 
-            H_f,_,_ = freqency_communication_channel(self.rg.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i])
+            H_f,_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i])
             
             H_UT[0, i,0,0, ] = H_f
 
-        H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)
         
         H_BS, A_t = freqency_sensing_channel(self.batch_size, 
-                                             self.rg.num_ofdm_symbols, 
+                                             self.num_ofdm_symbols, 
                                              self.fft_size , 
                                              self.number_of_antennas, 
                                              self.N_UTs, 
-                                             self.rg.subcarrier_spacing, 
-                                             self.rg.ofdm_symbol_duration, 
+                                             self.subcarrier_spacing, 
+                                             self.ofdm_symbol_duration, 
                                              self.reflection_coefficient, 
                                              np.array([self.ut_velocities[0,]]), 
                                              self.wavelength, 
                                              self.Rd*2/3e8, 
                                              self.AoD)
-        H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64) 
 
-        self.x_rg, self.encoder, self.b = gen_tx_signal(self.rg, self.N_UTs, self.batch_size)
-        
+        #self.x_rg, self.encoder, self.b = gen_tx_signal(self.rg, self.N_UTs, self.batch_size)
+        self.x_rg = np.zeros([self.batch_size, 1, self.N_UTs, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
+        self.x_rg[0,0,:] = np.exp(1j * np.deg2rad(np.random.choice([45, 135, 225, 315], size = (self.N_UTs, self.num_ofdm_symbols,self.fft_size ))))
 
         self.action_power = np.ones(self.N_UTs) * (self.Pt_mW/self.N_UTs)
 
         tx_sig_shape = list(self.x_rg.shape) #[batch_size, num_tx, num_tx_antennas, num_ofdm_symbols, fft_size]
         tx_sig_shape[2] = self.number_of_antennas
-        tx_sig_fd = tf.zeros(tx_sig_shape, dtype=self.x_rg.dtype)
+        tx_sig_fd = np.zeros(tx_sig_shape, dtype=self.x_rg.dtype)
 
         # the first beam is set with known AoDs
-        # tx_sig_fd_ut = np.zeros([self.batch_size, self.N_UTs, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
-        y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.rg.num_ofdm_symbols, self.rg.fft_size], dtype = np.complex64)
+        y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.num_ofdm_symbols, self.fft_size], dtype = np.complex64)
 
         self.action_beam = np.zeros((self.number_of_antennas))
         for u in range(self.N_UTs):
@@ -225,7 +222,7 @@ class BeamManagementEnv(gym.Env):
 
         beam_index = self.current_beam.astype('int')
         transmit_beam = np.matmul(codebook[:,beam_index] , np.diag(np.sqrt(self.action_power))).astype(np.complex64)
-        transmit_beam = tf.convert_to_tensor(transmit_beam, dtype = tf.complex64)
+        
         tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
 
         for i in range(self.N_UTs):
@@ -233,11 +230,11 @@ class BeamManagementEnv(gym.Env):
             temp1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
             
             # dedicated received signal at the UE
-            temp = channel_freq([ temp1, H_UT,0])
+            temp = channel_freq(temp1, H_UT,0)
             y_UT_eff[:,i,:,:,:] = temp[:,i,:,:,:] # received signal targeted for the UE
 
         # Apply the OFDM channel
-        y_UT = channel_freq([tx_sig_fd, H_UT, 0])
+        y_UT = channel_freq(tx_sig_fd, H_UT, 0)
         # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
 
         # spectral efficiency
@@ -248,9 +245,9 @@ class BeamManagementEnv(gym.Env):
 
         sinr_pow = sig_pow/tf.add(inter_pow ,self.noise_power)
         # sinr_db = 10*np.log10(sinr_pow)
-        self.SE = tf.reduce_sum(tf.reduce_sum(tf.math.log(1+sinr_pow), axis=-1), axis = -1)/(self.rg.num_ofdm_symbols*self.rg.fft_size)
+        self.SE = tf.reduce_sum(tf.reduce_sum(tf.math.log(1+sinr_pow), axis=-1), axis = -1)/(self.num_ofdm_symbols*self.fft_size)
     
-        y_BS = channel_freq([tx_sig_fd, H_BS, self.noise_power])
+        y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
 
         # beamformed output of the sensing signal
         y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
@@ -271,7 +268,7 @@ class BeamManagementEnv(gym.Env):
         self.memory = np.array([echo_bf_db], dtype = np.float32)
 
         num_rangebin = int(self.fft_size)*3
-        num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
+        num_dopplerbin = int(self.num_ofdm_symbols)*3
         # num_anglebin = self.number_of_antennas
 
         z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
@@ -283,11 +280,11 @@ class BeamManagementEnv(gym.Env):
             indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(num_dopplerbin/2) else indices[u,0] - num_dopplerbin
             indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(num_rangebin/2) else indices[u,1] - num_rangebin
 
-        self.R_estimate = - 3e8*indices[:,1]/(2*self.rg.subcarrier_spacing * num_rangebin)
-        self.v_estiamte = 3e8 * indices[:,0]/(2 * self.rg.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
+        self.R_estimate = - 3e8*indices[:,1]/(2*self.subcarrier_spacing * num_rangebin)
+        self.v_estiamte = 3e8 * indices[:,0]/(2 * self.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
         
-        self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.rg.fft_size/self.rg.subcarrier_spacing)
-        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.rg.num_ofdm_symbols/self.carrier_frequency/self.rg.ofdm_symbol_duration)
+        self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing)
+        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
         
         return self._get_state(), {}
 
@@ -311,11 +308,11 @@ class BeamManagementEnv(gym.Env):
         #  update velocities and positions and generate channels
         ################################################################
         
-        H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_users, num_subcarriers, num_BS_antennas ]
-        # tx_sig_fd_ut = np.zeros([self.batch_size, self.N_UTs, self.number_of_antennas, self.rg.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
-        y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.rg.num_ofdm_symbols, self.rg.fft_size], dtype = np.complex64)
+        H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_users, num_subcarriers, num_BS_antennas ]
+        # tx_sig_fd_ut = np.zeros([self.batch_size, self.N_UTs, self.number_of_antennas, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
+        y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.num_ofdm_symbols, self.fft_size], dtype = np.complex64)
         
-        channel_freq = ApplyOFDMChannel(add_awgn=True)
+        # channel_freq = ApplyOFDMChannel(add_awgn=True)
         
         self.ut_velocities[0,:,0:2] = np.transpose(np.random.multivariate_normal( 6*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2)))
         for s in range(self.batch_size):
@@ -333,7 +330,7 @@ class BeamManagementEnv(gym.Env):
             self.config[s,:] = np.array([p[1] for p in positions])
             self.if_turned[s,:] = np.array([p[2] for p in positions])
         self.Rd[0,:] = np.linalg.norm(self.bs_loc[0,0,:] - self.ut_loc[0,:,:], axis=1)
-        self.AoD = np.array([compute_AoD_at_BS(self.bs_loc.numpy()[0, 0, :], 
+        self.AoD = np.array([compute_AoD_at_BS(self.bs_loc[0, 0, :], 
                                           self.ut_loc[0,i,:]) for i in range(self.N_UTs)])
         self.reflection_coefficient[0,:] = (self.wavelength * 10 / 
                                       (self.Rd[0,:]**2) / ((4*np.pi)**1.5))
@@ -341,11 +338,11 @@ class BeamManagementEnv(gym.Env):
 
             amp_c = (self.wavelength / (4 * np.pi * self.Rd[0,i]))**2
 
-            H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.rg.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
+            H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
         
         H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64) 
   
-        H_BS, A_t = freqency_sensing_channel(self.batch_size, self.rg.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.rg.subcarrier_spacing, self.rg.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
+        H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
         H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)
 
         #############################################################
@@ -425,7 +422,7 @@ class BeamManagementEnv(gym.Env):
             temp1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
             
             # dedicated received signal at the UE
-            temp = channel_freq([ temp1, H_UT, 0])
+            temp = channel_freq( temp1, H_UT, 0)
             y_UT_eff[:,i,:,:,:] = temp[:,i,:,:,:] # received signal targeted for the UE
         
         #############################################################
@@ -433,8 +430,8 @@ class BeamManagementEnv(gym.Env):
         #############################################################
 
         # Apply the OFDM channel
-        y_UT = channel_freq([tx_sig_fd, H_UT, 0])
-        y_BS = channel_freq([tx_sig_fd, H_BS, self.noise_power])
+        y_UT = channel_freq(tx_sig_fd, H_UT, 0)
+        y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
 
 
         # spectral efficiency
@@ -446,7 +443,7 @@ class BeamManagementEnv(gym.Env):
         sinr_pow = sig_pow/tf.add(inter_pow ,self.noise_power)
         # sinr_db= 10*np.log10(sinr_pow)
         # sinr_db[np.isinf(sinr_db)] = 0
-        self.SE = tf.reduce_sum(tf.math.log(1+sinr_pow), axis=[-2,-1])/(self.rg.num_ofdm_symbols*self.rg.fft_size)
+        self.SE = tf.reduce_sum(tf.math.log(1+sinr_pow), axis=[-2,-1])/(self.num_ofdm_symbols*self.fft_size)
 
         # BER of receivers
         # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
@@ -456,7 +453,7 @@ class BeamManagementEnv(gym.Env):
 
         echo_bf_db = np.zeros([ self.number_of_antennas])
         num_rangebin = int(self.fft_size)*3
-        num_dopplerbin = int(self.rg.num_ofdm_symbols)*3
+        num_dopplerbin = int(self.num_ofdm_symbols)*3
         num_subplots = self.N_UTs
         import matplotlib.pyplot as plt    
         for u in range(self.N_UTs):
@@ -477,8 +474,8 @@ class BeamManagementEnv(gym.Env):
             DD_spectrum = np.fft.fftshift(np.fft.fft2(DD, [num_dopplerbin, num_rangebin], axes=(-2, -1)))
             max_idx = np.array(np.unravel_index(np.argmax(np.abs(DD_spectrum)), DD_spectrum.shape))
             max_idx = np.array((max_idx[0] - num_dopplerbin // 2, max_idx[1] - num_rangebin // 2))
-            self.R_estimate[u] = - 3e8*max_idx[1]/(2*self.rg.subcarrier_spacing*num_rangebin)
-            self.v_estiamte[u] = 3e8*max_idx[0]/(2*self.rg.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
+            self.R_estimate[u] = - 3e8*max_idx[1]/(2*self.subcarrier_spacing*num_rangebin)
+            self.v_estiamte[u] = 3e8*max_idx[0]/(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
 
             if self.if_debugging:
                 plt.subplot(num_subplots, 1, u+1)
@@ -495,8 +492,8 @@ class BeamManagementEnv(gym.Env):
 
 
         # normalized MSE of delay and Doppler
-        self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.rg.fft_size/self.rg.subcarrier_spacing) 
-        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.rg.num_ofdm_symbols/self.carrier_frequency/self.rg.ofdm_symbol_duration) 
+        self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing) 
+        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) 
 
 
         #update buffer
@@ -546,7 +543,8 @@ class BeamManagementEnv(gym.Env):
         return (np.concatenate((self.memory.flatten(), 
                                 #self.action_beam, 
                                 #self.AoD, self.ut_velocities[0,: , 0], 
-                                self.datapool), dtype = np.float32))
+                                self.datapool
+                                ), dtype = np.float32))
 
 
 register(id='BeamManagementEnv-v3', entry_point=BeamManagementEnv)
