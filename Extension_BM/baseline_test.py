@@ -27,12 +27,10 @@ if __name__ == "__main__":
     model_class = getattr(sys.modules[__name__], model_type)
 
     args.cdir = 'echopow'
-    args.if_training=False
+    args.if_training=True
     # args.if_debugging = True
-
-    log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
-
-
+    args.N_UTs = 2
+    log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
 
     env = gym.make(args.EnvID,  args = args)
     print("N_UTs=", args.N_UTs)

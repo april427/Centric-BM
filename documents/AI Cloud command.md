@@ -34,4 +34,7 @@ scp -r Extension_BM fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~
 # install packages to virtualenv
 srun singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && pip install stable-baselines3 ...."
 
-srun singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && python Extension_BM/baseline_train.py --cdir echopow --timesteps 300000"
+srun --time=04:00:00 singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && python Extension_BM/baseline_train.py --N_UTs 3 --cdir echopow --timesteps 300000"
+
+
+scp -r fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~/RL_mimo_ofdm ./AIC_bm_results

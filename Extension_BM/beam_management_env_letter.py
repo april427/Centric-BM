@@ -76,7 +76,7 @@ class BeamManagementEnv(gym.Env):
         self.config = np.zeros((1, self.N_UTs,2 ), dtype=int)
         self.if_turned = np.zeros((1, self.N_UTs), dtype=bool)
 
-        self.dt = 0.01  # time step 10 ms
+        self.dt = args.dt  # time step 10 ms
 
         # self.Rd = np.zeros((1,self.N_UTs))
         # self.AoD = np.zeros((self.N_UTs))
@@ -479,7 +479,7 @@ class BeamManagementEnv(gym.Env):
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing) 
         self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) 
 
-
+        # print(self.current_beam)
         #update buffer
         buffer_update = np.int32(self.SE - 1.3 > 0)
         self.datapool = np.maximum(self.datapool - buffer_update, 0)
@@ -489,7 +489,7 @@ class BeamManagementEnv(gym.Env):
         #                       Reward Function
         ###################################################################
         #reward =   np.sum( self.SE - self.SE_threshold*np.ones(self.N_UTs) > 0 ) - np.sum(self.nmse_R) - np.sum(self.nmse_v)
-        #reward =  float(np.sum( (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffic_episode) ) /(1+np.exp(1.5-self.SE)) - 2) )
+        #reward =  float(np.sum( (1 + np.exp((self.total_traffic_episode - np.sum(self.datapool))/self.total_traffc_episode) ) /(1+np.exp(1.5-self.SE)) - 2) )
         if terminated:
             reward = 50
         else:
@@ -526,7 +526,7 @@ class BeamManagementEnv(gym.Env):
     def _get_state(self):
         return (np.concatenate((self.memory.flatten(), 
                                 #self.action_beam, 
-                                #self.AoD, self.ut_velocities[0,: , 0], 
+                                # self.R_estimate, self.v_estiamte, 
                                 self.datapool
                                 ), dtype = np.float32))
 
