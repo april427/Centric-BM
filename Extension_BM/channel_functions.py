@@ -125,7 +125,7 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
     omega_R = - 2*np.pi * subcarrier_spacing* tau # batch_size x N_UTs
     omega_v = 4*np.pi * ofdm_symbol_duration * ut_velocities[:,:,0] / wavelength # batch_size x N_UTs   
 
-    A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, 1, N_UTs), order = 'F')
+    A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, batch_size, N_UTs), order = 'F')
 
     # Vectorized computation
     reflection_coefficient = reflection_coefficient[:, :, np.newaxis, np.newaxis, np.newaxis]
@@ -135,12 +135,13 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
     exp_omega_R = np.exp(1j * np.arange(Nc) * omega_R)
     exp_omega_v = np.exp(1j * np.arange(Nsym)[:, np.newaxis] * omega_v)
 
-    for u in range(N_UTs):
-        A_t_conj = np.conj(A_t[:, 0, u])
-        A_t_outer = np.outer(A_t[:, 0, u], A_t_conj)
-        H_f[0, 0, :, 0, :, :, :] += reflection_coefficient[0, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[0, u] * exp_omega_v[0, u]
     for b in range(1, batch_size):
-        H_f[b, :] = H_f[0, :]
+        for u in range(N_UTs):
+            A_t_conj = np.conj(A_t[:, b, u])
+            A_t_outer = np.outer(A_t[:, b, u], A_t_conj)
+            H_f[b, 0, :, 0, :, :, :] += reflection_coefficient[b, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[b, u] * exp_omega_v[b, u]
+
+        # H_f[b, :] = H_f[0, :]
     
     return H_f, A_t
     

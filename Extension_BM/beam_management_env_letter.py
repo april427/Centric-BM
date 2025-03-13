@@ -38,7 +38,7 @@ class BeamManagementEnv(gym.Env):
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
 
         # OFDM parameters
-        self.batch_size = 1 # batch size
+        self.batch_size = 4 # batch size
         self.fft_size = 144
         self.num_ofdm_symbols = 14
         self.subcarrier_spacing = 60e3
@@ -74,18 +74,13 @@ class BeamManagementEnv(gym.Env):
 
         self.bs_loc = np.expand_dims(np.expand_dims(np.array([50, 20, 0], dtype=np.float32), axis=0), axis=0)   # BS position
 
-        self.ut_loc = np.zeros((1, self.N_UTs, 3), dtype=np.float64)  # UE positions
-        self.config = np.zeros((1, self.N_UTs,2 ), dtype=int)
-        self.if_turned = np.zeros((1, self.N_UTs), dtype=bool)
+        self.ut_loc = np.zeros((self.batch_size, self.N_UTs, 3), dtype=np.float64)  # UE positions
+        self.config = np.zeros((self.batch_size, self.N_UTs,2 ), dtype=int)
+        self.if_turned = np.zeros((self.batch_size, self.N_UTs), dtype=bool)
 
         self.dt = args.dt  # time step 10 ms
-
-        # self.Rd = np.zeros((1,self.N_UTs))
-        # self.AoD = np.zeros((self.N_UTs))
-        # self.aod = np.zeros((self.N_UTs))
-        # self.a_BS = np.zeros((self.N_UTs, self.number_of_antennas), dtype=complex) 
         
-        self.reflection_coefficient = np.zeros((1,self.N_UTs))
+        self.reflection_coefficient = np.zeros((self.batch_size,self.N_UTs))
         
         self.nmse_R = np.zeros((self.N_UTs)) # normalized MSE of delay estimation
         self.nmse_v = np.zeros((self.N_UTs))
@@ -102,17 +97,17 @@ class BeamManagementEnv(gym.Env):
         super().reset(seed=seed)
 
         self.cstep = 0
-        self.current_beam = np.empty([self.N_UTs,], dtype=object)
+        self.current_beam = np.empty([self.batch_size, self.N_UTs], dtype=object)
 
-        self.Rd = np.zeros((1,self.N_UTs))
-        self.AoD = np.zeros((self.N_UTs))
+        self.Rd = np.zeros((self.batch_size,self.N_UTs))
+        self.AoD = np.zeros((self.batch_size, self.N_UTs))
         
         # channel_freq = ApplyOFDMChannel(add_awgn=True)
 
         N = 1 # consider one path
         H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ofdm_symbols, fft_size ]
 
-        transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
+        transmit_beam = np.zeros((self.batch_size, self.number_of_antennas, self.N_UTs), dtype=np.complex64)
 
         codebook = dft_codebook(self.number_of_antennas, self.number_of_antennas)  # set of beamforming directions
 
@@ -153,31 +148,29 @@ class BeamManagementEnv(gym.Env):
         #     self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
         #     self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
         # else:
+        self.ut_velocities = np.zeros((self.batch_size, self.N_UTs, 3))
+        for b in range(self.batch_size):
+            self.ut_loc[b,:,:], self.config[b,:], self.if_turned[b,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
 
-        self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
-
-        # set UT velocities and trajectories
-        self.ut_velocities = np.zeros((1, self.N_UTs, 3))
-        self.ut_velocities[0,:,0:2] = np.transpose(np.random.multivariate_normal( 6*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2))) 
+            # set UT velocities and trajectories
+            self.ut_velocities[b,:,0:2] = np.transpose(np.random.multivariate_normal( 6*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2))) 
         
-        self.datapool = np.random.binomial(n=40, p=0.6, size=self.N_UTs) if self.if_training else np.random.binomial(n=self.num_steps, p=0.6, size=self.N_UTs)
-        self.total_traffic_episode = np.sum(self.datapool) # total downlink traffic per episode
+        self.datapool = np.random.binomial(n=40, p=0.6, size=(self.batch_size,self.N_UTs)) if self.if_training else np.random.binomial(n=self.num_steps, p=0.6, size=(self.batch_size,self.N_UTs))
+        self.total_traffic_episode = np.sum(self.datapool, axis = 1) # total downlink traffic per episode
         
         for i in range(self.N_UTs):
 
-            self.Rd[0,i] = np.linalg.norm(self.bs_loc[0,0,:] - self.ut_loc[0,i,:])  # euclidean distance between the BS and the UEs
-
-            self.AoD[i] = compute_AoD_at_BS(self.bs_loc[0, 0, :], self.ut_loc[0,i,:])  # current AoD
-
-            self.reflection_coefficient[0,i] = self.wavelength * 10/ self.Rd[0,i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of vehicle
-
-            amp_c = (self.wavelength / (4 * np.pi * self.Rd[0,i]))**2
-
-            H_f,_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i])
+            self.Rd[:,i] = np.linalg.norm(self.bs_loc[0,0,:] - self.ut_loc[:,i,:], axis = 1)  # euclidean distance between the BS and the UEs
+            self.reflection_coefficient[:,i] = self.wavelength * 10/ self.Rd[:,i]**2 / (4*np.pi)**1.5 # reflection coefficient, 5 is the RCS of vehicle
+            amp_c = (self.wavelength / (4 * np.pi * self.Rd[:,i]))**2
             
-            H_UT[0, i,0,0, ] = H_f
+            for b in range(self.batch_size):
+                self.AoD[b,i] = compute_AoD_at_BS(self.bs_loc[0, 0, :], self.ut_loc[b,i,:])  # current AoD
 
-        
+                H_f,_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c[b],self.Rd[b,i]/3e8, self.AoD[b,i])
+                H_UT[b, i,0,0, ] = H_f
+
+        H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)
         H_BS, A_t = freqency_sensing_channel(self.batch_size, 
                                              self.num_ofdm_symbols, 
                                              self.fft_size , 
@@ -186,16 +179,16 @@ class BeamManagementEnv(gym.Env):
                                              self.subcarrier_spacing, 
                                              self.ofdm_symbol_duration, 
                                              self.reflection_coefficient, 
-                                             np.array([self.ut_velocities[0,]]), 
+                                             self.ut_velocities, 
                                              self.wavelength, 
                                              self.Rd*2/3e8, 
                                              self.AoD)
-
+        H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)
         #self.x_rg, self.encoder, self.b = gen_tx_signal(self.rg, self.N_UTs, self.batch_size)
-        self.x_rg = np.zeros([self.batch_size, 1, self.N_UTs, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
-        self.x_rg[0,0,:] = np.exp(1j * np.deg2rad(np.random.choice([45, 135, 225, 315], size = (self.N_UTs, self.num_ofdm_symbols,self.fft_size ))))
+        # self.x_rg = np.zeros([self.batch_size, 1, self.N_UTs, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
+        self.x_rg = np.exp(1j * np.deg2rad(np.random.choice([45, 135, 225, 315], size = (self.batch_size, 1,self.N_UTs, self.num_ofdm_symbols,self.fft_size ))))
 
-        self.action_power = np.ones(self.N_UTs) * (self.Pt_mW/self.N_UTs)
+        self.action_power = np.ones((self.batch_size, self.N_UTs)) * (self.Pt_mW/self.N_UTs)
 
         tx_sig_shape = list(self.x_rg.shape) #[batch_size, num_tx, num_tx_antennas, num_ofdm_symbols, fft_size]
         tx_sig_shape[2] = self.number_of_antennas
@@ -204,30 +197,34 @@ class BeamManagementEnv(gym.Env):
         # the first beam is set with known AoDs
         y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.num_ofdm_symbols, self.fft_size], dtype = np.complex64)
 
-        self.action_beam = np.zeros((self.number_of_antennas))
+        self.action_beam = np.zeros((self.batch_size, self.number_of_antennas))
         for u in range(self.N_UTs):
-            self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
-        unique_beams, counts = np.unique(self.current_beam, return_counts=True)
-        duplicates = unique_beams[counts > 1]
+            self.current_beam[:,u] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,:,u])) @ codebook), axis = 1)
 
-        p = -1
-        while len(duplicates)>0:
-            p -= 1
-            for dup in duplicates:
-                indices = np.where(self.current_beam == dup)[0]
-                for idx in indices[1:]:
-                    self.current_beam[idx,] = np.argsort(np.abs(np.transpose(np.conj(A_t[:,0,idx])) @ codebook))[p]
-            unique_beams, counts = np.unique(self.current_beam, return_counts=True)
+        for b in range(self.batch_size):    
+            unique_beams, counts = np.unique(self.current_beam[b,], return_counts=True)
             duplicates = unique_beams[counts > 1]
 
+            p = -1
+            while len(duplicates)>0:
+                p -= 1
+                for dup in duplicates:
+                    indices = np.where(self.current_beam[b,] == dup)[0]
+                    for idx in indices[1:]:
+                        self.current_beam[b,idx] = np.argsort(np.abs(np.transpose(np.conj(A_t[:,b,idx])) @ codebook))[p]
+                unique_beams, counts = np.unique(self.current_beam[b,], return_counts=True)
+                duplicates = unique_beams[counts > 1]
+
         beam_index = self.current_beam.astype('int')
-        transmit_beam = np.matmul(codebook[:,beam_index] , np.diag(np.sqrt(self.action_power))).astype(np.complex64)
         
-        tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
+        transmit_beam_temp = np.multiply(codebook[:, beam_index], np.broadcast_to(np.sqrt(self.action_power), (self.number_of_antennas, self.batch_size, self.N_UTs)))
+        transmit_beam = np.swapaxes(transmit_beam_temp, 0, 1)
+        
+        tx_sig_fd = tf.einsum('bkj,bijom -> bikom', transmit_beam, self.x_rg)
 
         for i in range(self.N_UTs):
-            self.action_beam[self.current_beam[i]] = i+1
-            temp1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
+            self.action_beam[:, self.current_beam[:,i].astype('int')] = i+1
+            temp1 = tf.einsum('njk,nijom -> nikom', tf.expand_dims(transmit_beam[:,:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
             
             # dedicated received signal at the UE
             temp = channel_freq(temp1, H_UT,0)
@@ -250,41 +247,43 @@ class BeamManagementEnv(gym.Env):
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
 
         # beamformed output of the sensing signal
-        y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
+        y_BS2 = tf.einsum('nuj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
         y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
         # echo_bf_db = 10 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.square(tf.abs(y_BS2)), axis=[-2,-1]))) / tf.math.log(10.0)
 
-        echo_bf_db = np.zeros([ self.number_of_antennas])
-        for u in range(self.N_UTs):
-            # Assuming self.action_beam and codebook are already TensorFlow tensors
-            action_beam_mask = np.equal(self.action_beam, u + 1)
+        echo_bf_db = np.zeros([self.batch_size, self.number_of_antennas])
+        # for u in range(self.N_UTs):
+        #     # Assuming self.action_beam and codebook are already TensorFlow tensors
+        #     action_beam_mask = np.equal(self.action_beam, u + 1)
             
-            AA = action_beam_mask.astype('complex64') * codebook
+        #     AA = tf.matmul(action_beam_mask.astype('complex64') , codebook)
 
             # Compute BB using TensorFlow operations
             # BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
             # echo_bf_db[action_beam_mask] = BB[action_beam_mask]
-        echo_bf_db = tf.reduce_mean(tf.math.log1p(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(codebook), tf.squeeze(y_BS)))))/np.log(2), axis=[-2, -1]).numpy() 
+        echo_bf_db = tf.reduce_mean(10*tf.math.log(tf.square(tf.abs(tf.einsum('ij, bjnp->binp', tf.linalg.adjoint(codebook), tf.squeeze(y_BS)))))/np.log(10), axis=[-2, -1]).numpy()  
         self.memory = np.array([echo_bf_db], dtype = np.float32)
 
         num_rangebin = int(self.fft_size)*3
         num_dopplerbin = int(self.num_ofdm_symbols)*3
         # num_anglebin = self.number_of_antennas
 
-        z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
-        top = np.abs(z_BS[0,0,u,:,:]).ravel()
-        indices = np.zeros([self.N_UTs, 2])
-        for u in range(self.N_UTs):
-            indices[u,:] = np.concatenate(np.unravel_index(np.argsort(top, axis=None)[-1:], z_BS[0,0,u,:,:].shape)).astype('int')
-            # fft shift
-            indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(num_dopplerbin/2) else indices[u,0] - num_dopplerbin
-            indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(num_rangebin/2) else indices[u,1] - num_rangebin
+        z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin], axes=(-2, -1))
+        top = np.abs(z_BS).reshape(self.batch_size, self.N_UTs, -1)
+        indices = np.zeros([self.batch_size, self.N_UTs, 2])
+        for b in range(self.batch_size):
+            for u in range(self.N_UTs):
+                idx = np.argmax(top[b, u])
+                indices[b, u, :] = np.unravel_index(idx, z_BS[b, 0, u].shape)
+                # fft shift
+                indices[b, u, 0] = indices[b, u, 0] if indices[b, u, 0] < np.ceil(num_dopplerbin / 2) else indices[b, u, 0] - num_dopplerbin
+                indices[b, u, 1] = indices[b, u, 1] if indices[b, u, 1] < np.ceil(num_rangebin / 2) else indices[b, u, 1] - num_rangebin
 
-        self.R_estimate = - 3e8*indices[:,1]/(2*self.subcarrier_spacing * num_rangebin)
-        self.v_estiamte = 3e8 * indices[:,0]/(2 * self.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
-        
-        self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing)
-        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
+        self.R_estimate = -3e8 * indices[:, :, 1] / (2 * self.subcarrier_spacing * num_rangebin)
+        self.v_estimate = 3e8 * indices[:, :, 0] / (2 * self.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
+
+        self.nmse_R = np.abs(self.R_estimate - self.Rd) / (3e8 / 2 / self.fft_size / self.subcarrier_spacing)
+        self.nmse_v = np.abs(self.v_estimate - self.ut_velocities[:, :, 0]) / (3e8 / 2 / self.num_ofdm_symbols / self.carrier_frequency / self.ofdm_symbol_duration)
         
         return self._get_state(), {}
 
