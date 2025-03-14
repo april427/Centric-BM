@@ -90,7 +90,7 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
     alpha = np.zeros([N],dtype = complex)
     H_f = np.array(np.zeros([Nt, Nsym,Nc],dtype = complex))
     for i in range(N):
-        A_t[:,i] = 1/np.sqrt(Nt) * np.exp(-1j*np.pi*n_t*np.sin(fai1[i])) # Array response of the transmit antenna normalized
+        A_t[:,i] = 1/np.sqrt(Nt) * np.exp(-1j*np.pi*n_t*np.sin(fai1[i])) # Normalized steering vector, it is the same as the one in frequency_sensing_channel 
         aa = np.sqrt(sigma_2_alpha/N)
         alpha[i] = aa 
             
@@ -98,7 +98,7 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
         P = alpha*np.exp(-1j*2*np.pi*tau*k/Nc)
         if np.shape(P) != ():
             P = np.diag(P)
-        H_f[:,:,k] = np.tile(np.dot(np.conj(A_t), P), [1,Nsym])
+        H_f[:,:,k] = np.tile(np.dot(np.conj(A_t), P), [1,Nsym]) # Conjugate of A_t so H can be directly used ApplyOFDMChannel
         
     return H_f,A_t,alpha
 
@@ -118,14 +118,14 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
         fai1 = np.random.rand(1)*2*np.pi # Random angles of departure
     else:
         fai1 = np.array([fai1])
-    A_t = np.array(np.zeros([Nt, batch_size, N_UTs],dtype = complex))
+    A_t = np.array(np.zeros([Nt, 1, N_UTs],dtype = complex))
     H_f = np.array(np.zeros([batch_size, 1, Nt, 1, Nt, Nsym, Nc],dtype = complex))
 
     omega_A = - np.pi * np.sin(fai1) # batch_size x N_UTs
     omega_R = - 2*np.pi * subcarrier_spacing* tau # batch_size x N_UTs
     omega_v = 4*np.pi * ofdm_symbol_duration * ut_velocities[:,:,0] / wavelength # batch_size x N_UTs   
 
-    A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, batch_size, N_UTs), order = 'F')
+    A_t = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_A, n_t)).reshape((Nt, 1, N_UTs), order = 'F')
 
     # Vectorized computation
     reflection_coefficient = reflection_coefficient[:, :, np.newaxis, np.newaxis, np.newaxis]
@@ -135,13 +135,13 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
     exp_omega_R = np.exp(1j * np.arange(Nc) * omega_R)
     exp_omega_v = np.exp(1j * np.arange(Nsym)[:, np.newaxis] * omega_v)
 
-    for s in range(batch_size):
-        for u in range(N_UTs):
-            A_t_conj = np.conj(A_t[:, s, u])
-            A_t_outer = np.outer(A_t_conj, A_t[:, s, u])
-            H_f[s, 0, :, 0, :, :, :] += reflection_coefficient[s, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[s, u] * exp_omega_v[s, u]
-
-        
+    for u in range(N_UTs):
+        A_t_conj = np.conj(A_t[:, 0, u])
+        A_t_outer = np.outer(A_t[:, 0, u], A_t_conj)
+        H_f[0, 0, :, 0, :, :, :] += reflection_coefficient[0, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[0, u] * exp_omega_v[0, u]
+    for b in range(1, batch_size):
+        H_f[b, :] = H_f[0, :]
+    
     return H_f, A_t
     
 def compute_mono_static_channel(M, AoD, reflection_coefficient):
@@ -211,8 +211,14 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
             Pt_mW (float): The total transmit power in mW.
         
     """
-    
+
     counter = -1
+    if d.ndim != 1:
+        d = np.squeeze(d, 0)
+    d = d * (datapool != 0)
+    d[xi==0] = 0
+    if np.all(d == 0):
+        return Pt
     sorted_user = np.argsort(d)
     weak_ue_ind = sorted_user[counter]
     if ue_type[weak_ue_ind] == 1: # CU
@@ -221,12 +227,11 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
         Pt[weak_ue_ind] = threshold[0] / xi[weak_ue_ind]
     for u in range(N_UEs):
         Pt[u] = Pt[weak_ue_ind] * (xi[u]/xi[weak_ue_ind]) * (threshold[ue_type[weak_ue_ind]]/threshold[ue_type[u]])
-    
+    Pt[np.isinf(Pt)] = Pt_mW
     Pt = Pt * (datapool != 0)
 
     if np.sum(Pt) - Pt_mW < 0: # more power is available
-
-        Pt = Pt + (Pt_mW - np.sum(Pt))*(datapool != 0) / (np.count_nonzero(datapool)) # equal allocation of the remaining power
+        Pt[datapool!=0] = Pt[datapool!=0] + (Pt_mW - np.sum(Pt)) / (np.count_nonzero(d)) # equal allocation of the remaining power
     else:
         while np.sum(Pt) - Pt_mW > 0 :
             Pt[sorted_user[counter]] -= (np.sum(Pt) - Pt_mW)
@@ -237,6 +242,10 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
                 return Pt
             counter -= 1
     
+    if np.any(np.isnan(Pt)):
+        Pt[np.isnan(Pt)] = 0
+        Pt[~np.isnan(Pt)] = Pt_mW / np.count_nonzero(Pt[~np.isnan(Pt)])
+
     return Pt
 
 # ausiliary functions: convert decimal to base b
@@ -258,9 +267,10 @@ def hyperbolic_func(x, A1, A2, c):
         A (float): scaling parameter how much it closes to c
         c (float): location c 
     '''
+    x = np.atleast_1d(x)
     y=np.zeros(np.size(x))
-    y[x>=c] = (1 - np.exp(- A1 * (x[x>=c] - c)))
-    y[x<c] = -1
+    y[x>=c] = 1.5*(1 - np.exp(- A1 * (x[x>=c] - c)))
+    y[x<c] = - 0.5
     #y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
     b = 12
     y[x>=c+b] = np.exp(-A2*(x[x>=c+b] - c - b )) 

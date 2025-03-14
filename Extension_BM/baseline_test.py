@@ -3,7 +3,7 @@ import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
 
-from stable_baselines3 import  PPO, DDPG
+from stable_baselines3 import  PPO, DDPG, A2C
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
@@ -13,96 +13,104 @@ from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_r
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import BaseCallback
 import time
+import argparse
 
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 from beam_management_env_letter import BeamManagementEnv
 import pandas as pd
+from baseline_train import parse_args
 
-model_type = "PPO"
-model_class = getattr(sys.modules[__name__], model_type)
+if __name__ == "__main__":
+    args = parse_args()
+    model_type = args.model
+    model_class = getattr(sys.modules[__name__], model_type)
+
+    args.cdir = 'echopow'
+    args.if_training=False
+    # args.if_debugging = True
+
+    log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
 
 
-env = gym.make("BeamManagementEnv-v2",  if_training=False)
-#check_env(env)
 
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4/" 
-print("N_UTs=", env.unwrapped.N_UTs)
+    env = gym.make(args.EnvID,  args = args)
+    print("N_UTs=", args.N_UTs)
+    print(log_dir)
 
-# %%
-################################## Evaluate ####################################
-model = model_class.load(log_dir + "best_model")
+    # %%
+    ################################## Evaluate ####################################
+    model = model_class.load(log_dir + "best_model")
 
-num_episodes = 50
-num_steps = 100
-reward_done = []
-reward_list = []
-throughput = []
-error_range = np.zeros((num_episodes, env.unwrapped.N_UTs))
-error_speed = np.zeros((num_episodes, env.unwrapped.N_UTs))
-BER  = np.zeros((num_episodes, env.unwrapped.N_UTs))
+    num_episodes = 10
+    num_steps = 40 if args.if_training else 100 
+    reward_done = []
+    reward_list = []
+    throughput = []
+    error_range = np.zeros((num_episodes, args.N_UTs))
+    error_speed = np.zeros((num_episodes, args.N_UTs))
+    BER  = np.zeros((num_episodes, args.N_UTs))
 
-for ep in range(1, num_episodes+1):
-    # st = time.time()
-    obs,_ = env.reset()
-    # et = time.time()
-    # print("reset time: ", et-st)
-    reward_episode = 0
-    er = np.zeros(env.unwrapped.N_UTs)
-    ev = np.zeros(env.unwrapped.N_UTs)
-    ber = np.zeros(env.unwrapped.N_UTs)
+    for ep in range(1, num_episodes+1):
+        # st = time.time()
+        obs,_ = env.reset()
+        # et = time.time()
+        # print("reset time: ", et-st)
+        reward_episode = 0
+        er = np.zeros(args.N_UTs)
+        ev = np.zeros(args.N_UTs)
+        ber = np.zeros(args.N_UTs)
 
-    for t in range(num_steps):
-        action, _states = model.predict(obs)
-        # st1 = time.time()
-        obs, rewards, dones, _, info = env.step(action)
-        # et1 = time.time()
-        # print("step time: ", et1-st1)
-        reward_episode += rewards
-        er += info['nmse_R']
-        ev += info['nmse_v']
-        #ber += info['BER']
+        for t in range(num_steps):
+            action, _states = model.predict(obs)
+            # st1 = time.time()
+            obs, rewards, dones, _, info = env.step(action)
+            # et1 = time.time()
+            # print("step time: ", et1-st1)
+            reward_episode += rewards
+            er += info['nmse_R']
+            ev += info['nmse_v']
+            #ber += info['BER']
 
-        if dones:
-            reward_done.append(reward_episode)
-            print("all transmitted")
-            break
+            if dones:
+                reward_done.append(reward_episode)
+                print("all transmitted")
+                break
+
+            # estimation_error.append(info['est_error'])
+
+        error_range[ep-1,] = er/(t+1)
+        error_speed[ep-1,] = ev/(t+1)
+        #BER[ep-1,] = ber/(t+1)
+
+        if t == num_steps - 1:  
+            reward_list.append(reward_episode)       
+        print(reward_episode)
+        thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
+        print(info['buffer'])
+        throughput.append(thp)
         
-        # estimation_error.append(info['est_error'])
-
-    error_range[ep-1,] = er/(t+1)
-    error_speed[ep-1,] = ev/(t+1)
-    #BER[ep-1,] = ber/(t+1)
-
-    if t == num_steps - 1:  
-        reward_list.append(reward_episode)       
-    
-    thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
-    print(info['buffer'])
-    throughput.append(thp)
-    
-    print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
+        print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
 
-thp_cdf = np.sort(throughput)
-yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
+    thp_cdf = np.sort(throughput)
+    yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 
-# 
-figure_handle = plt.figure()
-ax = figure_handle.add_subplot()
-ax.plot(thp_cdf, yvals, 'o')
-ax.set_xlabel('Throughput')
-ax.set_ylabel('CDF')
+    # 
+    figure_handle = plt.figure()
+    ax = figure_handle.add_subplot()
+    ax.plot(thp_cdf, yvals, 'o')
+    ax.set_xlabel('Throughput')
+    ax.set_ylabel('CDF')
 
-figure_handle = plt.figure()
-ax1 = figure_handle.add_subplot()
-for i in range(env.unwrapped.N_UTs):
-    ax1.plot(error_range[:,i])
-    ax1.plot(error_speed[:,i])
-ax1.legend(['error_range_0', 'error_speed_0', 'error_range_1', 'error_speed_1'])
-ax1.set_xlabel('Episodes')
-ax1.set_ylabel('Normalized Error')
-plt.show()
+    figure_handle = plt.figure()
+    ax1 = figure_handle.add_subplot()
+    for i in range(args.N_UTs):
+        ax1.plot(error_range[:,i], '-o')
+        ax1.plot(error_speed[:,i],'--x')
+    ax1.set_xlabel('Episodes')
+    ax1.set_ylabel('Normalized Error')
+    plt.show()
 
 
 

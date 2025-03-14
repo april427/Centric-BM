@@ -3,7 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from stable_baselines3 import  PPO, DDPG
+from stable_baselines3 import  PPO, DDPG, A2C
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
@@ -11,78 +11,100 @@ from stable_baselines3.common import results_plotter
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from stable_baselines3.common.noise import NormalActionNoise
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import EvalCallback
+import pandas as pd
+import torch.nn as nn
+import argparse
+
 
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM')
 from beam_management_env_letter import BeamManagementEnv
-
-class SaveOnBestTrainingRewardCallback(BaseCallback):
-    """
-    Callback for saving a model (the check is done every ``check_freq`` steps)
-    based on the training reward (in practice, we recommend using ``EvalCallback``).
-
-    :param check_freq:
-    :param log_dir: Path to the folder where the model will be saved.
-      It must contains the file created by the ``Monitor`` wrapper.
-    :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
-    """
-    def __init__(self, check_freq: int, log_dir: str, verbose: int = 1):
-        super().__init__(verbose)
-        self.check_freq = check_freq
-        self.log_dir = log_dir
-        self.save_path = os.path.join(log_dir, "best_model")
-        self.best_mean_reward = -np.inf
-
-    # def _init_callback(self) -> None:
-    #     # Create folder if needed
-    #     if self.save_path is not None:
-    #         os.makedirs(self.save_path, exist_ok=True)
-
-    def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq == 0:
-
-          # Retrieve training reward
-          x, y = ts2xy(load_results(self.log_dir), "timesteps")
-          if len(x) > 0:
-              # Mean training reward over the last 100 episodes
-              mean_reward = np.mean(y[-100:])
-              if self.verbose >= 1:
-                print(f"Num timesteps: {self.num_timesteps}")
-                print(f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}")
-
-              # New best model, you could save the agent here
-              if mean_reward > self.best_mean_reward:
-                  self.best_mean_reward = mean_reward
-                  # Example for saving best model
-                  if self.verbose >= 1:
-                    print(f"Saving new best model to {self.save_path}")
-                  self.model.save(self.save_path)
-
-        return True
+from util_functions import SaveOnBestTrainingRewardCallback
 
 # %%
-model_type = "PPO"
-model_class = getattr(sys.modules[__name__], model_type)
-env = gym.make("BeamManagementEnv-v2",  if_training=True)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--N_UTs', type=int, default=2, help='Number of UEs')
+    parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
+    parser.add_argument('--model', type=str, default='PPO', help='Model to train')
+    parser.add_argument('--timesteps', type=int, default=4e4, help='Number of timesteps to train')
+    parser.add_argument('--if_training', type=bool, default=True, help='Training or testing')
+    parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
+    parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
+    parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
+    parser.add_argument('--cdir', type=str, default= 'test', help='Log directory')
 
-log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(env.unwrapped.N_UTs) +"ue" + "lr2e-4" 
-
-os.makedirs(log_dir, exist_ok=True)
-env = Monitor(env, log_dir)
-
-model = model_class("MlpPolicy", env, learning_rate=2e-4, verbose=1)
-timesteps = 1e5
-
+    args, unknown = parser.parse_known_args()
+    return args
 
 # %%
-################################### Learn a model #################################
-# Create the callback: check every episode
-callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=log_dir)
-model.learn(total_timesteps=timesteps, callback=callback)
 
-plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v2")
-plt.show()
+if __name__ == "__main__":
+    args = parse_args()
+    model_type = args.model
+    model_class = getattr(sys.modules[__name__], model_type)
+    env = gym.make(args.EnvID,  args = args)
+    # check_env(env, warn=True)
+    log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/"
 
-model.save(log_dir + "BeamManagementEnv")
+    policy_kwargs = {
+        "net_arch": [dict(pi=[256, 256], vf=[256, 256])],
+        "activation_fn": nn.ReLU
+    }
 
+    # %%
+    os.makedirs(log_dir, exist_ok=True)
+    env = Monitor(env, log_dir)
+
+    model_path = log_dir + "best_model.zip"
+    if os.path.exists(model_path):
+        model = model_class.load(model_path, env=env)
+    else:
+        model = model_class("MlpPolicy", env, policy_kwargs=policy_kwargs, ent_coef=1e-4, learning_rate=1e-4, verbose=1)
+
+    timesteps = args.timesteps
+
+
+    # %%
+    ################################### Learn a model #################################
+    # Create the callback: check every episode
+    callback = SaveOnBestTrainingRewardCallback(check_freq=500, log_dir=log_dir)
+
+
+    model.learn(total_timesteps=timesteps, callback=callback)
+
+    plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v3")
+    # plt.show()
+
+    model.save(log_dir + "best_model")
+    print(log_dir)
+    env.close()
+    #%%
+    monitor_file = log_dir + "monitor.csv"
+    monitor_data = pd.read_csv(monitor_file, skiprows=1)
+
+    window_size = 100
+    moving_average = monitor_data['r'].rolling(window=window_size).mean()
+
+    fig, ax = plt.subplots()
+    # ax.plot(monitor_data['r'], label='Reward')
+    ax.plot(moving_average, label='Moving Average', color='orange')
+    ax.legend()
+    ax.grid()
+    
+    plt.show()
+# %%
+# Append data from one CSV to another
+# def append_csv(source_file, target_file):
+#     source_data = pd.read_csv(source_file)
+#     target_data = pd.read_csv(target_file, skiprows = 1)
+    
+#     combined_data = pd.concat([source_data, target_data])
+#     combined_data.to_csv(target_file, index=False)
+
+# # Example usage
+# source_file = 'RL_mimo_ofdm/monitor_0.csv'
+# target_file = 'RL_mimo_ofdm/monitor.csv'
+# append_csv(source_file, target_file)
+# %%
