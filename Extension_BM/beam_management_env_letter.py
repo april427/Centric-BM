@@ -176,7 +176,7 @@ class BeamManagementEnv(gym.Env):
             H_f,_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i])
             
             H_UT[0, i,0,0, ] = H_f
-
+        H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)
         
         H_BS, A_t = freqency_sensing_channel(self.batch_size, 
                                              self.num_ofdm_symbols, 
@@ -190,7 +190,7 @@ class BeamManagementEnv(gym.Env):
                                              self.wavelength, 
                                              self.Rd*2/3e8, 
                                              self.AoD)
-
+        H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)
         #self.x_rg, self.encoder, self.b = gen_tx_signal(self.rg, self.N_UTs, self.batch_size)
         self.x_rg = np.zeros([self.batch_size, 1, self.N_UTs, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
         self.x_rg[0,0,:] = np.exp(1j * np.deg2rad(np.random.choice([45, 135, 225, 315], size = (self.N_UTs, self.num_ofdm_symbols,self.fft_size ))))
