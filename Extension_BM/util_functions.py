@@ -58,7 +58,7 @@ def expand_to_rank(x, target_rank, axis=-1):
     return np.reshape(x, new_shape)
 
 def channel_freq(x, h_freq, no):
-    target_rank = np.ndim(h_freq)
+    target_rank = h_freq.shape.rank
 
     x_new = expand_to_rank(x, target_rank, axis=1)
     y = np.sum(np.sum(h_freq*x_new, axis = 4), axis = 3)

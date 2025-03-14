@@ -20,13 +20,11 @@ from beam_management_env_letter import BeamManagementEnv
 from baseline_train import parse_args
 
 args = parse_args()
-# args.if_debugging = True
+
 args.if_training=True
-args.N_UTs = 3
 env = gym.make(args.EnvID,  args=args)
 
-
-num_episodes = 10
+num_episodes = 100
 num_steps = 100
 reward_done = []
 reward_list = []
