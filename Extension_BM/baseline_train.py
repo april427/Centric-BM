@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('--N_UTs', type=int, default=2, help='Number of UEs')
     parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
     parser.add_argument('--model', type=str, default='PPO', help='Model to train')
-    parser.add_argument('--timesteps', type=int, default=4e4, help='Number of timesteps to train')
+    parser.add_argument('--timesteps', type=int, default=4e5, help='Number of timesteps to train')
     parser.add_argument('--if_training', type=bool, default=True, help='Training or testing')
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')

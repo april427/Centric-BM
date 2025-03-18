@@ -1,6 +1,7 @@
 import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
 
 from stable_baselines3 import  PPO, DDPG
 #from stable_baselines3.common.env_util import make_env
@@ -20,15 +21,16 @@ from beam_management_env_letter import BeamManagementEnv
 from baseline_train import parse_args
 
 args = parse_args()
-
+args.dt = 0.1
 args.if_training=True
 env = gym.make(args.EnvID,  args=args)
-
+# check_env(env)
 num_episodes = 100
 num_steps = 100
 reward_done = []
 reward_list = []
 throughput = []
+latency = []
 error_range = np.zeros((num_episodes, args.N_UTs))
 error_speed = np.zeros((num_episodes, args.N_UTs))
 # BER  = np.zeros((num_episodes, args.N_UTs))
@@ -55,7 +57,7 @@ for ep in range(1, num_episodes+1):
             reward_done.append(reward_episode)
             print("all transmitted")
             break
-        
+        latency.append(info['latency'])
 
     error_range[ep-1,] = er/(t+1)
     error_speed[ep-1,] = ev/(t+1)
@@ -64,7 +66,7 @@ for ep in range(1, num_episodes+1):
 
     reward_list.append(reward_episode)       
     
-    thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
+    thp = info['transmitted_packets']/ info['total_traffic']
     print(info['buffer'])
     throughput.append(thp)
     
@@ -92,8 +94,21 @@ figure_handle = plt.figure()
 ax1 = figure_handle.add_subplot()
 for i in range(args.N_UTs):
     ax1.plot(error_range[:,i], '-o')
+ax1.set_xlabel('Episodes')
+ax1.set_ylabel('Normalized Error of Range Estimation')
+plt.show()
+
+figure_handle = plt.figure()
+ax1 = figure_handle.add_subplot()
+for i in range(args.N_UTs):
     ax1.plot(error_speed[:,i],'--x')
 ax1.set_xlabel('Episodes')
-ax1.set_ylabel('Normalized Error')
+ax1.set_ylabel('Normalized Error of Speed Estimation')
 plt.show()
+
+figure_handle = plt.figure()
+ax2 = figure_handle.add_subplot()
+ax2.hist(list(itertools.chain(*latency)))
+ax2.set_xticks(range(5)) 
+ax2.set_xticklabels(range(5))
 # %%

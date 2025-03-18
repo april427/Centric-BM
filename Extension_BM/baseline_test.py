@@ -7,13 +7,14 @@ from stable_baselines3 import  PPO, DDPG, A2C
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common import results_plotter
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
-from stable_baselines3.common.noise import NormalActionNoise
-from stable_baselines3.common.callbacks import BaseCallback
+# from stable_baselines3.common import results_plotter
+# from stable_baselines3.common.monitor import Monitor
+# from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
+# from stable_baselines3.common.noise import NormalActionNoise
+# from stable_baselines3.common.callbacks import BaseCallback
 import time
 import argparse
+import itertools
 
 import sys
 sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
@@ -26,9 +27,10 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = 'echopow'
+    args.cdir = 'test'
     args.if_training=False
     # args.if_debugging = True
+    args.dt = 0.1
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
 
@@ -42,11 +44,12 @@ if __name__ == "__main__":
     ################################## Evaluate ####################################
     model = model_class.load(log_dir + "best_model")
 
-    num_episodes = 10
+    num_episodes = 100
     num_steps = 40 if args.if_training else 100 
     reward_done = []
     reward_list = []
     throughput = []
+    latency = []
     error_range = np.zeros((num_episodes, args.N_UTs))
     error_speed = np.zeros((num_episodes, args.N_UTs))
     BER  = np.zeros((num_episodes, args.N_UTs))
@@ -71,6 +74,7 @@ if __name__ == "__main__":
             er += info['nmse_R']
             ev += info['nmse_v']
             #ber += info['BER']
+            latency.append(info['latency'])
 
             if dones:
                 reward_done.append(reward_episode)
@@ -86,8 +90,8 @@ if __name__ == "__main__":
         if t == num_steps - 1:  
             reward_list.append(reward_episode)       
         print(reward_episode)
-        thp = 1 - np.sum(info['buffer'])/ info['total_traffic']
-        print(info['buffer'])
+        thp = np.sum(info['transmitted_packets'])/ info['total_traffic']
+        print(info['transmitted_packets'])
         throughput.append(thp)
         
         print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
@@ -107,15 +111,35 @@ if __name__ == "__main__":
     ax1 = figure_handle.add_subplot()
     for i in range(args.N_UTs):
         ax1.plot(error_range[:,i], '-o')
-        ax1.plot(error_speed[:,i],'--x')
     ax1.set_xlabel('Episodes')
-    ax1.set_ylabel('Normalized Error')
+    ax1.set_ylabel('Normalized Error of Range Estimation')
     plt.show()
 
+    figure_handle = plt.figure()
+    ax1 = figure_handle.add_subplot()
+    for i in range(args.N_UTs):
+        ax1.plot(error_speed[:,i],'--x')
+    ax1.set_xlabel('Episodes')
+    ax1.set_ylabel('Normalized Error of Speed Estimation')
+    plt.show()
+
+    figure_handle = plt.figure()
+    ax2 = figure_handle.add_subplot()
+    ax2.hist(list(itertools.chain(*latency)))
+    ax2.set_xticks(range(5)) 
+    ax2.set_xticklabels(range(5))
 
 
 # %%
-# np.savetxt('RL_mimo_ofdm/results/Thp_' + 'PPO'+ "_"+ str(env.unwrapped.N_UEs) +"ue", throughput)
+# Save throughput to a CSV file
+
+
+# df = pd.read_csv(log_dir+"latency.csv")
+# df = df.drop(rows_to_delete)
+# df['benchmark'] = latency
+# df.to_csv(log_dir+"latency.csv", index=False)
+# latency_df = pd.DataFrame({'baseline': list(itertools.chain(*latency))})
+# latency_df.to_csv(log_dir+'latency.csv', index=False, mode='a')
 
 # monitor_file = log_dir + "monitor.csv"
 # monitor_data = pd.read_csv(monitor_file, skiprows=1)
