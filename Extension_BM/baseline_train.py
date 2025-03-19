@@ -3,7 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from stable_baselines3 import  PPO, DDPG, A2C
+from stable_baselines3 import  PPO
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
@@ -12,6 +12,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.utils import get_device
 import pandas as pd
 import torch.nn as nn
 import argparse
@@ -33,7 +34,8 @@ def parse_args():
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= 'test', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= 'buffer', help='Log directory')
+    parser.add_argument('--dt', type=float, default=0.1, help='Time step')
 
     args, unknown = parser.parse_known_args()
     return args
@@ -71,7 +73,7 @@ if __name__ == "__main__":
     # Create the callback: check every episode
     callback = SaveOnBestTrainingRewardCallback(check_freq=500, log_dir=log_dir)
 
-
+    print(get_device())
     model.learn(total_timesteps=timesteps, callback=callback)
 
     plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v3")

@@ -55,8 +55,11 @@ class BeamManagementEnv(gym.Env):
         
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
-        self.buffers = np.zeros((self.N_UTs, ), dtype=np.float32)  # number of packets of each UE in the buffers
+        self.max_buffer_size = 10  # buffers size of each UE 
+        self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
+        self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)
+        self.buffer_occupancy = np.zeros((self.N_UTs, ), dtype=np.int32)
 
         self.bs_loc = np.expand_dims(np.expand_dims(np.array([50, 20, 0], dtype=np.float32), axis=0), axis=0)   # BS position
 
@@ -65,8 +68,6 @@ class BeamManagementEnv(gym.Env):
         self.if_turned = np.zeros((1, self.N_UTs), dtype=bool)
 
         self.dt = args.dt  # time step 10 ms
-
-        self.max_buffer_size = 1000  # buffers size of each UE 
         
         self.reflection_coefficient = np.zeros((1,self.N_UTs))
         
@@ -83,7 +84,7 @@ class BeamManagementEnv(gym.Env):
         # self.ut_loc[0,:,:], self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width)
 
 
-    def reset(self, seed=32):
+    def reset(self, seed=None, options = None):
         super().reset(seed=seed)
 
         self.cstep = 0
@@ -91,7 +92,6 @@ class BeamManagementEnv(gym.Env):
 
         self.Rd = np.zeros((1,self.N_UTs))
         self.AoD = np.zeros((self.N_UTs))
-        self.waiting_time = np.zeros((self.N_UTs,), dtype=np.int32)
         
         # channel_freq = ApplyOFDMChannel(add_awgn=True)
 
@@ -269,18 +269,24 @@ class BeamManagementEnv(gym.Env):
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing)
         self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
 
+        self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
+        self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)
+        self.buffer_occupancy = np.zeros((self.N_UTs, ), dtype=np.int32)
+
         # packets arrival at the first time slot
-        packet = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) # packets arrival
-        self.buffers = np.where(packet == 1, self.buffers + 1, self.buffers)
-        
+        self.buffers[:,0] = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) # packets arrival
+        # For each user with a new arrival, add packet to first empty buffer slot
+        self.buffer_occupancy = np.sum(self.buffers, axis=1)
+
         self.total_traffic_episode = np.sum(self.buffers) # total downlink traffic per episode
         self.successful_transmission = 0  # number of successful transmission
         
         return self._get_state(), {}
 
-########################################################################
+
+######################################################################
 #                             step function              
-########################################################################
+######################################################################
 
     def step(self, action): 
         '''
@@ -417,7 +423,7 @@ class BeamManagementEnv(gym.Env):
         
 
         # calculate the received sensing signal
-        su_idx = np.where(self.buffers == 0)[0]
+        su_idx = np.where(self.buffer_occupancy == 0)[0]
         temp_sensing = tf.einsum('uj, nijom->niuom', tf.gather(transmit_beam, su_idx, axis=1), self.x_rg[:,:,su_idx,:,:])
         y_UT_sensing = channel_freq(temp_sensing, H_UT, 0)
 
@@ -496,34 +502,56 @@ class BeamManagementEnv(gym.Env):
         ###################################################################
         #                       update buffers
         ###################################################################
-        self.latency = []
-        success_packet = np.multiply((self.SE>=1.3),self.buffers)
-        missed_packet = np.multiply((self.SE<1.3),self.buffers)
-        self.waiting_time = self.waiting_time + missed_packet
+        self.latency = np.zeros((self.N_UTs, ), dtype=np.int32)
+        drop_overload = 0
+        drop_latency = 0
+        success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
+        for user_id in np.where(success_packet != 0)[0]:
+            pak_inx = np.argmax(self.waiting_times[user_id,])
+            self.latency[user_id] = self.waiting_times[user_id, pak_inx]
+            self.buffers[user_id, pak_inx] = 0 # transmit this packet
+            self.waiting_times[user_id, pak_inx] = 0
+            self.buffer_occupancy[user_id] -= 1
 
-        # latency is the calculated when the packet is successfully transmitted
-        self.latency = self.waiting_time[success_packet != 0] 
+        for u in range(self.N_UTs):
+            for i in range(self.max_buffer_size):
+                if self.buffers[u, i] != 0:
+                    self.waiting_times[u,i] += 1
 
-        self.waiting_time[success_packet!=0] = 0 
-        drop_latency = (self.waiting_time >= 5).astype(np.int32)
-        self.waiting_time[drop_latency!=0] = 0 
-        drop_overload = np.multiply((self.buffers > self.max_buffer_size), self.buffers)
+                if self.waiting_times[u,i] >= 5:
+                    self.waiting_times[u,i] = 0
+                    self.buffers[u,i] = 0
+                    self.buffer_occupancy[u] -= 1
+                    drop_latency += 1
 
-        packet = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) # packets arrival
-        self.buffers = np.maximum(self.buffers - success_packet - drop_latency - drop_overload + packet, 0)
+        # packets arrival
+        arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
+        for user_id in range(self.N_UTs):
+            if arrivals[user_id] == 1 and self.buffer_occupancy[user_id] < self.max_buffer_size:
+                # Find first empty slot
+                for i in range(self.max_buffer_size):
+                    if self.buffers[user_id, i] == 0:
+                        self.buffers[user_id, i] = 1
+                        self.waiting_times[user_id, i] = 0
+                        self.buffer_occupancy[user_id] += 1
+                        break
+            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] > self.max_buffer_size:
+                drop_overload += 1
+
+        # self.buffers = np.maximum(self.buffers - success_packet - drop_latency - drop_overload + arrivals, 0)
         self.successful_transmission += np.sum(success_packet)
 
         terminated = bool(self.cstep == 50) 
         if not terminated:
-            self.total_traffic_episode += np.sum(packet)
+            self.total_traffic_episode += np.sum(arrivals)
           
 
         ###################################################################
         #                       Reward Function
         ###################################################################
-        reward = - (drop_overload + drop_latency).astype(np.float32)
-        reward -= 0.5*((self.nmse_R>0.2) + (self.nmse_v >0.2)).astype(np.float32)
-        reward = float(np.sum(reward))
+        reward_drop = - (drop_overload + drop_latency)
+        reward_estimation = - 0.5*((self.nmse_R>0.2) + (self.nmse_v >0.2)).astype('float32')
+        reward = float(reward_drop + np.sum(reward_estimation))
 
 
         # reward = float(np.sum(  hyperbolic_func(self.SE, A1=0.8, A2=0.3, c=1.1) + (self.nmse_R<0.2) + (self.nmse_v <0.2) ) - 1* (np.sum(self.action_beam!=0) > (3*self.N_UTs))  )
@@ -551,17 +579,23 @@ class BeamManagementEnv(gym.Env):
         if np.any(self.Rd[0,] > 100):
             truncated = True
         
+        info = {'buffers': self.buffers.copy(),
+                'total_traffic': self.total_traffic_episode, 
+                'transmitted_packets': self.successful_transmission, 
+                'latency': self.latency, 
+                'nmse_R': self.nmse_R, 
+                'nmse_v': self.nmse_v}
+
         if np.isnan(reward):
             raise ValueError("NaN detected in reward")
-        return self._get_state(), reward, terminated, truncated, {'buffers': self.buffers.copy(),
-        'total_traffic': self.total_traffic_episode, 'transmitted_packets': self.successful_transmission, 'latency': self.latency, 'nmse_R': self.nmse_R, 'nmse_v': self.nmse_v}
+        return self._get_state(), reward, terminated, truncated, info
 
 
     def _get_state(self):
         return (np.concatenate((self.memory.flatten(), 
                                 #self.action_beam, 
                                 #self.AoD, self.ut_velocities[0,: , 0], 
-                                self.buffers
+                                self.buffer_occupancy,
                                 ), dtype = np.float32))
 
 

@@ -25,7 +25,7 @@ args.dt = 0.1
 args.if_training=True
 env = gym.make(args.EnvID,  args=args)
 # check_env(env)
-num_episodes = 100
+num_episodes = 10
 num_steps = 100
 reward_done = []
 reward_list = []
@@ -67,7 +67,7 @@ for ep in range(1, num_episodes+1):
     reward_list.append(reward_episode)       
     
     thp = info['transmitted_packets']/ info['total_traffic']
-    print(info['buffer'])
+    print(info['buffers'])
     throughput.append(thp)
     
     print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)

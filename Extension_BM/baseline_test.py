@@ -27,7 +27,7 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = 'test'
+    args.cdir = 'buffer'
     args.if_training=False
     # args.if_debugging = True
     args.dt = 0.1
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
 
 
-
+    
     env = gym.make(args.EnvID,  args = args)
     print("N_UTs=", args.N_UTs)
     print(log_dir)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     ################################## Evaluate ####################################
     model = model_class.load(log_dir + "best_model")
 
-    num_episodes = 100
+    num_episodes = 10
     num_steps = 40 if args.if_training else 100 
     reward_done = []
     reward_list = []
