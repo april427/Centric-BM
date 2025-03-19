@@ -16,6 +16,7 @@ from stable_baselines3.common.utils import get_device
 import pandas as pd
 import torch.nn as nn
 import argparse
+import torch
 
 
 import sys
@@ -34,7 +35,7 @@ def parse_args():
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= 'buffer', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= '-', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.1, help='Time step')
 
     args, unknown = parser.parse_known_args()
@@ -43,6 +44,12 @@ def parse_args():
 # %%
 
 if __name__ == "__main__":
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    print(f"CUDA device count: {torch.cuda.device_count()}")
+    if torch.cuda.is_available():
+        print(f"Current CUDA device: {torch.cuda.current_device()}")
+        print(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+
     args = parse_args()
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
@@ -63,7 +70,7 @@ if __name__ == "__main__":
     if os.path.exists(model_path):
         model = model_class.load(model_path, env=env)
     else:
-        model = model_class("MlpPolicy", env, policy_kwargs=policy_kwargs, ent_coef=1e-4, learning_rate=1e-4, verbose=1)
+        model = model_class("MlpPolicy", env, device="cuda", policy_kwargs=policy_kwargs, ent_coef=1e-4, learning_rate=1e-4, verbose=1)
 
     timesteps = args.timesteps
 

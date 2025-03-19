@@ -34,7 +34,11 @@ scp -r Extension_BM fq35hc@es.aau.dk@ai-fe02.srv.aau.dk:~
 # install packages to virtualenv
 srun singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && pip install stable-baselines3 ...."
 
-srun --time 08:00:00 singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && python Extension_BM/baseline_train.py --N_UTs ? --cdir echopow --timesteps 300000"
+srun --gres=gpu:1 --time 08:00:00 singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && python Extension_BM/baseline_train.py --N_UTs ? --cdir echopow --timesteps 300000"
 
 # tensorflow 
 srun --time 08:00:00 singularity exec --bind ~/tf-my-venv:/tf-my-venv tensorflow_25.01-tf2-py3.sif /bin/bash -c "source ~/tf-my-venv/bin/activate && python Extension_BM/baseline_train.py --N_UTs 2 --cdir buffer --timesteps 9000000"
+
+
+# verify if device is available
+srun --gres=gpu:1 singularity exec --bind ~/my-virtual-env:/my-virtual-env pytorch_24.07-py3.sif /bin/bash -c "source ~/my-virtual-env/bin/activate && python -c 'import torch; print(torch.cuda.is_available())'"
