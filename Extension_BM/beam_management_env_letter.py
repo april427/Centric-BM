@@ -5,9 +5,7 @@ import gymnasium as gym
 from gymnasium.envs import register
 from gymnasium.spaces import Box, Dict, MultiDiscrete
 from exroad import *
-import tensorflow as tf
-
-
+# import tensorflow as tf
 
 # from sionna.ofdm import ResourceGrid
 # from sionna.channel import ApplyOFDMChannel
@@ -159,8 +157,6 @@ class BeamManagementEnv(gym.Env):
 
             H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i])
 
-        H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64)
-        
         H_BS, A_t = freqency_sensing_channel(self.batch_size, 
                                              self.num_ofdm_symbols, 
                                              self.fft_size , 
@@ -173,8 +169,7 @@ class BeamManagementEnv(gym.Env):
                                              self.wavelength, 
                                              self.Rd*2/3e8, 
                                              self.AoD)
-        H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)
-
+        
         self.x_rg = np.zeros([self.batch_size, 1, self.N_UTs, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
         self.x_rg[0,0,:] = np.exp(1j * np.deg2rad(np.random.choice([45, 135, 225, 315], size = (self.N_UTs, self.num_ofdm_symbols,self.fft_size ))))
 
@@ -206,11 +201,11 @@ class BeamManagementEnv(gym.Env):
         beam_index = self.current_beam.astype('int')
         transmit_beam = np.matmul(codebook[:,beam_index] , np.diag(np.sqrt(self.action_power))).astype(np.complex64)
         
-        tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
+        tx_sig_fd = np.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
 
         for i in range(self.N_UTs):
             self.action_beam[self.current_beam[i]] = i+1
-            temp1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
+            temp1 = np.einsum('kj,nijom -> nikom', np.expand_dims(transmit_beam[:,i], 1), np.expand_dims(self.x_rg[:,:,i,:,:], 2))
             
             # dedicated received signal at the UE
             temp = channel_freq(temp1, H_UT,0)
@@ -220,22 +215,19 @@ class BeamManagementEnv(gym.Env):
         y_UT = channel_freq(tx_sig_fd, H_UT, 0)
         # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
 
-        # spectral efficiency
-        sig_pow = tf.squeeze(tf.square(tf.abs(y_UT_eff)))
-
+        # Calculate spectral efficiency 
+        sig_pow = np.squeeze(np.square(np.abs(y_UT_eff)))
         interference = y_UT - y_UT_eff
-        inter_pow = tf.squeeze(tf.square(tf.abs(interference)))
+        inter_pow = np.squeeze(np.square(np.abs(interference)))
 
-        sinr_pow = sig_pow/tf.add(inter_pow ,self.noise_power)
-        # sinr_db = 10*np.log10(sinr_pow)
-        self.SE = tf.reduce_sum(tf.reduce_sum(tf.math.log(1+sinr_pow), axis=-1), axis = -1)/(self.num_ofdm_symbols*self.fft_size)
+        sinr_pow = sig_pow / (inter_pow + self.noise_power)
+        self.SE = np.sum(np.sum(np.log(1 + sinr_pow), axis=-1), axis=-1) / (self.num_ofdm_symbols * self.fft_size)
     
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
 
         # beamformed output of the sensing signal
-        y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
-        y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
-        # echo_bf_db = 10 * tf.math.log(tf.squeeze(tf.reduce_mean(tf.square(tf.abs(y_BS2)), axis=[-2,-1]))) / tf.math.log(10.0)
+        y_BS2 = np.einsum('uj, nijom->niuom ' , np.conj(transmit_beam.T), y_BS)
+        y_BS2 = y_BS2* np.conj(self.x_rg)
 
         echo_bf_db = np.zeros([ self.number_of_antennas])
         for u in range(self.N_UTs):
@@ -247,8 +239,8 @@ class BeamManagementEnv(gym.Env):
             # Compute BB using TensorFlow operations
             # BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
             # echo_bf_db[action_beam_mask] = BB[action_beam_mask]
-        echo_bf_db = tf.reduce_mean(10*tf.math.log(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(codebook), tf.squeeze(y_BS)))))/np.log(10), axis=[-2, -1]).numpy() 
-        self.memory = np.array([echo_bf_db], dtype = np.float32)
+        echo_bf_db = np.mean(10*np.log10(np.square(np.abs(np.einsum('ij, jnp->inp', np.conj(codebook.T), y_BS.squeeze())))), axis=(-2, -1)) 
+        self.memory = echo_bf_db
 
         num_rangebin = int(self.fft_size)*3
         num_dopplerbin = int(self.num_ofdm_symbols)*3
@@ -336,10 +328,8 @@ class BeamManagementEnv(gym.Env):
 
             H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
         
-        H_UT = tf.convert_to_tensor(H_UT, dtype = tf.complex64) 
   
         H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
-        H_BS = tf.convert_to_tensor(H_BS, dtype = tf.complex64)
 
         #############################################################
         #                         action mask              
@@ -387,9 +377,9 @@ class BeamManagementEnv(gym.Env):
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
         beam_genie = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,:])) @ codebook), axis=1)
         transmit_beam = codebook[:,beam_genie]  
-        transmit_beam = tf.convert_to_tensor(transmit_beam, dtype=tf.complex64) 
-        AA = tf.einsum('kjom, ji -> kiom', tf.squeeze(H_UT,axis=[0,2,3]), (transmit_beam))
-        xi = tf.linalg.tensor_diag_part(tf.reduce_mean(tf.square(tf.abs(AA)), axis = [-2,-1]))
+        
+        AA = np.einsum('kjom, ji -> kiom', H_UT.squeeze(), transmit_beam)
+        xi = np.diag(np.mean(np.square(np.abs(AA)), axis = (-2,-1)))
         Pt = dynamic_power_allocation(self.Rd, xi, Pt, self.Pt_mW, np.ones([self.N_UTs,], dtype=np.int32), [0,2], self.N_UTs,[1,1] )
             
 
@@ -408,14 +398,12 @@ class BeamManagementEnv(gym.Env):
                 transmit_beam[:, i] = codebook[:, beam_index] * np.sqrt(Pt[i])
             else:
                 transmit_beam[:, i] = np.sum( (codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1) 
-            
-        transmit_beam = tf.convert_to_tensor(transmit_beam, dtype = tf.complex64) 
-
+        
         # transmitted signal at the BS
-        tx_sig_fd = tf.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
+        tx_sig_fd = np.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
 
         for i in range(self.N_UTs):
-            temp1 = tf.einsum('kj,nijom -> nikom', tf.expand_dims(transmit_beam[:,i],1), tf.expand_dims(self.x_rg[:,:,i,:,:],2))
+            temp1 = np.einsum('kj,nijom -> nikom', np.expand_dims(transmit_beam[:,i],1), np.expand_dims(self.x_rg[:,:,i,:,:],2))
             
             # dedicated received signal at the UE
             temp = channel_freq( temp1, H_UT, 0)
@@ -424,7 +412,7 @@ class BeamManagementEnv(gym.Env):
 
         # calculate the received sensing signal
         su_idx = np.where(self.buffer_occupancy == 0)[0]
-        temp_sensing = tf.einsum('uj, nijom->niuom', tf.gather(transmit_beam, su_idx, axis=1), self.x_rg[:,:,su_idx,:,:])
+        temp_sensing = np.einsum('uj, nijom->niuom', transmit_beam[:,su_idx], self.x_rg[:,:,su_idx,:,:])
         y_UT_sensing = channel_freq(temp_sensing, H_UT, 0)
 
         #############################################################
@@ -438,20 +426,18 @@ class BeamManagementEnv(gym.Env):
 
         # spectral efficiency
         #y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
-        sig_pow = tf.squeeze(tf.square(tf.abs(y_UT_eff)))
+        sig_pow = np.squeeze(np.square(np.abs(y_UT_eff)))
         interference  = y_UT - y_UT_eff - y_UT_sensing
-        inter_pow = tf.squeeze(tf.square(tf.abs(interference)))
+        inter_pow = np.squeeze(np.square(np.abs(interference)))
         
-        sinr_pow = sig_pow/tf.add(inter_pow ,self.noise_power)
+        sinr_pow = sig_pow/(inter_pow + self.noise_power)
         # sinr_db= 10*np.log10(sinr_pow)
         # sinr_db[np.isinf(sinr_db)] = 0
-        self.SE = tf.reduce_sum(tf.math.log(1+sinr_pow), axis=[-2,-1])/(self.num_ofdm_symbols*self.fft_size)
+        self.SE = np.sum(np.sum(np.log2(1 + sinr_pow), axis=-1), axis=-1)/(self.num_ofdm_symbols*self.fft_size)
 
         # BER of receivers
         # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
-        
-        # y_BS2 = tf.einsum('uj, nijom->niuom ' , tf.linalg.adjoint((transmit_beam)), y_BS)
-        # y_BS2 = tf.multiply(y_BS2, tf.math.conj(self.x_rg))
+
 
         echo_bf_db = np.zeros([ self.number_of_antennas])
         num_rangebin = int(self.fft_size)*3
@@ -462,16 +448,14 @@ class BeamManagementEnv(gym.Env):
             # Assuming self.action_beam and codebook are already TensorFlow tensors
             action_beam_mask = np.equal(self.action_beam, u + 1)
             
-            AA = action_beam_mask.astype('complex64') * codebook
+            AA = action_beam_mask.astype(np.complex64) * codebook
             coe = 1/np.sqrt(np.sum(action_beam_mask)) if np.sum(action_beam_mask) > 0 else 1
-            # Compute BB using TensorFlow operations
-            # BB = tf.reduce_mean(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))), axis=[-2, -1]).numpy()
-            # echo_bf_db[action_beam_mask] = BB[action_beam_mask]
-            CC = tf.squeeze(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(AA), tf.squeeze(y_BS)))
-            CC = CC[action_beam_mask!=0]
-            user_data = tf.broadcast_to(tf.squeeze(self.x_rg[:,:,u,]), (CC.shape))
-            CC = tf.where(user_data != 0, tf.math.divide(coe*CC, user_data), CC)
-            DD = tf.reduce_sum(CC, axis = 0)
+
+            CC = np.einsum('ij,jnp->inp', np.conj(AA.T), y_BS.squeeze())
+            CC = CC[action_beam_mask != 0]
+            user_data = np.broadcast_to(np.squeeze(self.x_rg[:,:,u,]), CC.shape)
+            CC = np.where(user_data != 0, np.divide(coe * CC, user_data), CC)
+            DD = np.sum(CC, axis=0)
             
             DD_spectrum = np.fft.fftshift(np.fft.fft2(DD, [num_dopplerbin, num_rangebin], axes=(-2, -1)))
             max_idx = np.array(np.unravel_index(np.argmax(np.abs(DD_spectrum)), DD_spectrum.shape))
@@ -488,12 +472,9 @@ class BeamManagementEnv(gym.Env):
                 plt.yticks(np.arange(0, num_dopplerbin, num_dopplerbin//6), np.arange(-num_dopplerbin//2, num_dopplerbin//2, num_dopplerbin//6)*3e8//(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin))
                 plt.xlabel('Range')
                 plt.ylabel('Doppler')
-        echo_bf_db = tf.reduce_mean(tf.math.log(tf.square(tf.abs(tf.einsum('ij, jnp->inp', tf.linalg.adjoint(codebook), tf.squeeze(y_BS)))))/np.log(10), axis=[-2, -1]).numpy() 
-        # plt.show()
-        #self.memory = np.roll(self.memory, -2)
-        self.memory = echo_bf_db
-        # self.memory[self.memory < 0] = 0
+        echo_bf_db = np.mean(10*np.log10(np.square(np.abs(np.einsum('ij, jnp->inp', np.conj(codebook.T), y_BS.squeeze())))), axis=(-2, -1)) 
 
+        self.memory = echo_bf_db
 
         # normalized MSE of delay and Doppler
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing) 
@@ -566,10 +547,10 @@ class BeamManagementEnv(gym.Env):
             print(beam_genie)
             print(reward, self.buffers)
             
-            A = tf.einsum('ij, jknp -> iknp', tf.linalg.adjoint(codebook), tf.squeeze(H_BS))
-            B = tf.square(tf.abs(tf.einsum('iknp, kq -> iqnp', A, codebook)))
-            C = tf.reduce_mean(tf.math.log1p(tf.square(tf.abs(B))), axis=[-2,-1])
-            D = tf.linalg.diag_part(C)
+            A = np.einsum('ij, jknp -> iknp', np.conj(codebook.T), H_BS.squeeze())
+            B = np.square(np.abs(np.einsum('iknp, kq -> iqnp', A, codebook)))
+            C = np.mean(np.log1p(np.square(np.abs(B))), axis=(-2, -1))
+            D = np.diagonal(C)
             import matplotlib.pyplot as plt
             plt.figure()
             plt.plot(D)
