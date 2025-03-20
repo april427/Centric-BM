@@ -3,6 +3,7 @@ import matplotlib.pyplot
 from stable_baselines3.common.callbacks import BaseCallback
 import os
 from stable_baselines3.common.results_plotter import load_results, ts2xy
+from scipy import signal
 
 def cuboid_data(center, size=(1,1,1)):
     # suppose axis direction: x: to left; y: to inside; z: to upper
@@ -65,6 +66,40 @@ def channel_freq(x, h_freq, no):
     noise = np.sqrt(no/2) * (np.random.randn(*y.shape) + 1j*np.random.randn(*y.shape))
     y += noise
     return y
+
+def music_alg(y, Nt, N_UTs):
+    y = np.squeeze(y)
+    N_ofdm,  N_sc = y.shape[-2], y.shape[-1]
+    R = np.zeros([Nt, Nt], dtype = np.complex64)
+    for i in range(N_ofdm):
+        for j in range(N_sc):
+            R += np.outer(y[ :, i, j], np.conj(y[ :, i, j]))
+    R = R/(N_ofdm*N_sc)
+    eigenvalues, eigenvectors = np.linalg.eig(R)
+    idx = eigenvalues.argsort()[::-1]
+    eigenvalues = eigenvalues[idx]
+    eigenvectors = eigenvectors[:,idx]
+
+    noise_eigenvectors = eigenvectors[:, N_UTs:]
+    
+    angles = np.linspace(0, 2*np.pi, 180)
+    pspectrum = np.zeros(len(angles))
+
+    for i, angle in enumerate(angles): # angles in radians
+        a = np.exp(-1j * np.pi * np.arange(Nt) * np.sin(angle))
+        a = a.reshape(-1, 1)  # Column vector
+        
+        # MUSIC spectrum formula: 1 / (a^H * En * En^H * a)
+        # where En is the noise subspace eigenvector matrix
+        denominator = np.dot(a.conj().T, noise_eigenvectors)
+        denominator = np.dot(denominator, noise_eigenvectors.conj().T)
+        denominator = np.dot(denominator, a)
+        pspectrum[i] = 1 / abs(denominator.squeeze())
+    
+    pspectrum = pspectrum / max(pspectrum)
+    peaks, _ = signal.find_peaks(pspectrum, height=0.001)
+    estimated_angles = angles[peaks][:N_UTs]
+    return estimated_angles
 
 # from sionna.mimo import StreamManagement
 # from sionna.ofdm import ResourceGridMapper, LSChannelEstimator, LMMSEEqualizer, RemoveNulledSubcarriers

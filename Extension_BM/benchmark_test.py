@@ -55,7 +55,6 @@ for ep in range(1, num_episodes+1):
 
         if dones:
             reward_done.append(reward_episode)
-            print("all transmitted")
             break
         latency.append(info['latency'])
 
@@ -106,9 +105,16 @@ ax1.set_xlabel('Episodes')
 ax1.set_ylabel('Normalized Error of Speed Estimation')
 plt.show()
 
+latency_flat = list(itertools.chain(*latency))
 figure_handle = plt.figure()
 ax2 = figure_handle.add_subplot()
-ax2.hist(list(itertools.chain(*latency)))
-ax2.set_xticks(range(5)) 
-ax2.set_xticklabels(range(5))
+counts, bins, patches = ax2.hist(latency_flat, bins=range(7), density=True, alpha=0.7)
+bin_centers = np.arange(6)
+ax2.cla()  # Clear the previous plot
+ax2.bar(bin_centers, counts, width=0.7,align = 'center', alpha=0.7)
+ax2.set_xticks(range(6))
+ax2.set_xticklabels(range(6))
+ax2.set_xlabel('Latency')
+ax2.set_ylabel('Probability')
+plt.show()
 # %%

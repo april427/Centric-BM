@@ -228,6 +228,8 @@ class BeamManagementEnv(gym.Env):
     
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
 
+        self.music_est = music_alg(y_BS, self.number_of_antennas, self.N_UTs)
+
         # beamformed output of the sensing signal
         y_BS2 = np.einsum('uj, nijom->niuom ' , np.conj(transmit_beam.T), y_BS)
         y_BS2 = y_BS2* np.conj(self.x_rg)
@@ -346,10 +348,15 @@ class BeamManagementEnv(gym.Env):
                 self.action_beam[self.current_beam] = np.arange(1, self.N_UTs+1)
                 self.action_power = [1]*self.N_UTs
 
-            elif (action == 'greedy'): # Greedy beam selection
+            elif (action == 'greedy' or 'estimated'): # Greedy beam selection
                 self.action_beam = np.zeros((self.number_of_antennas))
-                for u in range(self.N_UTs):
-                    self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))    
+                if action == 'greedy':
+                    for u in range(self.N_UTs):
+                        self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
+                else:
+                    A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j*np.kron(-np.pi * np.sin(self.music_est), np.arange(self.number_of_antennas))).reshape(self.number_of_antennas, self.N_UTs)  
+                    for u in range(self.N_UTs):
+                        self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t_est[:,u])) @ codebook))  
                 # Check for repetitive values in self.current_beam
                 unique_beams, counts = np.unique(self.current_beam, return_counts=True)
                 duplicates = unique_beams[counts > 1]
@@ -368,8 +375,8 @@ class BeamManagementEnv(gym.Env):
             Pt = self.action_power/np.sum(self.action_power) * self.Pt_mW
             for u in range(self.N_UTs):
                 self.action_beam[self.current_beam[u]] = u+1
-            # print(self.current_beam)
-                    ########### RL action ################
+            
+                ############### RL action ################
         else:        
             self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
             self.action_beam[self.action_beam == (1+self.N_UTs)] = self.N_UTs # set the illegal action to 0
@@ -427,7 +434,7 @@ class BeamManagementEnv(gym.Env):
         # Apply the OFDM channel
         y_UT = channel_freq(tx_sig_fd, H_UT, 0)
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
-
+        self.music_est = music_alg(y_BS, self.number_of_antennas, self.N_UTs)
 
         # spectral efficiency
         #y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
