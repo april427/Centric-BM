@@ -36,10 +36,9 @@ def parse_args():
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= '-', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= '_', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
-    parser.add_argument('--render_mode',  default=None, help='Render Mode')
-
+    
     args, unknown = parser.parse_known_args()
     return args
 

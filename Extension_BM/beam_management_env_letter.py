@@ -32,7 +32,7 @@ class BeamManagementEnv(gym.Env):
         self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
         #self.action_space = MultiDiscrete(np.array([self.N_UTs+1]*self.number_of_antennas))
         #
-        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 1*self.N_UTs,)) #
+        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 2*self.N_UTs,)) #
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -55,6 +55,7 @@ class BeamManagementEnv(gym.Env):
         
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
+        self.max_latency = 6
         self.max_buffer_size = 4  # buffers size of each UE 
         self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
@@ -258,10 +259,12 @@ class BeamManagementEnv(gym.Env):
             indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(num_rangebin/2) else indices[u,1] - num_rangebin
 
         self.R_estimate = - 3e8*indices[:,1]/(2*self.subcarrier_spacing * num_rangebin)
-        self.v_estiamte = 3e8 * indices[:,0]/(2 * self.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
+        self.v_estimate = 3e8 * indices[:,0]/(2 * self.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)
+        self.old_R_estimate = self.R_estimate
+        self.old_v_estimate = self.v_estimate
         
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing)
-        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
+        self.nmse_v = np.abs(self.v_estimate - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
 
         self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
         self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)
@@ -440,6 +443,8 @@ class BeamManagementEnv(gym.Env):
         # BER of receivers
         # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
 
+        self.old_R_estimate = self.R_estimate
+        self.old_v_estimate = self.v_estimate
 
         echo_bf_db = np.zeros([ self.number_of_antennas])
         num_rangebin = int(self.fft_size)*3
@@ -463,7 +468,7 @@ class BeamManagementEnv(gym.Env):
             max_idx = np.array(np.unravel_index(np.argmax(np.abs(DD_spectrum)), DD_spectrum.shape))
             max_idx = np.array((max_idx[0] - num_dopplerbin // 2, max_idx[1] - num_rangebin // 2))
             self.R_estimate[u] = - 3e8*max_idx[1]/(2*self.subcarrier_spacing*num_rangebin)
-            self.v_estiamte[u] = 3e8*max_idx[0]/(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
+            self.v_estimate[u] = 3e8*max_idx[0]/(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
 
             if self.if_debugging:
                 plt.subplot(num_subplots, 1, u+1)
@@ -480,7 +485,7 @@ class BeamManagementEnv(gym.Env):
 
         # normalized MSE of delay and Doppler
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing) 
-        self.nmse_v = np.abs(self.v_estiamte - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) 
+        self.nmse_v = np.abs(self.v_estimate - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) 
 
         ###################################################################
         #                       update buffers
@@ -501,11 +506,21 @@ class BeamManagementEnv(gym.Env):
                 if self.buffers[u, i] != 0:
                     self.waiting_times[u,i] += 1
 
-                if self.waiting_times[u,i] >= 5:
+                if self.waiting_times[u,i] >= self.max_latency:
                     self.waiting_times[u,i] = 0
                     self.buffers[u,i] = 0
                     self.buffer_occupancy[u] -= 1
                     drop_latency += 1
+
+        ###################################################################
+        #                       Reward Function
+        ###################################################################
+        reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
+        reward_drop = - (drop_overload + drop_latency)
+        reward_estimation = - (np.sum(self.nmse_R>0.7) + np.sum(self.nmse_v >0.2)).astype('float32')
+        reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate) > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate) > 2)
+        
+        reward = float( 0.5* reward_transmission + reward_drop + reward_estimation + 0.5* reward_jump )
 
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
@@ -527,14 +542,6 @@ class BeamManagementEnv(gym.Env):
         terminated = bool(self.cstep == 50) 
         if not terminated:
             self.total_traffic_episode += np.sum(arrivals)
-          
-
-        ###################################################################
-        #                       Reward Function
-        ###################################################################
-        reward_drop = - (drop_overload + drop_latency)
-        reward_estimation = - 0.5*((self.nmse_R>0.2) + (self.nmse_v >0.2)).astype('float32')
-        reward = float(reward_drop + np.sum(reward_estimation))
 
 
         # reward = float(np.sum(  hyperbolic_func(self.SE, A1=0.8, A2=0.3, c=1.1) + (self.nmse_R<0.2) + (self.nmse_v <0.2) ) - 1* (np.sum(self.action_beam!=0) > (3*self.N_UTs))  )
@@ -579,6 +586,7 @@ class BeamManagementEnv(gym.Env):
                                 #self.action_beam, 
                                 #self.AoD, self.ut_velocities[0,: , 0], 
                                 self.buffer_occupancy,
+                                np.max(self.waiting_times, axis=1)
                                 ), dtype = np.float32))
 
 
