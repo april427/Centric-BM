@@ -5,6 +5,7 @@ import gymnasium as gym
 from gymnasium.envs import register
 from gymnasium.spaces import Box, Dict, MultiDiscrete
 from exroad import *
+# from types import SimpleNamespace
 # import tensorflow as tf
 
 # from sionna.ofdm import ResourceGrid
@@ -16,6 +17,7 @@ import time
 class BeamManagementEnv(gym.Env):
 
     def __init__(self,  args):
+        
         self.if_training = args.if_training
         self.if_debugging = args.if_debugging
 
@@ -53,7 +55,7 @@ class BeamManagementEnv(gym.Env):
         
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
-        self.max_buffer_size = 10  # buffers size of each UE 
+        self.max_buffer_size = 4  # buffers size of each UE 
         self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
         self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)

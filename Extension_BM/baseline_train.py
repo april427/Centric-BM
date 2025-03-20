@@ -4,7 +4,8 @@ import os
 import matplotlib.pyplot as plt
 
 from stable_baselines3 import  PPO
-#from stable_baselines3.common.env_util import make_env
+from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
 #from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common import results_plotter
@@ -36,7 +37,8 @@ def parse_args():
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
     parser.add_argument('--cdir', type=str, default= '-', help='Log directory')
-    parser.add_argument('--dt', type=float, default=0.1, help='Time step')
+    parser.add_argument('--dt', type=float, default=0.2, help='Time step')
+    parser.add_argument('--render_mode',  default=None, help='Render Mode')
 
     args, unknown = parser.parse_known_args()
     return args

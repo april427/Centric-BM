@@ -27,10 +27,10 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = 'test'
+    args.cdir = 'buffer'
     args.if_training=False
-    # args.if_debugging = True
-    args.dt = 0.01
+    args.if_debugging = True
+    args.dt = 0.1
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
 
