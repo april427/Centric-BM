@@ -24,7 +24,7 @@ class BeamManagementEnv(gym.Env):
         self.N_UTs = args.N_UTs  # number of UEs 
         self.number_of_antennas = args.Nt  # number of antennas at the ULA BS
 
-        self.num_steps = 100 # number of steps per episode
+        self.num_steps = 40 # number of steps per episode
 
         ##################################################
         #          Define action and state space
@@ -142,6 +142,10 @@ class BeamManagementEnv(gym.Env):
         # else:
 
         self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
+        plt.imshow(self.road_matrix.T)
+        for i in range(self.N_UTs):
+            plt.scatter(self.ut_loc[0,i,0], self.ut_loc[0,i, 1], label='UE'+str(i+1))
+        plt.scatter(self.bs_loc[0,0,0], self.bs_loc[0,0,1], label='BS')
 
         # set UT velocities and trajectories
         self.ut_velocities = np.zeros((1, self.N_UTs, 3))
@@ -335,7 +339,7 @@ class BeamManagementEnv(gym.Env):
 
             H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
         
-  
+    
         H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
 
         #############################################################
@@ -354,6 +358,8 @@ class BeamManagementEnv(gym.Env):
                     for u in range(self.N_UTs):
                         self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
                 else:
+                    if np.size(self.music_est) ==   1:
+                        self.music_est = np.tile(self.music_est, self.N_UTs)
                     A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j*np.kron(-np.pi * np.sin(self.music_est), np.arange(self.number_of_antennas))).reshape(self.number_of_antennas, self.N_UTs)  
                     for u in range(self.N_UTs):
                         self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t_est[:,u])) @ codebook))  
@@ -525,7 +531,7 @@ class BeamManagementEnv(gym.Env):
         reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
         reward_drop = - (drop_overload + drop_latency)
         reward_estimation = - (np.sum(self.nmse_R>0.7) + np.sum(self.nmse_v >0.2)).astype('float32')
-        reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate) > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate) > 2)
+        reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
         reward = float( 0.5* reward_transmission + reward_drop + reward_estimation + 0.5* reward_jump )
 
@@ -546,7 +552,7 @@ class BeamManagementEnv(gym.Env):
         # self.buffers = np.maximum(self.buffers - success_packet - drop_latency - drop_overload + arrivals, 0)
         self.successful_transmission += np.sum(success_packet)
 
-        terminated = bool(self.cstep == 50) 
+        terminated = bool(self.cstep == self.num_steps) 
         if not terminated:
             self.total_traffic_episode += np.sum(arrivals)
 

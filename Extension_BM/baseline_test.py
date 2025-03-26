@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from stable_baselines3 import  PPO, DDPG, A2C
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 #from stable_baselines3.common.evaluation import evaluate_policy
 # from stable_baselines3.common import results_plotter
 # from stable_baselines3.common.monitor import Monitor
@@ -30,13 +31,13 @@ if __name__ == "__main__":
     args.cdir = 'modified_r_s'
     args.if_training=False
     # args.if_debugging = True
-    args.dt = 0.1
+    args.dt = 0.2
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
     monitor_file = log_dir + "monitor.csv"
     monitor_data = pd.read_csv(monitor_file, skiprows=1)
 
-    window_size = 100
+    window_size = 1000
     moving_average = monitor_data['r'].rolling(window=window_size).mean()
 
     fig, ax = plt.subplots()
@@ -53,17 +54,24 @@ if __name__ == "__main__":
 
     # %%
     ################################## Evaluate ####################################
-    model = model_class.load(log_dir + "best_model")
+    # env = DummyVecEnv([lambda: env])
+    # env = VecNormalize.load("vec_normalize.pkl", env)
+    # env.training = False  # Don't update stats during evaluation
+    # env.norm_reward = False  # No need to normalize rewards during evaluation
+    
+    model = model_class.load(log_dir + "best_model", env=env)
 
     num_episodes = 10
-    num_steps = 40 if args.if_training else 100 
+    num_steps = 40
     reward_done = []
     reward_list = []
     throughput = []
     latency = []
     error_range = np.zeros((num_episodes, args.N_UTs))
     error_speed = np.zeros((num_episodes, args.N_UTs))
-    BER  = np.zeros((num_episodes, args.N_UTs))
+    nmseR_allsteps = []
+    nmseV_allsteps = []
+    # BER  = np.zeros((num_episodes, args.N_UTs))
 
     for ep in range(1, num_episodes+1):
         # st = time.time()
@@ -71,9 +79,9 @@ if __name__ == "__main__":
         # et = time.time()
         # print("reset time: ", et-st)
         reward_episode = 0
-        er = np.zeros(args.N_UTs)
-        ev = np.zeros(args.N_UTs)
-        ber = np.zeros(args.N_UTs)
+        er = np.zeros((args.N_UTs, num_steps))
+        ev = np.zeros((args.N_UTs, num_steps))
+        # ber = np.zeros(args.N_UTs)
 
         for t in range(num_steps):
             action, _states = model.predict(obs)
@@ -82,8 +90,8 @@ if __name__ == "__main__":
             # et1 = time.time()
             # print("step time: ", et1-st1)
             reward_episode += rewards
-            er += info['nmse_R']
-            ev += info['nmse_v']
+            er[:,t] = info['nmse_R']
+            ev[:,t] = info['nmse_v']
             #ber += info['BER']
             latency.append(info['latency'])
 
@@ -91,9 +99,12 @@ if __name__ == "__main__":
                 reward_done.append(reward_episode)
                 break
 
-        error_range[ep-1,] = er/(t+1)
-        error_speed[ep-1,] = ev/(t+1)
+        error_range[ep-1,] = np.sum(er, axis=1)/(t+1)
+        error_speed[ep-1,] = np.sum(ev, axis=1)/(t+1)
         #BER[ep-1,] = ber/(t+1)
+
+        nmseR_allsteps.append(er)
+        nmseV_allsteps.append(ev)
 
         if t == num_steps - 1:  
             reward_list.append(reward_episode)       
@@ -108,29 +119,34 @@ if __name__ == "__main__":
     thp_cdf = np.sort(throughput)
     yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 
-    # 
+    # Reward
+    figure_handle = plt.figure()
+    ax = figure_handle.add_subplot()
+    ax.plot(reward_list, '-.') 
+    # throughput CDF 
     figure_handle = plt.figure()
     ax = figure_handle.add_subplot()
     ax.plot(thp_cdf, yvals, 'o')
     ax.set_xlabel('Throughput')
     ax.set_ylabel('CDF')
 
-    figure_handle = plt.figure()
-    ax1 = figure_handle.add_subplot()
-    for i in range(args.N_UTs):
-        ax1.plot(error_range[:,i], '-o')
-    ax1.set_xlabel('Episodes')
-    ax1.set_ylabel('Normalized Error of Range Estimation')
-    plt.show()
+    # figure_handle = plt.figure()
+    # ax1 = figure_handle.add_subplot()
+    # for i in range(args.N_UTs):
+    #     ax1.plot(error_range[:,i], '-o')
+    # ax1.set_xlabel('Episodes')
+    # ax1.set_ylabel('Normalized Error of Range Estimation')
+    # plt.show()
 
-    figure_handle = plt.figure()
-    ax1 = figure_handle.add_subplot()
-    for i in range(args.N_UTs):
-        ax1.plot(error_speed[:,i],'--x')
-    ax1.set_xlabel('Episodes')
-    ax1.set_ylabel('Normalized Error of Speed Estimation')
-    plt.show()
+    # figure_handle = plt.figure()
+    # ax1 = figure_handle.add_subplot()
+    # for i in range(args.N_UTs):
+    #     ax1.plot(error_speed[:,i],'--x')
+    # ax1.set_xlabel('Episodes')
+    # ax1.set_ylabel('Normalized Error of Speed Estimation')
+    # plt.show()
 
+    # latency
     latency_flat = list(itertools.chain(*latency))
     figure_handle = plt.figure()
     ax2 = figure_handle.add_subplot()
@@ -144,6 +160,34 @@ if __name__ == "__main__":
     ax2.set_ylabel('Probability')
     plt.show()
 
+    # CDF of normalized error
+    figure_handle = plt.figure()
+    ax3 = figure_handle.add_subplot()
+    nmseR_allsteps = np.array(nmseR_allsteps)
+    nmseV_allsteps = np.array(nmseV_allsteps)
+    for u in range(args.N_UTs):
+        
+        temp = nmseR_allsteps[:,u,:].flatten()
+        er_cdf = np.sort(temp)
+        yvals = np.arange(len(er_cdf))/float(len(er_cdf)-1)
+
+        ax3.plot(er_cdf, yvals, '-')
+
+    ax3.set_xlabel('Normalized Error of Range Estimation')
+    ax3.set_ylabel('CDF')
+    plt.show()
+
+
+    figure_handle = plt.figure()
+    ax4 = figure_handle.add_subplot()
+    for u in range(args.N_UTs):
+        temp = nmseV_allsteps[:,u,:].flatten()
+        ev_cdf = np.sort(temp)
+        yvals = np.arange(len(ev_cdf))/float(len(ev_cdf)-1)
+        ax4.plot(ev_cdf, yvals, '-')
+    ax4.set_xlabel('Normalized Error of Speed Estimation')
+    ax4.set_ylabel('CDF')
+    plt.show()
 
 # %%
 # Save throughput to a CSV file

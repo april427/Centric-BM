@@ -11,6 +11,7 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common import results_plotter
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.utils import get_device
@@ -59,13 +60,27 @@ if __name__ == "__main__":
     log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/"
 
     policy_kwargs = {
-        "net_arch": [dict(pi=[256, 256], vf=[256, 256])],
+        "net_arch": dict(pi=[256, 256], vf=[256, 256]),
         "activation_fn": nn.ReLU
     }
 
     # %%
     os.makedirs(log_dir, exist_ok=True)
     env = Monitor(env, log_dir)
+
+    # # normalize env
+    # env = DummyVecEnv([lambda: env])  # Wrap in a DummyVecEnv
+
+    # # Normalize observations and rewards
+    # env = VecNormalize(
+    #     env,
+    #     norm_obs=True,  # Normalize observations
+    #     norm_reward=True,  # Normalize rewards
+    #     clip_obs=10.,  # Clip observations
+    #     clip_reward=10.,  # Clip rewards
+    #     gamma=0.99,  # Discount factor for reward normalization
+    #     epsilon=1e-8  # Small constant to avoid division by zero
+    # )   
 
     model_path = log_dir + "best_model.zip"
     if os.path.exists(model_path):
@@ -88,6 +103,7 @@ if __name__ == "__main__":
     # plt.show()
 
     model.save(log_dir + "best_model")
+    env.save(log_dir + "vec_normalize.pkl", env)
     print(log_dir)
     env.close()
     #%%
