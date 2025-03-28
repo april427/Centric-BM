@@ -61,7 +61,7 @@ if __name__ == "__main__":
     
     model = model_class.load(log_dir + "best_model", env=env)
 
-    num_episodes = 10
+    num_episodes = 1000
     num_steps = 40
     reward_done = []
     reward_list = []

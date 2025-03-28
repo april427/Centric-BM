@@ -66,21 +66,7 @@ if __name__ == "__main__":
 
     # %%
     os.makedirs(log_dir, exist_ok=True)
-    env = Monitor(env, log_dir)
-
-    # # normalize env
-    # env = DummyVecEnv([lambda: env])  # Wrap in a DummyVecEnv
-
-    # # Normalize observations and rewards
-    # env = VecNormalize(
-    #     env,
-    #     norm_obs=True,  # Normalize observations
-    #     norm_reward=True,  # Normalize rewards
-    #     clip_obs=10.,  # Clip observations
-    #     clip_reward=10.,  # Clip rewards
-    #     gamma=0.99,  # Discount factor for reward normalization
-    #     epsilon=1e-8  # Small constant to avoid division by zero
-    # )   
+    env = Monitor(env, log_dir) 
 
     model_path = log_dir + "best_model.zip"
     if os.path.exists(model_path):
@@ -103,7 +89,6 @@ if __name__ == "__main__":
     # plt.show()
 
     model.save(log_dir + "best_model")
-    env.save(log_dir + "vec_normalize.pkl", env)
     print(log_dir)
     env.close()
     #%%

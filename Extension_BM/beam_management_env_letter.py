@@ -503,7 +503,7 @@ class BeamManagementEnv(gym.Env):
         ###################################################################
         #                       update buffers
         ###################################################################
-        self.latency = np.zeros((self.N_UTs, ), dtype=np.int32)
+        self.latency = -1*np.ones((self.N_UTs, ), dtype=np.int32)
         drop_overload = 0
         drop_latency = 0
         success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
