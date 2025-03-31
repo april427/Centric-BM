@@ -232,10 +232,14 @@ class BeamManagementEnv(gym.Env):
 
         self.previous_beam = self.current_beam.copy()
         self.current_beam = np.empty([self.N_UEs,], dtype=object)
-        
+
+        self.action_beam = np.zeros((self.number_of_antennas))
+        beam_genie = np.zeros((self.N_UEs,))
+        for i in range(self.N_UEs):
+            beam_genie[i] = np.argmax(np.abs(self.codebook @ np.conj(compute_ULA_response(self.number_of_antennas, self.AoD[i]))))
 
         for i in range(self.N_UEs):
-            
+
             # update position
             self.user_positions[i,:], self.config[i,:], self.if_turned[i] = update_positions(self.user_positions[i,:], self.cross_pos, sample_velocity(), self.dt, self.single_lane_width, self.config[i,:], self.if_turned[i])
 
@@ -319,6 +323,7 @@ class BeamManagementEnv(gym.Env):
             else:
                 raise ValueError('Invalid action')
 
+            self.action_beam[self.current_beam[i]] = i+1
 
             """ # elif action[i] == 2:
             #     self.ue_type[i] = 0
@@ -434,6 +439,8 @@ class BeamManagementEnv(gym.Env):
                                                  'crlb': self.crlb.copy(),
                                                  'crlb_aodest': self.crlb_aodest.copy(),
                                                  'rate': self.R.copy(),
+                                                 'allocated_beams': self.action_beam,
+                                                'genie_beams': beam_genie,
                                                  }
 
 

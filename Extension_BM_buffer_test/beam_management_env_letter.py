@@ -369,7 +369,7 @@ class BeamManagementEnv(gym.Env):
                 else:
                     if np.size(self.music_est) ==   1:
                         self.music_est = np.tile(self.music_est, self.N_UTs)
-                    A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j*np.kron(-np.pi * np.sin(self.music_est), np.arange(self.number_of_antennas))).reshape(self.number_of_antennas, self.N_UTs)  
+                    A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j* -np.pi * np.outer( np.sin(self.music_est), np.arange(self.number_of_antennas))).T
                     for u in range(self.N_UTs):
                         self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t_est[:,u])) @ codebook))  
                 # Check for repetitive values in self.current_beam
@@ -449,9 +449,11 @@ class BeamManagementEnv(gym.Env):
         # Apply the OFDM channel
         y_UT = channel_freq(tx_sig_fd, H_UT, 0)
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
+
+        previous_est = self.music_est
         self.music_est = music_alg(y_BS, self.number_of_antennas, self.N_UTs)
         # Create a cost matrix where the cost is the absolute difference between AoD and music_est
-        cost_matrix = np.abs(self.AoD[:, np.newaxis] - self.music_est[np.newaxis, :])
+        cost_matrix = np.abs(previous_est[:, np.newaxis] - self.music_est[np.newaxis, :])
         # Use the Hungarian algorithm to find the optimal assignment
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
         # Reorder self.music_est based on the optimal assignment
@@ -617,7 +619,9 @@ class BeamManagementEnv(gym.Env):
                 'nmse_R': self.nmse_R, 
                 'nmse_v': self.nmse_v,
                 'angle_error': self.angle_error,
-                'SE': self.SE}
+                'SE': self.SE,
+                'allocated_beams': self.action_beam,
+                'genie_beams': beam_genie,}
 
         if np.isnan(reward):
             raise ValueError("NaN detected in reward")

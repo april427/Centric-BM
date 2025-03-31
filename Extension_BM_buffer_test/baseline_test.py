@@ -22,6 +22,9 @@ sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Ext
 from beam_management_env_letter import BeamManagementEnv
 import pandas as pd
 from baseline_train import parse_args
+import seaborn as sns
+from matplotlib.colors import BoundaryNorm
+from matplotlib.colors import ListedColormap
 
 if __name__ == "__main__":
     args = parse_args()
@@ -84,6 +87,9 @@ if __name__ == "__main__":
         er = np.zeros((args.N_UTs, num_steps))
         ev = np.zeros((args.N_UTs, num_steps))
         ea = np.zeros((args.N_UTs, num_steps))
+
+        genie_beams = []
+        beams = []
         
         for t in range(num_steps):
             action, _states = model.predict(obs)
@@ -97,6 +103,9 @@ if __name__ == "__main__":
             
             latency.append(info['latency'])
             spectrum_efficiency.append(info['SE'])
+
+            genie_beams.append(info['genie_beams'])
+            beams.append(info['allocated_beams'].copy())
 
             if dones:
                 reward_done.append(reward_episode)
@@ -221,7 +230,7 @@ if __name__ == "__main__":
         ax5.plot(ea_cdf, yvals, '-')
     ax5.set_xlabel('Error of Angle Estimation')
     ax5.set_ylabel('CDF')
-
+    plt.show()
 # %%
 # Save throughput to a CSV file
 
@@ -249,9 +258,9 @@ if __name__ == "__main__":
 
 
 # %%
-# log_dir_data = "RL_mimo_ofdm/"  + "PPO_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_buffer/trained/"
+# log_dir_data = "RL_mimo_ofdm/"  + "PPO_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_buffer/NEW/trained/"
 # # # Create directory if it does not exist
-# # os.makedirs(log_dir_data, exist_ok=True)
+# os.makedirs(log_dir_data, exist_ok=True)
 
 # # # Save throughput
 # throughput_df = pd.DataFrame(throughput, columns=['Throughput'])
@@ -272,7 +281,7 @@ if __name__ == "__main__":
 # nmseV_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
 # nmseV_allsteps_df.to_csv(os.path.join(log_dir_data, 'nmseV_allsteps.csv'), index=False)
 
-# Save nmseA_allsteps
+# #Save nmseA_allsteps
 # nmseA_allsteps = np.array(nmseA_allsteps)
 # temp[:,0] = nmseA_allsteps[:,0,:].flatten()
 # temp[:,1] = nmseA_allsteps[:,1,:].flatten()
@@ -290,4 +299,50 @@ if __name__ == "__main__":
 # # save spectral efficiency
 # se = pd.DataFrame(spectrum_efficiency, columns=['SE1', 'SE2'])
 # se.to_csv(os.path.join(log_dir_data, 'SE.csv'), index=False)
+
+
+# %%
+ # Plot allocated beams and genie beams varying with num_steps
+num_steps_range = range(num_steps)
+# Create a 2D array for heatmap
+heatmap_data = np.zeros((args.Nt, num_steps))
+
+for t in num_steps_range:
+    #for u in range(args.N_UTs):
+        
+    heatmap_data[:, t] = np.array(beams[t])  # Increment the count for the allocated beam
+    #heatmap_data[genie_beams[:][t], t]  = np.array([0.5, 1.5]) 
+
+# Define discrete levels for the color bar
+# levels = [0, 1, 2, 3, 4, 5]  # Adjust levels as needed
+
+# Add a legend for the levels
+levels = [0, 1,  2, 3]
+cmap = plt.get_cmap("Paired", len(levels) - 1)  # Use a colormap with discrete intervals
+norm = BoundaryNorm(levels, cmap.N, clip=True)
+legend_labels = ['Idle', 'UE 0 beams', 'UE 1 beams']
+custom_cmap = ListedColormap(cmap(np.linspace(0, 1, len(levels) - 1)))
+
+# Plot heatmap with discrete color bar
+figure_handle = plt.figure()
+ax7 = figure_handle.add_subplot()
+sns.heatmap(heatmap_data, cmap=cmap, norm=norm, ax=ax7, cbar = False)
+ax7.set_xlabel('Time Index')
+ax7.set_ylabel('Beam Steps')
+
+# Scatter plot for genie beams
+for t in num_steps_range:
+    for u in range(args.N_UTs):
+        if t == 0:
+            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color='white' if u == 0 else 'blue', s=20, label='UE' + str(u))
+        else:
+            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color='white' if u == 0 else 'blue', s=20)
+ax7.legend(loc='upper right', fontsize=8, markerscale=1.5)
+
+# Create a color bar with custom labels
+colorbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap), ax=ax7, ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels) - 1)])
+colorbar.ax.set_yticklabels(legend_labels)
+plt.show()
+
+
 # %%

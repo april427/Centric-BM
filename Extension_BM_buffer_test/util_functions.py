@@ -83,7 +83,7 @@ def music_alg(y, Nt, N_UTs):
 
     noise_eigenvectors = eigenvectors[:, N_UTs:]
     
-    angles = np.linspace(0, np.pi, 180)
+    angles = np.linspace(np.pi/2, np.pi, 180)
     pspectrum = np.zeros(len(angles))
 
     for i, angle in enumerate(angles): # angles in radians
@@ -102,6 +102,8 @@ def music_alg(y, Nt, N_UTs):
     peaks = np.argpartition(pspectrum, -N_UTs)[-N_UTs:]
     peaks = np.sort(peaks)
     estimated_angles = angles[peaks]
+
+    #estimated_angles[estimated_angles < 0] = np.pi - estimated_angles[estimated_angles > np.pi/2]
     return estimated_angles
 
 # from sionna.mimo import StreamManagement
