@@ -3,7 +3,6 @@ import matplotlib.pyplot
 from stable_baselines3.common.callbacks import BaseCallback
 import os
 from stable_baselines3.common.results_plotter import load_results, ts2xy
-from scipy import signal
 
 def cuboid_data(center, size=(1,1,1)):
     # suppose axis direction: x: to left; y: to inside; z: to upper
@@ -82,7 +81,7 @@ def music_alg(y, Nt, N_UTs):
 
     noise_eigenvectors = eigenvectors[:, N_UTs:]
     
-    angles = np.linspace(0, 2*np.pi, 180)
+    angles = np.linspace(-np.pi/2, np.pi/2, 180)
     pspectrum = np.zeros(len(angles))
 
     for i, angle in enumerate(angles): # angles in radians
@@ -97,8 +96,11 @@ def music_alg(y, Nt, N_UTs):
         pspectrum[i] = 1 / abs(denominator.squeeze())
     
     pspectrum = pspectrum / max(pspectrum)
-    peaks, _ = signal.find_peaks(pspectrum, height=0.001)
-    estimated_angles = angles[peaks][:N_UTs]
+
+    peaks = np.argpartition(pspectrum, -N_UTs)[-N_UTs:]
+    peaks = np.sort(peaks)
+    estimated_angles = angles[peaks]
+    
     return estimated_angles
 
 # from sionna.mimo import StreamManagement

@@ -54,11 +54,11 @@ class BeamManagementEnv(gym.Env):
         
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
-        self.max_latency = 6
-        self.max_buffer_size = 4  # buffers size of each UE 
-        self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
+        self.max_latency = [6, 8]
+        self.buffer_size = [4, 5]  # buffers size of each UE 
+        self.buffers = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
-        self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)
+        self.waiting_times = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)
         self.buffer_occupancy = np.zeros((self.N_UTs, ), dtype=np.int32)
 
         self.bs_loc = np.expand_dims(np.expand_dims(np.array([20, 50, 0], dtype=np.float32), axis=0), axis=0)   # BS position
@@ -278,8 +278,13 @@ class BeamManagementEnv(gym.Env):
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing)
         self.nmse_v = np.abs(self.v_estimate - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
 
-        self.buffers = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)  # number of packets of each UE in the buffers
-        self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)
+        mbuser = np.argmax(self.buffer_size)
+        mb = np.max(self.buffer_size)
+        self.buffers = np.zeros((self.N_UTs, mb), dtype=np.int32)  # number of packets of each UE in the buffers
+        for i in range(self.N_UTs):
+            self.buffers[i, self.buffer_size[i]:] = -1
+
+        self.waiting_times = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)
         self.buffer_occupancy = np.zeros((self.N_UTs, ), dtype=np.int32)
 
         # packets arrival at the first time slot
@@ -531,11 +536,11 @@ class BeamManagementEnv(gym.Env):
             self.buffer_occupancy[user_id] -= 1
 
         for u in range(self.N_UTs):
-            for i in range(self.max_buffer_size):
+            for i in range(self.buffer_size[u]):
                 if self.buffers[u, i] != 0:
                     self.waiting_times[u,i] += 1
 
-                if self.waiting_times[u,i] >= self.max_latency:
+                if self.waiting_times[u,i] >= self.max_latency[u]:
                     self.waiting_times[u,i] = 0
                     self.buffers[u,i] = 0
                     self.buffer_occupancy[u] -= 1
@@ -554,15 +559,15 @@ class BeamManagementEnv(gym.Env):
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
         for user_id in range(self.N_UTs):
-            if arrivals[user_id] == 1 and self.buffer_occupancy[user_id] < self.max_buffer_size:
+            if arrivals[user_id] == 1 and self.buffer_occupancy[user_id] < self.buffer_size[user_id]:
                 # Find first empty slot
-                for i in range(self.max_buffer_size):
+                for i in range(self.buffer_size[user_id]):
                     if self.buffers[user_id, i] == 0:
                         self.buffers[user_id, i] = 1
                         self.waiting_times[user_id, i] = 0
                         self.buffer_occupancy[user_id] += 1
                         break
-            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] > self.max_buffer_size:
+            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] > self.buffer_size[user_id]:
                 drop_overload += 1
 
         # self.buffers = np.maximum(self.buffers - success_packet - drop_latency - drop_overload + arrivals, 0)

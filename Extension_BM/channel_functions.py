@@ -18,8 +18,8 @@ def dft_codebook(n, m):
         codebook (numpy.ndarray): A numpy array of shape (n, m) representing the codebook.
     """
     dft_matrix = np.ones((m, m), dtype=np.complex64) * complex(1, 0) 
-    for i in range(1, m+1):
-        dft_matrix[i-1,:] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i - 1 - m)/m) for j in range(n)])
+    for i in range(m):
+        dft_matrix[:,i] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i + 1 - m)/m) for j in range(n)])
     return dft_matrix
 
 def compute_AoD_at_BS(BS_pos, UE_pos):
@@ -35,8 +35,6 @@ def compute_AoD_at_BS(BS_pos, UE_pos):
     # Compute angle of departure at BS
     phi_radi = np.arctan2( UE_pos[1] - BS_pos[1], - BS_pos[0] + UE_pos[0]) 
     AoD = phi_radi#np.array([phi_radi])
-    if AoD < 0:
-        AoD = np.add(AoD,np.pi)
     return AoD
 
 def compute_ULA_response(M, AoD):

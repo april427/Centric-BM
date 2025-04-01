@@ -3,7 +3,6 @@ import matplotlib.pyplot
 from stable_baselines3.common.callbacks import BaseCallback
 import os
 from stable_baselines3.common.results_plotter import load_results, ts2xy
-from scipy import signal
 
 
 def cuboid_data(center, size=(1,1,1)):
