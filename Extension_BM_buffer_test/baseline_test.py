@@ -231,30 +231,6 @@ if __name__ == "__main__":
     ax5.set_xlabel('Error of Angle Estimation')
     ax5.set_ylabel('CDF')
     plt.show()
-# %%
-# Save throughput to a CSV file
-
-
-# df = pd.read_csv(log_dir+"latency.csv")
-# df = df.drop(rows_to_delete)
-# df['benchmark'] = latency
-# df.to_csv(log_dir+"latency.csv", index=False)
-# latency_df = pd.DataFrame({'baseline': list(itertools.chain(*latency))})
-# latency_df.to_csv(log_dir+'latency.csv', index=False, mode='a')
-
-# monitor_file = log_dir + "monitor.csv"
-# monitor_data = pd.read_csv(monitor_file, skiprows=1)
-
-# print(monitor_data.head())
-
-# # Plotting the 'r' column from the monitor.csv file
-# plt.figure()
-# plt.plot(monitor_data['r'])
-# plt.xlabel('Timesteps')
-# plt.ylabel('Reward')
-# plt.title('Reward over Time')
-# plt.show()
-
 
 
 # %%

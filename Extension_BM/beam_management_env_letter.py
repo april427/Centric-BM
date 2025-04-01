@@ -8,8 +8,7 @@ from exroad import *
 # from types import SimpleNamespace
 # import tensorflow as tf
 
-# from sionna.ofdm import ResourceGrid
-# from sionna.channel import ApplyOFDMChannel
+from scipy.optimize import linear_sum_assignment
 from util_functions import *
 import time
 # import matplotlib.pyplot as plt
@@ -62,7 +61,7 @@ class BeamManagementEnv(gym.Env):
         self.waiting_times = np.zeros((self.N_UTs, self.max_buffer_size), dtype=np.int32)
         self.buffer_occupancy = np.zeros((self.N_UTs, ), dtype=np.int32)
 
-        self.bs_loc = np.expand_dims(np.expand_dims(np.array([50, 20, 0], dtype=np.float32), axis=0), axis=0)   # BS position
+        self.bs_loc = np.expand_dims(np.expand_dims(np.array([20, 50, 0], dtype=np.float32), axis=0), axis=0)   # BS position
 
         self.ut_loc = np.zeros((1, self.N_UTs, 3), dtype=np.float64)  # UE positions
         self.config = np.zeros((1, self.N_UTs,2 ), dtype=int)
@@ -233,6 +232,13 @@ class BeamManagementEnv(gym.Env):
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
 
         self.music_est = music_alg(y_BS, self.number_of_antennas, self.N_UTs)
+        # Order self.music_est to minimize the difference with self.AoD
+        # Create a cost matrix where the cost is the absolute difference between AoD and music_est
+        cost_matrix = np.abs(self.AoD[:, np.newaxis] - self.music_est[np.newaxis, :])
+        # Use the Hungarian algorithm to find the optimal assignment
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        # Reorder self.music_est based on the optimal assignment
+        self.music_est = self.music_est[col_ind]
 
         # beamformed output of the sensing signal
         y_BS2 = np.einsum('uj, nijom->niuom ' , np.conj(transmit_beam.T), y_BS)
@@ -360,7 +366,7 @@ class BeamManagementEnv(gym.Env):
                 else:
                     if np.size(self.music_est) ==   1:
                         self.music_est = np.tile(self.music_est, self.N_UTs)
-                    A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j*np.kron(-np.pi * np.sin(self.music_est), np.arange(self.number_of_antennas))).reshape(self.number_of_antennas, self.N_UTs)  
+                    A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j* -np.pi * np.outer( np.sin(self.music_est), np.arange(self.number_of_antennas))).T  
                     for u in range(self.N_UTs):
                         self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t_est[:,u])) @ codebook))  
                 # Check for repetitive values in self.current_beam
@@ -440,7 +446,15 @@ class BeamManagementEnv(gym.Env):
         # Apply the OFDM channel
         y_UT = channel_freq(tx_sig_fd, H_UT, 0)
         y_BS = channel_freq(tx_sig_fd, H_BS, self.noise_power)
+        
+        previous_est = self.music_est
         self.music_est = music_alg(y_BS, self.number_of_antennas, self.N_UTs)
+        # Create a cost matrix where the cost is the absolute difference between AoD and music_est
+        cost_matrix = np.abs(previous_est[:, np.newaxis] - self.music_est[np.newaxis, :])
+        # Use the Hungarian algorithm to find the optimal assignment
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        # Reorder self.music_est based on the optimal assignment
+        self.music_est = self.music_est[col_ind]
 
         # spectral efficiency
         #y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
@@ -498,7 +512,9 @@ class BeamManagementEnv(gym.Env):
 
         # normalized MSE of delay and Doppler
         self.nmse_R = np.abs(self.R_estimate - self.Rd[0,] ) / (3e8/2/self.fft_size/self.subcarrier_spacing) 
-        self.nmse_v = np.abs(self.v_estimate - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) 
+        self.nmse_v = np.abs(self.v_estimate - self.ut_velocities[0,:,0]) / (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration)
+
+        self.angle_error = np.abs(self.music_est - self.AoD)/(np.pi/self.number_of_antennas) # radius 
 
         ###################################################################
         #                       update buffers
@@ -587,7 +603,11 @@ class BeamManagementEnv(gym.Env):
                 'transmitted_packets': self.successful_transmission, 
                 'latency': self.latency, 
                 'nmse_R': self.nmse_R, 
-                'nmse_v': self.nmse_v}
+                'nmse_v': self.nmse_v,
+                'angle_error': self.angle_error,
+                'SE': self.SE,
+                'allocated_beams': self.action_beam,
+                'genie_beams': beam_genie,}
 
         if np.isnan(reward):
             raise ValueError("NaN detected in reward")

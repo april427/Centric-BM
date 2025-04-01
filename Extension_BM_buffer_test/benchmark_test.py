@@ -45,7 +45,6 @@ nmseA_allsteps = []
 
 spectrum_efficiency = []
 method_name = 'greedy'
-# BER  = np.zeros((num_episodes, args.N_UTs))
 
 for ep in range(1, num_episodes+1):
 
@@ -54,7 +53,6 @@ for ep in range(1, num_episodes+1):
     er = np.zeros((args.N_UTs, num_steps))
     ev = np.zeros((args.N_UTs, num_steps))
     ea = np.zeros((args.N_UTs, num_steps))
-    # ber = np.zeros(args.N_UTs)
 
     genie_beams = []
     beams = []
@@ -83,8 +81,6 @@ for ep in range(1, num_episodes+1):
     error_speed[ep-1,] = np.sum(ev, axis=1)/(t+1)
     error_angle[ep-1,] = np.sum(ea, axis=1)/(t+1)
 
-    # BER[ep-1,] = ber/(t+1)
-
     nmseR_allsteps.append(er)
     nmseV_allsteps.append(ev)
     nmseA_allsteps.append(ea)
@@ -101,7 +97,7 @@ for ep in range(1, num_episodes+1):
 
 
 # %%
-#########  PLOTS  #########
+#################################  PLOTS  ##############################
 
 thp_cdf = np.sort(throughput)
 yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
@@ -214,53 +210,6 @@ for u in range(args.N_UTs):
 ax5.set_xlabel('Error of Angle Estimation')
 ax5.set_ylabel('CDF')
 
-
-
-# %%
-log_dir = "RL_mimo_ofdm/"  + "PPO_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_buffer/NEW/" + method_name
-# Create directory if it does not exist
-os.makedirs(log_dir, exist_ok=True)
-
-# Save throughput
-throughput_df = pd.DataFrame(throughput, columns=['Throughput'])
-throughput_df.to_csv(os.path.join(log_dir, 'throughput.csv'), index=False)
-
-# Save nmseR_allsteps
-temp = np.zeros((num_episodes * num_steps,args.N_UTs))
-nmseR_allsteps = np.array(nmseR_allsteps)
-temp[:,0] = nmseR_allsteps[:,0,:].flatten()
-temp[:,1] = nmseR_allsteps[:,1,:].flatten()
-nmseR_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
-nmseR_allsteps_df.to_csv(os.path.join(log_dir, 'nmseR_allsteps.csv'), index=False)
-
-# Save nmseV_allsteps
-nmseV_allsteps = np.array(nmseV_allsteps)
-temp[:,0] = nmseV_allsteps[:,0,:].flatten()
-temp[:,1] = nmseV_allsteps[:,1,:].flatten()
-nmseV_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
-nmseV_allsteps_df.to_csv(os.path.join(log_dir, 'nmseV_allsteps.csv'), index=False)
-
-# Save nmseA_allsteps
-nmseA_allsteps = np.array(nmseA_allsteps)
-temp[:,0] = nmseA_allsteps[:,0,:].flatten()
-temp[:,1] = nmseA_allsteps[:,1,:].flatten()
-nmseA_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
-nmseA_allsteps_df.to_csv(os.path.join(log_dir, 'nmseA_allsteps.csv'), index=False)
-
-
-# Save latency
-latency_flat = list(itertools.chain(*latency))
-latency_df = pd.DataFrame(latency_flat, columns=['Latency'])
-latency_df.to_csv(os.path.join(log_dir, 'latency.csv'), index=False)
-
-# save Reward
-reward = pd.DataFrame(reward_list, columns=['Reward'])
-reward.to_csv(os.path.join(log_dir, 'reward.csv'), index=False)
-
-# save spectral efficiency
-se = pd.DataFrame(spectrum_efficiency, columns=['SE1', 'SE2'])
-se.to_csv(os.path.join(log_dir, 'SE.csv'), index=False)
-
 # %%
 num_steps_range = range(num_steps)
 # Create a 2D array for heatmap
@@ -302,4 +251,53 @@ ax7.legend(loc='upper right', fontsize=8, markerscale=1.5)
 colorbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap), ax=ax7, ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels) - 1)])
 colorbar.ax.set_yticklabels(legend_labels)
 plt.show()
+
+# %%
+#################################  SAVE FILES  ##############################
+
+# log_dir = "RL_mimo_ofdm/"  + "PPO_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_buffer/NEW/" + method_name
+# # Create directory if it does not exist
+# os.makedirs(log_dir, exist_ok=True)
+
+# # Save throughput
+# throughput_df = pd.DataFrame(throughput, columns=['Throughput'])
+# throughput_df.to_csv(os.path.join(log_dir, 'throughput.csv'), index=False)
+
+# # Save nmseR_allsteps
+# temp = np.zeros((num_episodes * num_steps,args.N_UTs))
+# nmseR_allsteps = np.array(nmseR_allsteps)
+# temp[:,0] = nmseR_allsteps[:,0,:].flatten()
+# temp[:,1] = nmseR_allsteps[:,1,:].flatten()
+# nmseR_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
+# nmseR_allsteps_df.to_csv(os.path.join(log_dir, 'nmseR_allsteps.csv'), index=False)
+
+# # Save nmseV_allsteps
+# nmseV_allsteps = np.array(nmseV_allsteps)
+# temp[:,0] = nmseV_allsteps[:,0,:].flatten()
+# temp[:,1] = nmseV_allsteps[:,1,:].flatten()
+# nmseV_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
+# nmseV_allsteps_df.to_csv(os.path.join(log_dir, 'nmseV_allsteps.csv'), index=False)
+
+# # Save nmseA_allsteps
+# nmseA_allsteps = np.array(nmseA_allsteps)
+# temp[:,0] = nmseA_allsteps[:,0,:].flatten()
+# temp[:,1] = nmseA_allsteps[:,1,:].flatten()
+# nmseA_allsteps_df = pd.DataFrame(temp, columns=['UE1', 'UE2'])
+# nmseA_allsteps_df.to_csv(os.path.join(log_dir, 'nmseA_allsteps.csv'), index=False)
+
+
+# # Save latency
+# latency_flat = list(itertools.chain(*latency))
+# latency_df = pd.DataFrame(latency_flat, columns=['Latency'])
+# latency_df.to_csv(os.path.join(log_dir, 'latency.csv'), index=False)
+
+# # save Reward
+# reward = pd.DataFrame(reward_list, columns=['Reward'])
+# reward.to_csv(os.path.join(log_dir, 'reward.csv'), index=False)
+
+# # save spectral efficiency
+# se = pd.DataFrame(spectrum_efficiency, columns=['SE1', 'SE2'])
+# se.to_csv(os.path.join(log_dir, 'SE.csv'), index=False)
+
+
 # %%
