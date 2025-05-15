@@ -21,7 +21,8 @@ import torch
 
 
 import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM_buffer_test')
+# sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM_buffer_test')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from beam_management_env_letter import BeamManagementEnv
 from util_functions import SaveOnBestTrainingRewardCallback
 

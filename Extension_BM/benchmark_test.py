@@ -19,7 +19,7 @@ from matplotlib.colors import BoundaryNorm
 from matplotlib.colors import ListedColormap
 
 import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from beam_management_env_letter import BeamManagementEnv
 
 from baseline_train import parse_args
@@ -29,7 +29,7 @@ args = parse_args()
 args.if_training=False
 env = gym.make(args.EnvID,  args=args)
 # check_env(env)
-num_episodes = 1
+num_episodes = 20
 num_steps = 40
 reward_done = []
 reward_list = []

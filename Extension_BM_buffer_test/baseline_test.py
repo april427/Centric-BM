@@ -18,7 +18,8 @@ import itertools
 import os
 
 import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM_buffer_test/')
+# sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM_buffer_test/')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from beam_management_env_letter import BeamManagementEnv
 import pandas as pd
 from baseline_train import parse_args
@@ -63,7 +64,7 @@ if __name__ == "__main__":
     
     model = model_class.load(log_dir + "best_model", env=env)
 
-    num_episodes = 500
+    num_episodes = 1
     num_steps = 40
     reward_done = []
     reward_list = []

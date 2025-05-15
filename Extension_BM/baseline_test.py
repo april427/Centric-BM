@@ -17,8 +17,9 @@ import time
 import argparse
 import itertools
 
-import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
+import sys, os
+# sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from beam_management_env_letter import BeamManagementEnv
 import pandas as pd
 from baseline_train import parse_args
@@ -31,7 +32,7 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = 'modified_r_s'
+    args.cdir = '_'
     args.if_training=False
     # args.if_debugging = True
     args.dt = 0.2
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     
     model = model_class.load(log_dir + "best_model", env=env)
 
-    num_episodes = 1000
+    num_episodes = 1
     num_steps = 40
     reward_done = []
     reward_list = []

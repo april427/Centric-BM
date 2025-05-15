@@ -22,7 +22,9 @@ import torch
 
 
 import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM')
+# sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from beam_management_env_letter import BeamManagementEnv
 from util_functions import SaveOnBestTrainingRewardCallback
 
@@ -36,7 +38,7 @@ def parse_args():
     parser.add_argument('--if_training', type=bool, default=True, help='Training or testing')
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
-    parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v3', help='Environment ID')
+    parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v4', help='Environment ID')
     parser.add_argument('--cdir', type=str, default= '_', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
     

@@ -1,5 +1,6 @@
-import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
+import sys, os
+# sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from channel_functions import *
 import gymnasium as gym
 from gymnasium.envs import register
@@ -28,8 +29,8 @@ class BeamManagementEnv(gym.Env):
         ##################################################
         #          Define action and state space
         ##################################################
-        self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
-        #self.action_space = MultiDiscrete(np.array([self.N_UTs+1]*self.number_of_antennas))
+        #self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
+        self.action_space = MultiDiscrete(np.ones(self.N_UTs) *4)
         #
         self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 2*self.N_UTs,)) #
 
@@ -141,10 +142,10 @@ class BeamManagementEnv(gym.Env):
         # else:
 
         self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
-        plt.imshow(self.road_matrix.T)
-        for i in range(self.N_UTs):
-            plt.scatter(self.ut_loc[0,i,0], self.ut_loc[0,i, 1], label='UE'+str(i+1))
-        plt.scatter(self.bs_loc[0,0,0], self.bs_loc[0,0,1], label='BS')
+        # plt.imshow(self.road_matrix.T)
+        # for i in range(self.N_UTs):
+        #     plt.scatter(self.ut_loc[0,i,0], self.ut_loc[0,i, 1], label='UE'+str(i+1))
+        # plt.scatter(self.bs_loc[0,0,0], self.bs_loc[0,0,1], label='BS')
 
         # set UT velocities and trajectories
         self.ut_velocities = np.zeros((1, self.N_UTs, 3))
@@ -395,12 +396,49 @@ class BeamManagementEnv(gym.Env):
             
                 ############### RL action ################
         else:        
-            self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
-            self.action_beam[self.action_beam == (1+self.N_UTs)] = self.N_UTs # set the illegal action to 0
-            for u in range(self.N_UTs):
-                self.current_beam[u,] = np.squeeze(np.argwhere(self.action_beam == u+1))
+            # self.action_beam = np.floor(action[0:self.number_of_antennas]*(1+self.N_UTs)).astype('int')
+            # self.action_beam[self.action_beam == (1+self.N_UTs)] = self.N_UTs # set the illegal action to 0
+            # for u in range(self.N_UTs):
+            #     self.current_beam[u,] = np.squeeze(np.argwhere(self.action_beam == u+1))
+            self.action_beam = np.zeros((self.number_of_antennas))
             self.action_power = np.ones(self.N_UTs)
             Pt = np.ones(self.N_UTs) * (self.Pt_mW/self.N_UTs)
+            
+            for i in range(self.N_UTs):
+                if action[i] == 0: # beam stays the same
+                    self.current_beam[i] = self.current_beam[i]
+                elif action[i] == 1: # beam is selected from multiple
+                    index = np.argmax(self.memory[self.current_beam[i]])
+                    self.current_beam[i,] = index
+                elif action[i] == 2: # beam is turned left
+                    temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]]
+                    if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
+                        mask = (temp != 0) & (temp != 1)
+                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[-2, -1, 0], self.number_of_antennas)
+                    else:
+                        self.current_beam[i,] = np.mod(np.min(self.current_beam[i])+[-2, -1, 0], self.number_of_antennas)
+                    # deal with reused beams
+                    if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
+                        count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
+                        # Find the index of the first unused beam that is closest to the current beam
+                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), self.current_beam[i,])
+                        self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
+
+                elif action[i] == 3: # beam is turned right
+                    temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]] 
+                    if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
+                        mask = (temp != 0) & (temp != 1)
+                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[0, 1, 2], self.number_of_antennas)
+                    else:
+                        self.current_beam[i,] = np.mod(np.max(self.current_beam[i])+[0,1,2], self.number_of_antennas)
+                    # deal with reused beams
+                    if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
+                        count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
+                        # Find the index of the first unused beam that is closest to the current beam
+                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), self.current_beam[i,])
+                        self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
+
+                self.action_beam[self.current_beam[i]] = i+1  
         
         # Water-filling power allocation -- with known channel
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
@@ -628,4 +666,4 @@ class BeamManagementEnv(gym.Env):
                                 ), dtype = np.float32))
 
 
-register(id='BeamManagementEnv-v3', entry_point=BeamManagementEnv)
+register(id='BeamManagementEnv-v4', entry_point=BeamManagementEnv)

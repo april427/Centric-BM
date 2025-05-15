@@ -1,5 +1,6 @@
 import sys
-sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM_buffer_test/')
+#sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM_buffer_test/')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from channel_functions import *
 import gymnasium as gym
 from gymnasium.envs import register
