@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v4', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= '_', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= 'sAs_newBuffer_hyperbolic', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
     
     args, unknown = parser.parse_known_args()
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     print(get_device())
     model.learn(total_timesteps=timesteps, callback=callback)
 
-    plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v3")
+    plot_results([log_dir], timesteps, results_plotter.X_TIMESTEPS, "PPO BeamManagement-v4")
     # plt.show()
 
     model.save(log_dir + "best_model")

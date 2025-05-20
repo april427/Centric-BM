@@ -32,7 +32,7 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = '_'
+    args.cdir = 'sAs_newBuffer_hyperbolic'
     args.if_training=False
     # args.if_debugging = True
     args.dt = 0.2
@@ -86,13 +86,16 @@ if __name__ == "__main__":
         ev = np.zeros((args.N_UTs, num_steps))
         ea = np.zeros((args.N_UTs, num_steps))
 
+        ut_loc = np.zeros((num_steps+1, args.N_UTs, 3))
+        ut_loc[0,] = env.unwrapped.ut_loc[0,:,:]
+
         genie_beams = []
         beams = []
 
         for t in range(num_steps):
             action, _states = model.predict(obs)
             
-            obs, rewards, dones, _, info = env.step(action)
+            obs, rewards, dones, _, info = env.step(action=action)
             
             reward_episode += rewards
             er[:,t] = info['nmse_R']
@@ -104,6 +107,8 @@ if __name__ == "__main__":
 
             genie_beams.append(info['genie_beams'])
             beams.append(info['allocated_beams'].copy())
+
+            ut_loc[t+1,] = env.unwrapped.ut_loc[0,:,:]
 
             if dones:
                 reward_done.append(reward_episode)
@@ -232,7 +237,32 @@ ax5.set_ylabel('CDF')
 plt.show()
 
 # %%
-# Plot allocated beams and genie beams varying with num_steps
+# Plotting the trajectory of UEs
+figure_handle = plt.figure()
+bs_loc = env.unwrapped.bs_loc[0,:,:]
+ax6 = figure_handle.add_subplot()
+ax6.scatter(bs_loc[:,0], bs_loc[:,1], marker="o", color='red', label='BS')
+for i in range(args.N_UTs):
+    ue_pos_x = ut_loc[:,i,0]
+    ue_pos_y = ut_loc[:,i,1]
+    du = np.diff(ue_pos_x)
+    dv = np.diff(ue_pos_y)
+    pos_x = ue_pos_x[:-1] + du/2
+    pos_y = ue_pos_y[:-1] + dv/2
+    norm = np.sqrt(du**2+dv**2) 
+    ax6.plot(ue_pos_x,ue_pos_y, marker="o")
+    ax6.quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=5, pivot="mid") 
+    # hold the plot   
+    # ax6.plot(ut_loc[:,i,0], ut_loc[:,i,1], ut_loc[:,i,2], label='UE' + str(i))
+ax6.set_xlabel('X-axis')
+ax6.set_ylabel('Y-axis')
+ax6.set_title('Trajectory of UEs')
+ax6.legend()
+plt.show()
+
+
+# %%                
+#           Plot Allocated Beams and Genie Beams varying with num_steps
 num_steps_range = range(num_steps)
 # Create a 2D array for heatmap
 heatmap_data = np.zeros((args.Nt, num_steps))
@@ -264,9 +294,9 @@ ax7.set_ylabel('Beam Steps')
 for t in num_steps_range:
     for u in range(args.N_UTs):
         if t == 0:
-            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color='white' if u == 0 else 'blue', s=20, label='UE' + str(u))
+            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color='darkorange' if u == 0 else 'blue', s=20, label='UE' + str(u))
         else:
-            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color='white' if u == 0 else 'blue', s=20)
+            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color='darkorange' if u == 0 else 'blue', s=20)
 ax7.legend(loc='upper right', fontsize=8, markerscale=1.5)
 
 # Create a color bar with custom labels
@@ -274,7 +304,8 @@ colorbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap), ax=a
 colorbar.ax.set_yticklabels(legend_labels)
 plt.show()
 # %%
-# %%
+# %%                                        
+#                               SAVE DATA
 # log_dir_data =log_dir + "/trained/"
 # # # Create directory if it does not exist
 # os.makedirs(log_dir_data, exist_ok=True)

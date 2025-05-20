@@ -268,7 +268,7 @@ def hyperbolic_func(x, A1, A2, c):
     x = np.atleast_1d(x)
     y=np.zeros(np.size(x))
     y[x>=c] = 1.5*(1 - np.exp(- A1 * (x[x>=c] - c)))
-    y[x<c] = - 0.5
+    y[x<c] = 0
     #y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
     b = 12
     y[x>=c+b] = np.exp(-A2*(x[x>=c+b] - c - b )) 
@@ -283,10 +283,10 @@ def hyperbolic_func(x, A1, A2, c):
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt
-# x = np.linspace(0, 40, 1000)
-# A1 = 0.8
-# A2 = 0
-# c= 10
+# x = np.linspace(0, 6, 1000)
+# A1 = 4.9
+# A2 = 0.2
+# c= 1.1
 # b = 12
 # y = hyperbolic_func(x, A1, A2, c)
 # textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),

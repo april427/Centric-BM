@@ -80,7 +80,7 @@ class BeamManagementEnv(gym.Env):
         self.road_matrix = road(self.cross_pos)
         self.single_lane_width = 5
 
-        self.arrival_probability = 0.8
+        self.arrival_probability = [max(0, 0.9 - 0.2 * i) for i in range(self.N_UTs)] # arrival probability of each UE
 
         # self.ut_loc[0,:,:], self.config, self.if_turned = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width)
 
@@ -134,12 +134,6 @@ class BeamManagementEnv(gym.Env):
 
         initial_if_turned = np.array([False, False, False, False, False])
 
-        # if self.if_training:
-        #     dice = np.random.randint(0, 11)
-        #     self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
-        #     self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
-        #     self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
-        # else:
 
         self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
         # plt.imshow(self.road_matrix.T)
@@ -291,9 +285,10 @@ class BeamManagementEnv(gym.Env):
         # packets arrival at the first time slot
         self.buffers[:,0] = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) # packets arrival
         # For each user with a new arrival, add packet to first empty buffer slot
-        self.buffer_occupancy = np.sum(self.buffers, axis=1)
+        self.buffer_occupancy = np.sum(self.buffers>0, axis=1)
+        
 
-        self.total_traffic_episode = np.sum(self.buffers) # total downlink traffic per episode
+        self.total_traffic_episode = np.sum(self.buffers[self.buffers>0]) # total downlink traffic per episode
         self.successful_transmission = 0  # number of successful transmission
         
         return self._get_state(), {}
@@ -408,13 +403,19 @@ class BeamManagementEnv(gym.Env):
                 if action[i] == 0: # beam stays the same
                     self.current_beam[i] = self.current_beam[i]
                 elif action[i] == 1: # beam is selected from multiple
-                    index = np.argmax(self.memory[self.current_beam[i]])
-                    self.current_beam[i,] = index
+                    if self.current_beam[i].size == 1:
+                        self.current_beam[i,] = self.current_beam[i]
+                    else:
+                        index = np.argmax(self.memory[self.current_beam[i]])
+                        self.current_beam[i,] = index
                 elif action[i] == 2: # beam is turned left
                     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]]
                     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
-                        mask = (temp != 0) & (temp != 1)
-                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[-2, -1, 0], self.number_of_antennas)
+                        if temp[1] == 1:
+                            self.current_beam[i,] = np.mod(np.max(temp)+[-2, -1, 0], self.number_of_antennas)
+                        else:
+                            mask = (temp != 0) & (temp != self.number_of_antennas - 1)
+                            self.current_beam[i,] = np.mod(np.min(temp[mask])+[-2, -1, 0], self.number_of_antennas)
                     else:
                         self.current_beam[i,] = np.mod(np.min(self.current_beam[i])+[-2, -1, 0], self.number_of_antennas)
                     # deal with reused beams
@@ -427,8 +428,11 @@ class BeamManagementEnv(gym.Env):
                 elif action[i] == 3: # beam is turned right
                     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]] 
                     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
-                        mask = (temp != 0) & (temp != 1)
-                        self.current_beam[i,] = np.mod(np.min(temp[mask])+[0, 1, 2], self.number_of_antennas)
+                        if temp[-2] == self.number_of_antennas - 2:
+                            self.current_beam[i,] = np.mod(np.min(temp)+[0, 1, 2], self.number_of_antennas)
+                        else:
+                            mask = (temp != 0) & (temp != self.number_of_antennas - 1)
+                            self.current_beam[i,] = np.mod(np.max(temp[mask])+[0, 1, 2], self.number_of_antennas)
                     else:
                         self.current_beam[i,] = np.mod(np.max(self.current_beam[i])+[0,1,2], self.number_of_antennas)
                     # deal with reused beams
@@ -587,12 +591,13 @@ class BeamManagementEnv(gym.Env):
         ###################################################################
         #                       Reward Function
         ###################################################################
-        reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
+        reward_transmission = np.sum(hyperbolic_func(self.SE[success_packet],A1=4.9,A2=0.2, c=1.0).astype('float32'))
+        # reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
         reward_drop = - (drop_overload + drop_latency)
         reward_estimation = - (np.sum(self.nmse_R>0.7) + np.sum(self.nmse_v >0.2)).astype('float32')
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( 0.5* reward_transmission + reward_drop + reward_estimation + 0.5* reward_jump )
+        reward = float( reward_transmission + reward_drop + 0.5*reward_estimation + 0.5* reward_jump )
 
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
@@ -620,6 +625,7 @@ class BeamManagementEnv(gym.Env):
             #(1 + np.exp((self.total_traffic_episode - np.sum(self.buffers))/self.total_traffic_episode) )
         
         if self.if_debugging:
+            print(action)
             print(Pt, self.SE, self.current_beam)
             plt.figure()
             plt.plot(self.memory)
@@ -650,7 +656,8 @@ class BeamManagementEnv(gym.Env):
                 'angle_error': self.angle_error,
                 'SE': self.SE,
                 'allocated_beams': self.action_beam,
-                'genie_beams': beam_genie,}
+                'genie_beams': beam_genie,
+                }
 
         if np.isnan(reward):
             raise ValueError("NaN detected in reward")
