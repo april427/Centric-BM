@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v4', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= 'sAs_newBuffer_hyperbolic', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= 'sAs_newBuffer_diffLatency', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
     
     args, unknown = parser.parse_known_args()
@@ -48,6 +48,7 @@ def parse_args():
 # %%
 
 if __name__ == "__main__":
+    
     print(f"CUDA available: {torch.cuda.is_available()}")
     print(f"CUDA device count: {torch.cuda.device_count()}")
     if torch.cuda.is_available():

@@ -569,10 +569,12 @@ class BeamManagementEnv(gym.Env):
         self.latency = -1*np.ones((self.N_UTs, ), dtype=np.int32)
         drop_overload = 0
         drop_latency = 0
+        reward_transmission = np.zeros((self.N_UTs, ), dtype=np.float32)
         success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
         for user_id in np.where(success_packet != 0)[0]:
             pak_inx = np.argmax(self.waiting_times[user_id,])
             self.latency[user_id] = self.waiting_times[user_id, pak_inx]
+            reward_transmission[user_id] = self.max_latency[user_id] - self.latency[user_id]
             self.buffers[user_id, pak_inx] = 0 # transmit this packet
             self.waiting_times[user_id, pak_inx] = 0
             self.buffer_occupancy[user_id] -= 1
@@ -591,13 +593,14 @@ class BeamManagementEnv(gym.Env):
         ###################################################################
         #                       Reward Function
         ###################################################################
-        reward_transmission = np.sum(hyperbolic_func(self.SE[success_packet],A1=4.9,A2=0.2, c=1.0).astype('float32'))
+        #reward_transmission = np.sum(hyperbolic_func(self.SE[success_packet],A1=4.9,A2=0.2, c=1.0).astype('float32'))
         # reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
-        reward_drop = - (drop_overload + drop_latency)
-        reward_estimation = - (np.sum(self.nmse_R>0.7) + np.sum(self.nmse_v >0.2)).astype('float32')
+
+        reward_drop = 0#- (drop_overload + drop_latency)
+        reward_estimation = - (np.sum(self.nmse_R>0.5) + np.sum(self.nmse_v >0.2)).astype('float32')
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( reward_transmission + reward_drop + 0.5*reward_estimation + 0.5* reward_jump )
+        reward = float( np.sum(reward_transmission) + reward_drop + 0.5*reward_estimation + 0.5* reward_jump )
 
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
@@ -627,7 +630,6 @@ class BeamManagementEnv(gym.Env):
         if self.if_debugging:
             print(action)
             print(Pt, self.SE, self.current_beam)
-            plt.figure()
             plt.plot(self.memory)
             plt.xlabel("beam index")
             plt.ylabel("Echo power")
@@ -639,7 +641,6 @@ class BeamManagementEnv(gym.Env):
             C = np.mean(np.log1p(np.square(np.abs(B))), axis=(-2, -1))
             D = np.diagonal(C)
             import matplotlib.pyplot as plt
-            plt.figure()
             plt.plot(D)
             plt.xlabel("beam index")
             plt.ylabel("Pathloss")

@@ -32,25 +32,24 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = 'sAs_newBuffer_hyperbolic'
+    args.cdir = 'sAs_newBuffer_diffLatency'
     args.if_training=False
     # args.if_debugging = True
     args.dt = 0.2
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
     monitor_file = log_dir + "monitor.csv"
-    monitor_data = pd.read_csv(monitor_file, skiprows=1)
+    monitor_data = pd.read_csv(monitor_file, skiprows=0)
 
     window_size = 1000
     moving_average = monitor_data['r'].rolling(window=window_size).mean()
 
-    fig, ax = plt.subplots()
-    # ax.plot(monitor_data['r'], label='Reward')
-    ax.plot(moving_average, label='Moving Average', color='orange')
-    ax.legend()
-    ax.grid()
+    # fig, ax = plt.subplots()
+    # ax.plot(moving_average, label='Moving Average', color='orange')
+    # ax.legend()
+    # ax.grid()
     
-    plt.show()
+    # plt.show()
     
     env = gym.make(args.EnvID,  args = args)
     print("N_UTs=", args.N_UTs)
@@ -289,7 +288,7 @@ ax7 = figure_handle.add_subplot()
 sns.heatmap(heatmap_data, cmap=cmap, norm=norm, ax=ax7, cbar = False)
 ax7.set_xlabel('Time Index')
 ax7.set_ylabel('Beam Steps')
-
+ax7.grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
 # Scatter plot for genie beams
 for t in num_steps_range:
     for u in range(args.N_UTs):
