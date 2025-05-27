@@ -133,9 +133,13 @@ class BeamManagementEnv(gym.Env):
                                 [[0, 0],[3,3],[1, 1],[4, 2], [4,2]]] )
 
         initial_if_turned = np.array([False, False, False, False, False])
-
-
-        self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
+        if False:
+            dice = np.random.randint(0, 1)
+            self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
+            self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
+            self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
+        else:
+            self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
         # plt.imshow(self.road_matrix.T)
         # for i in range(self.N_UTs):
         #     plt.scatter(self.ut_loc[0,i,0], self.ut_loc[0,i, 1], label='UE'+str(i+1))
@@ -315,7 +319,9 @@ class BeamManagementEnv(gym.Env):
         ################################################################
         
         H_UT = np.zeros([self.batch_size, self.N_UTs,1,1, self.number_of_antennas, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64) #[ batch size, num_users, num_subcarriers, num_BS_antennas ]
-        # tx_sig_fd_ut = np.zeros([self.batch_size, self.N_UTs, self.number_of_antennas, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
+        ch_alpha = np.zeros([self.N_UTs], dtype=np.float32)  # channel gain for each UE
+        ch_steer = np.zeros([self.number_of_antennas, self.N_UTs], dtype=np.complex64) # channel steering vector for each UE
+        
         y_UT_eff = np.zeros([self.batch_size, self.N_UTs, 1, self.num_ofdm_symbols, self.fft_size], dtype = np.complex64)
         
         # channel_freq = ApplyOFDMChannel(add_awgn=True)
@@ -344,7 +350,7 @@ class BeamManagementEnv(gym.Env):
 
             amp_c = (self.wavelength / (4 * np.pi * self.Rd[0,i]))**2
 
-            H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
+            H_UT[0, i,0,0, ], ch_steer[:,i] , ch_alpha[i] = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
         
     
         H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
@@ -358,6 +364,33 @@ class BeamManagementEnv(gym.Env):
                 self.action_beam = np.zeros((self.number_of_antennas))
                 self.action_beam[self.current_beam] = np.arange(1, self.N_UTs+1)
                 self.action_power = [1]*self.N_UTs
+            
+            elif action == 'other_work':
+                scale = 1/(2*np.sqrt(2**1.3))  # normalized power allocation
+                delta_scale = 0.3
+                k1 = np.sqrt((2**1.3 - 1)*self.noise_power) / ch_alpha[0]
+                k2 = np.sqrt(self.noise_power*(2**1.3 -1)) / ch_alpha[1]
+                mat_C = ch_steer.T 
+                mat_E = (mat_C @ np.conj(mat_C).T)**(-1)
+                while np.abs(delta_scale) > 0.1:
+                    scale = (np.sqrt(scale) + delta_scale)**2
+                    vec_b = np.array([np.sqrt((2**1.3 - 1)*self.noise_power/ scale / ch_alpha[0]), np.sqrt(self.noise_power*(2**1.3 -1) / ch_alpha[1]/ (np.abs(1-scale)*(2**1.3)) ) ])
+
+                    delta_b = np.array([-k1/scale, k2*(2**1.3)*np.sqrt(scale)*(np.abs(1- scale)*(2**1.3))**(1.5)])
+
+                    delta_b_2 = np.array([2*k1/scale**(1.5), ((k2*(2**1.3)*(1-scale)* 2**1.3 )**(1.5) - 2**3.6 * scale * 1.5*k2 *np.abs(1-scale)*2**1.3)/(np.abs(1-scale)* (2**1.3))**(3) ])
+
+                    delta_scale = - (delta_b @ np.conj(mat_E) @ delta_b.T)/(delta_b @np.conj(mat_E) @ delta_b.T + delta_b_2@np.conj(mat_E)@vec_b.T  ) 
+                    
+                    delta_scale = np.real(delta_scale)
+                    if np.isnan(scale) or np.isnan(delta_scale):
+                        delta_scale = 0.1
+                        scale = 1/(2*np.sqrt(2**1.3))
+                scale = (np.sqrt(scale) + delta_scale)**2
+                vec_u = np.conj(mat_C).T @ mat_E @ vec_b.T
+                
+                vec_u_norm = vec_u / np.linalg.norm(vec_u)
+
 
             elif (action == 'greedy' or 'estimated'): # Greedy beam selection
                 self.action_beam = np.zeros((self.number_of_antennas))
@@ -461,14 +494,17 @@ class BeamManagementEnv(gym.Env):
         # set the transmitted signal according to the action
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
         for i in range(self.N_UTs):
-            
-            beam_index = self.current_beam[i].astype('int')
-            if beam_index.size == 0:
-                continue
-            elif beam_index.size == 1:
-                transmit_beam[:, i] = codebook[:, beam_index] * np.sqrt(Pt[i])
+            if isinstance(action, str) and action == 'other_work':
+                Pt = np.array([scale, 1-scale]) * (self.Pt_mW)
+                transmit_beam[:, i] = vec_u_norm * np.sqrt(Pt[i])
             else:
-                transmit_beam[:, i] = np.sum( (codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1) 
+                beam_index = self.current_beam[i].astype('int')
+                if beam_index.size == 0:
+                    continue
+                elif beam_index.size == 1:
+                    transmit_beam[:, i] = codebook[:, beam_index] * np.sqrt(Pt[i])
+                else:
+                    transmit_beam[:, i] = np.sum( (codebook[:, beam_index]*(np.sqrt(Pt[i]/beam_index.size)) ), axis = 1) 
         
         # transmitted signal at the BS
         tx_sig_fd = np.einsum('kj,nijom -> nikom', transmit_beam, self.x_rg)
@@ -514,8 +550,12 @@ class BeamManagementEnv(gym.Env):
         # sinr_db[np.isinf(sinr_db)] = 0
         self.SE = np.sum(np.sum(np.log2(1 + sinr_pow), axis=-1), axis=-1)/(self.num_ofdm_symbols*self.fft_size)
 
-        # BER of receivers
-        # ber = decode_rx_signal(y_UT, self.rg, self.N_UTs, self.encoder, self.b, self.noise_power) 
+        if isinstance(action, str) and action == 'other_work':
+            ue_inx = np.argmax(Pt)
+            self.SE[ue_inx] = np.log2(1 + (1-scale)* self.Pt_mW* ch_alpha[ue_inx] * np.abs(np.inner(vec_u_norm, ch_steer[:,ue_inx]))**2  / (self.noise_power + scale*ch_alpha[ue_inx]*self.Pt_mW*(np.abs(np.inner(vec_u_norm, ch_steer[:,ue_inx]))**2)))
+            ue_inx = np.argmin(Pt)
+            self.SE[ue_inx] = np.log2(1 + scale* self.Pt_mW* ch_alpha[ue_inx] * np.abs(np.inner(vec_u_norm, ch_steer[:,ue_inx]))**2  / self.noise_power )
+
 
         self.old_R_estimate = self.R_estimate
         self.old_v_estimate = self.v_estimate
@@ -544,15 +584,15 @@ class BeamManagementEnv(gym.Env):
             self.R_estimate[u] = - 3e8*max_idx[1]/(2*self.subcarrier_spacing*num_rangebin)
             self.v_estimate[u] = 3e8*max_idx[0]/(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
 
-            if self.if_debugging:
-                plt.subplot(num_subplots, 1, u+1)
-                plt.imshow(np.square(np.abs(DD_spectrum)), aspect='auto', cmap='viridis')
-                plt.colorbar()
+            # if self.if_debugging:
+            #     plt.subplot(num_subplots, 1, u+1)
+            #     plt.imshow(np.square(np.abs(DD_spectrum)), aspect='auto', cmap='viridis')
+            #     plt.colorbar()
                 
-                plt.xticks(np.arange(0, num_rangebin, num_rangebin//6), np.arange(-num_rangebin//2, num_rangebin//2, num_rangebin//6)*3e8//(2*self.subcarrier_spacing*num_rangebin))
-                plt.yticks(np.arange(0, num_dopplerbin, num_dopplerbin//6), np.arange(-num_dopplerbin//2, num_dopplerbin//2, num_dopplerbin//6)*3e8//(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin))
-                plt.xlabel('Range')
-                plt.ylabel('Doppler')
+            #     plt.xticks(np.arange(0, num_rangebin, num_rangebin//6), np.arange(-num_rangebin//2, num_rangebin//2, num_rangebin//6)*3e8//(2*self.subcarrier_spacing*num_rangebin))
+            #     plt.yticks(np.arange(0, num_dopplerbin, num_dopplerbin//6), np.arange(-num_dopplerbin//2, num_dopplerbin//2, num_dopplerbin//6)*3e8//(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin))
+            #     plt.xlabel('Range')
+            #     plt.ylabel('Doppler')
         echo_bf_db = np.mean(10*np.log10(np.square(np.abs(np.einsum('ij, jnp->inp', np.conj(codebook.T), y_BS.squeeze())))), axis=(-2, -1)) 
 
         self.memory = echo_bf_db
@@ -596,12 +636,13 @@ class BeamManagementEnv(gym.Env):
         #reward_transmission = np.sum(hyperbolic_func(self.SE[success_packet],A1=4.9,A2=0.2, c=1.0).astype('float32'))
         # reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
 
-        reward_drop = 0#- (drop_overload + drop_latency)
-        reward_estimation = - (np.sum(self.nmse_R>0.5) + np.sum(self.nmse_v >0.2)).astype('float32')
+        reward_drop = - (drop_overload + drop_latency)
+        #reward_estimation = - (np.sum(self.nmse_R>0.5) + np.sum(self.nmse_v >0.2)).astype('float32')
+        reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.5) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.2)).astype('float32')
+        reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.2) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.04)).astype('float32')
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( np.sum(reward_transmission) + reward_drop + 0.5*reward_estimation + 0.5* reward_jump )
-
+        reward = float( np.sum(reward_transmission) + reward_drop + reward_estimation1 + reward_estimation2 + 0.5* reward_jump )
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
         for user_id in range(self.N_UTs):
@@ -623,9 +664,6 @@ class BeamManagementEnv(gym.Env):
         if not terminated:
             self.total_traffic_episode += np.sum(arrivals)
 
-
-        # reward = float(np.sum(  hyperbolic_func(self.SE, A1=0.8, A2=0.3, c=1.1) + (self.nmse_R<0.2) + (self.nmse_v <0.2) ) - 1* (np.sum(self.action_beam!=0) > (3*self.N_UTs))  )
-            #(1 + np.exp((self.total_traffic_episode - np.sum(self.buffers))/self.total_traffic_episode) )
         
         if self.if_debugging:
             print(action)
@@ -635,15 +673,17 @@ class BeamManagementEnv(gym.Env):
             plt.ylabel("Echo power")
             print(beam_genie)
             print(reward, self.buffers)
+            print(self.waiting_times)
+            print(self.buffer_occupancy, np.max(self.waiting_times, axis=1), reward_transmission)
             
-            A = np.einsum('ij, jknp -> iknp', np.conj(codebook.T), H_BS.squeeze())
-            B = np.square(np.abs(np.einsum('iknp, kq -> iqnp', A, codebook)))
-            C = np.mean(np.log1p(np.square(np.abs(B))), axis=(-2, -1))
-            D = np.diagonal(C)
-            import matplotlib.pyplot as plt
-            plt.plot(D)
-            plt.xlabel("beam index")
-            plt.ylabel("Pathloss")
+            # A = np.einsum('ij, jknp -> iknp', np.conj(codebook.T), H_BS.squeeze())
+            # B = np.square(np.abs(np.einsum('iknp, kq -> iqnp', A, codebook)))
+            # C = np.mean(np.log1p(np.square(np.abs(B))), axis=(-2, -1))
+            # D = np.diagonal(C)
+            # import matplotlib.pyplot as plt
+            # plt.plot(D)
+            # plt.xlabel("beam index")
+            # plt.ylabel("Pathloss")
 
         if np.any(self.Rd[0,] > 100):
             truncated = True

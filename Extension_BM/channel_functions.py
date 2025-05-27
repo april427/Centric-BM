@@ -98,7 +98,7 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
             P = np.diag(P)
         H_f[:,:,k] = np.tile(np.dot(np.conj(A_t), P), [1,Nsym]) # Conjugate of A_t so H can be directly used ApplyOFDMChannel
         
-    return H_f,A_t,alpha
+    return H_f,A_t.squeeze(),alpha.squeeze()
 
 def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing, ofdm_symbol_duration, reflection_coefficient, ut_velocities, wavelength, tau, fai1=None):
         # Nsym -- Number of OFDM symbols

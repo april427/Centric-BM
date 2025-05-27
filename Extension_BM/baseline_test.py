@@ -32,17 +32,17 @@ if __name__ == "__main__":
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
 
-    args.cdir = 'sAs_newBuffer_diffLatency'
+    args.cdir = 'sAs_newB_waitT_sense_ce-2'
     args.if_training=False
     # args.if_debugging = True
     args.dt = 0.2
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
     monitor_file = log_dir + "monitor.csv"
-    monitor_data = pd.read_csv(monitor_file, skiprows=0)
+    # monitor_data = pd.read_csv(monitor_file, skiprows=0)
 
-    window_size = 1000
-    moving_average = monitor_data['r'].rolling(window=window_size).mean()
+    # window_size = 1000
+    # moving_average = monitor_data['r'].rolling(window=window_size).mean()
 
     # fig, ax = plt.subplots()
     # ax.plot(moving_average, label='Moving Average', color='orange')
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     
     model = model_class.load(log_dir + "best_model", env=env)
 
-    num_episodes = 1
+    num_episodes = 30
     num_steps = 40
     reward_done = []
     reward_list = []
@@ -76,10 +76,7 @@ if __name__ == "__main__":
     spectrum_efficiency = []
 
     for ep in range(1, num_episodes+1):
-        # st = time.time()
         obs,_ = env.reset()
-        # et = time.time()
-        # print("reset time: ", et-st)
         reward_episode = 0
         er = np.zeros((args.N_UTs, num_steps))
         ev = np.zeros((args.N_UTs, num_steps))
@@ -260,8 +257,8 @@ ax6.legend()
 plt.show()
 
 
-# %%                
-#           Plot Allocated Beams and Genie Beams varying with num_steps
+# %%                  
+###           Plot Allocated Beams and Genie Beams varying with num_steps
 num_steps_range = range(num_steps)
 # Create a 2D array for heatmap
 heatmap_data = np.zeros((args.Nt, num_steps))
@@ -302,10 +299,13 @@ ax7.legend(loc='upper right', fontsize=8, markerscale=1.5)
 colorbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap), ax=ax7, ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels) - 1)])
 colorbar.ax.set_yticklabels(legend_labels)
 plt.show()
-# %%
+
+
+
 # %%                                        
-#                               SAVE DATA
-# log_dir_data =log_dir + "/trained/"
+#####################            SAVE DATA 
+##################### estimated, # trained, # genie, # random
+# log_dir_data =log_dir + "/estimated_arrp07/"
 # # # Create directory if it does not exist
 # os.makedirs(log_dir_data, exist_ok=True)
 
@@ -346,3 +346,4 @@ plt.show()
 # # save spectral efficiency
 # se = pd.DataFrame(spectrum_efficiency, columns=['SE1', 'SE2'])
 # se.to_csv(os.path.join(log_dir_data, 'SE.csv'), index=False)
+
