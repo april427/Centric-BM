@@ -31,10 +31,10 @@ if __name__ == "__main__":
     args = parse_args()
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
-
-    args.cdir = 'sAs_newB_waitT_sense_ce-2'
+    args.N_UTs = 2
+    args.cdir = 'sAs_newB_waitT_newSense_128_lrscheduling'
     args.if_training=False
-    # args.if_debugging = True
+    args.if_debugging = True
     args.dt = 0.2
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     
     model = model_class.load(log_dir + "best_model", env=env)
 
-    num_episodes = 30
+    num_episodes = 1
     num_steps = 40
     reward_done = []
     reward_list = []
@@ -285,7 +285,6 @@ ax7 = figure_handle.add_subplot()
 sns.heatmap(heatmap_data, cmap=cmap, norm=norm, ax=ax7, cbar = False)
 ax7.set_xlabel('Time Index')
 ax7.set_ylabel('Beam Steps')
-ax7.grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
 # Scatter plot for genie beams
 for t in num_steps_range:
     for u in range(args.N_UTs):
@@ -298,14 +297,53 @@ ax7.legend(loc='upper right', fontsize=8, markerscale=1.5)
 # Create a color bar with custom labels
 colorbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap), ax=ax7, ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels) - 1)])
 colorbar.ax.set_yticklabels(legend_labels)
+# Set grid lines in between two integers
+ax7.set_xticks(np.arange(-0.5, num_steps, 1), minor=True)
+ax7.set_yticks(np.arange(-0.5, args.Nt, 1), minor=True)
+ax7.grid(which='minor', color='gray', linestyle='--', linewidth=0.5)
+ax7.tick_params(which='minor', bottom=False, left=False)
+ax7.grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
 plt.show()
 
 
+# # Dynamically set levels, colors, and labels based on number of users
+# levels = [0] + [i + 1 for i in range(args.N_UTs)]  # 0: Idle, 1: UE0, 2: UE1, ...
+# cmap = plt.get_cmap("Paired", len(levels) - 1)
+# norm = BoundaryNorm(levels, cmap.N, clip=True)
+# legend_labels = ['Idle'] + [f'UE {i} beams' for i in range(args.N_UTs)]
+# custom_cmap = ListedColormap(cmap(np.linspace(0, 1, len(levels) - 1)))
+
+# figure_handle = plt.figure()
+# ax7 = figure_handle.add_subplot()
+# sns.heatmap(heatmap_data, cmap=cmap, norm=norm, ax=ax7, cbar=False)
+# ax7.set_xlabel('Time Index')
+# ax7.set_ylabel('Beam Steps')
+# ax7.grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
+
+# # Scatter plot for genie beams, with unique color per user
+# colors = plt.cm.get_cmap('tab10', args.N_UTs)
+# for t in num_steps_range:
+#     for u in range(args.N_UTs):
+#         if t == 0:
+#             ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors(u), s=20, label=f'UE{u}')
+#         else:
+#             ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors(u), s=20)
+# handles, labels = ax7.get_legend_handles_labels()
+# by_label = dict(zip(labels, handles))
+# ax7.legend(by_label.values(), by_label.keys(), loc='upper right', fontsize=8, markerscale=1.5)
+
+# colorbar = plt.colorbar(
+#     plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap),
+#     ax=ax7,
+#     ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels) - 1)]
+# )
+# colorbar.ax.set_yticklabels(legend_labels)
+# plt.show()
 
 # %%                                        
 #####################            SAVE DATA 
 ##################### estimated, # trained, # genie, # random
-# log_dir_data =log_dir + "/estimated_arrp07/"
+# log_dir_data =log_dir + "/genie/"
 # # # Create directory if it does not exist
 # os.makedirs(log_dir_data, exist_ok=True)
 

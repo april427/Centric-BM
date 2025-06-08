@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v4', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= 'sAs_newB_waitT_sense_ce-2', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= 'sAs_newB_waitT_newSense_128_reusebeams', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
     
     args, unknown = parser.parse_known_args()
@@ -49,11 +49,11 @@ def parse_args():
 
 if __name__ == "__main__":
     
-    print(f"CUDA available: {torch.cuda.is_available()}")
-    print(f"CUDA device count: {torch.cuda.device_count()}")
-    if torch.cuda.is_available():
-        print(f"Current CUDA device: {torch.cuda.current_device()}")
-        print(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+    # print(f"CUDA available: {torch.cuda.is_available()}")
+    # print(f"CUDA device count: {torch.cuda.device_count()}")
+    # if torch.cuda.is_available():
+    #     print(f"Current CUDA device: {torch.cuda.current_device()}")
+    #     print(f"CUDA device name: {torch.cuda.get_device_name(0)}")
 
     args = parse_args()
     model_type = args.model
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/"
 
     policy_kwargs = {
-        "net_arch": dict(pi=[256, 256], vf=[256, 256]),
+        "net_arch": dict(pi=[128,128], vf=[128, 128]),
         "activation_fn": nn.ReLU
     }
 
@@ -73,9 +73,16 @@ if __name__ == "__main__":
 
     model_path = log_dir + "best_model.zip"
     if os.path.exists(model_path):
-        model = model_class.load(model_path, env=env, ent_coef=1e-2, learning_rate=3e-4,)
+        model = model_class.load(model_path, env=env, ent_coef=1e-3)
     else:
-        model = model_class("MlpPolicy", env, device="cuda", policy_kwargs=policy_kwargs, ent_coef=1e-2, learning_rate=1e-4, verbose=1)
+        model = model_class(   
+                "MlpPolicy", 
+                env, 
+                device="cpu", 
+                policy_kwargs=policy_kwargs, 
+                ent_coef=1e-2, 
+                learning_rate=lambda progress: 1e-4 + (1e-3 - 1e-4) * progress, 
+                verbose=1)
 
     timesteps = args.timesteps
 

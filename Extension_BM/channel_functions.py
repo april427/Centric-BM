@@ -85,7 +85,7 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
     else:
         fai1 = np.array([fai1])
     A_t = np.zeros([Nt,N],dtype = complex)
-    alpha = np.zeros([N],dtype = complex)
+    alpha = np.zeros([N],dtype = float)
     H_f = np.array(np.zeros([Nt, Nsym,Nc],dtype = complex))
     for i in range(N):
         A_t[:,i] = 1/np.sqrt(Nt) * np.exp(-1j*np.pi*n_t*np.sin(fai1[i])) # Normalized steering vector, it is the same as the one in frequency_sensing_channel 

@@ -57,6 +57,9 @@ class BeamManagementEnv(gym.Env):
 
         self.max_latency = [6, 8]
         self.buffer_size = [4, 5]  # buffers size of each UE 
+        if self.N_UTs == 3:
+            self.max_latency = [6, 8, 10]
+            self.buffer_size = [4, 5, 6]
         self.buffers = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
         self.waiting_times = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)
@@ -440,7 +443,7 @@ class BeamManagementEnv(gym.Env):
                         self.current_beam[i,] = self.current_beam[i]
                     else:
                         index = np.argmax(self.memory[self.current_beam[i]])
-                        self.current_beam[i,] = index
+                        self.current_beam[i,] = self.current_beam[i][index]
                 elif action[i] == 2: # beam is turned left
                     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]]
                     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
@@ -455,7 +458,14 @@ class BeamManagementEnv(gym.Env):
                     if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
                         count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
                         # Find the index of the first unused beam that is closest to the current beam
-                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), self.current_beam[i,])
+                        used_beams = []
+                        for j in range(i+1):
+                            if isinstance(self.current_beam[j], np.ndarray):
+                                used_beams.extend(self.current_beam[j].flatten())
+                            else:
+                                used_beams.append(self.current_beam[j])
+                        used_beams = np.unique(used_beams)
+                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
                         self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
 
                 elif action[i] == 3: # beam is turned right
@@ -472,7 +482,15 @@ class BeamManagementEnv(gym.Env):
                     if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
                         count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
                         # Find the index of the first unused beam that is closest to the current beam
-                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), self.current_beam[i,])
+                        # First find the beams already used by users 0 to i-1
+                        used_beams = []
+                        for j in range(i+1):
+                            if isinstance(self.current_beam[j], np.ndarray):
+                                used_beams.extend(self.current_beam[j].flatten())
+                            else:
+                                used_beams.append(self.current_beam[j])
+                        used_beams = np.unique(used_beams)
+                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
                         self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
 
                 self.action_beam[self.current_beam[i]] = i+1  
@@ -567,6 +585,7 @@ class BeamManagementEnv(gym.Env):
         import matplotlib.pyplot as plt    
         for u in range(self.N_UTs):
             # Assuming self.action_beam and codebook are already TensorFlow tensors
+            self.action_beam[self.current_beam[u]] = u+1
             action_beam_mask = np.equal(self.action_beam, u + 1)
             
             AA = action_beam_mask.astype(np.complex64) * codebook
@@ -576,11 +595,17 @@ class BeamManagementEnv(gym.Env):
             CC = CC[action_beam_mask != 0]
             user_data = np.broadcast_to(np.squeeze(self.x_rg[:,:,u,]), CC.shape)
             CC = np.where(user_data != 0, np.divide(coe * CC, user_data), CC)
-            DD = np.sum(CC, axis=0)
-            
-            DD_spectrum = np.fft.fftshift(np.fft.fft2(DD, [num_dopplerbin, num_rangebin], axes=(-2, -1)))
-            max_idx = np.array(np.unravel_index(np.argmax(np.abs(DD_spectrum)), DD_spectrum.shape))
-            max_idx = np.array((max_idx[0] - num_dopplerbin // 2, max_idx[1] - num_rangebin // 2))
+            # DD = np.sum(CC, axis=0)
+            # DD_spectrum = np.fft.fftshift(np.fft.fft2(DD, [num_dopplerbin, num_rangebin], axes=(-2, -1)))
+            # max_idx = np.array(np.unravel_index(np.argmax(np.abs(DD_spectrum)), DD_spectrum.shape))
+            # max_idx = np.array((max_idx[0] - num_dopplerbin // 2, max_idx[1] - num_rangebin // 2))
+
+            DD_spectrum = np.fft.fftshift(np.fft.fft2(CC, [num_dopplerbin, num_rangebin], axes=(-2, -1)))
+            if DD_spectrum.size == 0:
+                print('Warning: DD_spectrum is empty for user', u)
+            max_idx_temp = np.array(np.unravel_index(np.argmax(np.abs(DD_spectrum)), DD_spectrum.shape))
+            max_idx = np.array((max_idx_temp[1] - num_dopplerbin // 2, max_idx_temp[2] - num_rangebin // 2))
+
             self.R_estimate[u] = - 3e8*max_idx[1]/(2*self.subcarrier_spacing*num_rangebin)
             self.v_estimate[u] = 3e8*max_idx[0]/(2*self.ofdm_symbol_duration*self.carrier_frequency*num_dopplerbin)
 
@@ -611,6 +636,10 @@ class BeamManagementEnv(gym.Env):
         drop_latency = 0
         reward_transmission = np.zeros((self.N_UTs, ), dtype=np.float32)
         success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
+
+        reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.5) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.2)).astype('float32')
+        reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.2) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.04)).astype('float32')
+
         for user_id in np.where(success_packet != 0)[0]:
             pak_inx = np.argmax(self.waiting_times[user_id,])
             self.latency[user_id] = self.waiting_times[user_id, pak_inx]
@@ -638,11 +667,10 @@ class BeamManagementEnv(gym.Env):
 
         reward_drop = - (drop_overload + drop_latency)
         #reward_estimation = - (np.sum(self.nmse_R>0.5) + np.sum(self.nmse_v >0.2)).astype('float32')
-        reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.5) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.2)).astype('float32')
-        reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.2) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.04)).astype('float32')
+
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( np.sum(reward_transmission) + reward_drop + reward_estimation1 + reward_estimation2 + 0.5* reward_jump )
+        reward = float( np.sum(reward_transmission) + reward_drop + 2*reward_estimation1 + 2*reward_estimation2 + 0.5* reward_jump )
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
         for user_id in range(self.N_UTs):
@@ -666,14 +694,14 @@ class BeamManagementEnv(gym.Env):
 
         
         if self.if_debugging:
-            print(action)
-            print(Pt, self.SE, self.current_beam)
-            plt.plot(self.memory)
-            plt.xlabel("beam index")
-            plt.ylabel("Echo power")
-            print(beam_genie)
-            print(reward, self.buffers)
-            print(self.waiting_times)
+            print('Action =', action)
+            print('Pt =', Pt, self.SE, self.current_beam)
+            # plt.plot(self.memory)
+            # plt.xlabel("beam index")
+            # plt.ylabel("Echo power")
+            print('GenieBeam =', beam_genie)
+            print('reward =', reward, 'Buffer =', self.buffers)
+            print('WaitingTime = ', self.waiting_times)
             print(self.buffer_occupancy, np.max(self.waiting_times, axis=1), reward_transmission)
             
             # A = np.einsum('ij, jknp -> iknp', np.conj(codebook.T), H_BS.squeeze())
