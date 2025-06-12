@@ -34,12 +34,12 @@ def parse_args():
     parser.add_argument('--N_UTs', type=int, default=2, help='Number of UEs')
     parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
     parser.add_argument('--model', type=str, default='PPO', help='Model to train')
-    parser.add_argument('--timesteps', type=int, default=3e5, help='Number of timesteps to train')
+    parser.add_argument('--timesteps', type=int, default=4e5, help='Number of timesteps to train')
     parser.add_argument('--if_training', type=bool, default=True, help='Training or testing')
     parser.add_argument('--if_debugging', type=bool, default=False, help='If in debugging mode')
     parser.add_argument('--Ptdbm', type=int, default=15, help='Transmit power in dbm')
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v4', help='Environment ID')
-    parser.add_argument('--cdir', type=str, default= 'sAs_newB_waitT_newSense_128_reusebeams', help='Log directory')
+    parser.add_argument('--cdir', type=str, default= '128_estTh', help='Log directory')
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
     
     args, unknown = parser.parse_known_args()
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     model_path = log_dir + "best_model.zip"
     if os.path.exists(model_path):
-        model = model_class.load(model_path, env=env, ent_coef=1e-3)
+        model = model_class.load(model_path, env=env, ent_coef=1e-3, learning_rate = 0.0005)
     else:
         model = model_class(   
                 "MlpPolicy", 

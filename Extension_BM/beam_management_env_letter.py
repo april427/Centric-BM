@@ -502,7 +502,7 @@ class BeamManagementEnv(gym.Env):
         
         AA = np.einsum('kjom, ji -> kiom', H_UT.squeeze(), transmit_beam)
         xi = np.diag(np.mean(np.square(np.abs(AA)), axis = (-2,-1)))
-        Pt = dynamic_power_allocation(self.Rd, xi, Pt, self.Pt_mW, np.ones([self.N_UTs,], dtype=np.int32), [0,2], self.N_UTs,[1,1] )
+        Pt = dynamic_power_allocation(self.R_estimate, xi, Pt, self.Pt_mW, np.ones([self.N_UTs,], dtype=np.int32), [0,2], self.N_UTs,[1,1] )
             
 
         #############################################################
@@ -637,8 +637,8 @@ class BeamManagementEnv(gym.Env):
         reward_transmission = np.zeros((self.N_UTs, ), dtype=np.float32)
         success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
 
-        reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.5) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.2)).astype('float32')
-        reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.2) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.04)).astype('float32')
+        reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.3) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.3)).astype('float32')
+        reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.15) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.2)).astype('float32')
 
         for user_id in np.where(success_packet != 0)[0]:
             pak_inx = np.argmax(self.waiting_times[user_id,])
