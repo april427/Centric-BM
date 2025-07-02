@@ -32,7 +32,7 @@ class BeamManagementEnv(gym.Env):
         #self.action_space = Box(low =np.array([0]*self.number_of_antennas), high = np.array([1]*self.number_of_antennas),shape = (self.number_of_antennas, ))
         self.action_space = MultiDiscrete(np.ones(self.N_UTs) *4)
         #
-        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(1*self.number_of_antennas + 2*self.N_UTs,)) #
+        self.observation_space = Box(low=0, high=np.inf, shape=(2*self.number_of_antennas + 2*self.N_UTs,)) #
 
         self.carrier_frequency = 28e9  # carrier frequency (Hz)
         self.wavelength = 3e8/ self.carrier_frequency  # wavelength (m)
@@ -121,6 +121,13 @@ class BeamManagementEnv(gym.Env):
             [[30., 34.],[22., 72.],[88., 28.],[75., 68.],[20., 34.]],
             [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
             [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
+        
+        # initial_pos_training = np.array([[[28.94107588, 68.23257549],[13.65641925, 32.50218955],[ 0.,0. ],[ 0., 0. ],[ 0. ,  0. ]],
+        #         [[38.55909558, 56.84769128],[ 2.86878198, 40.91991998],[ 0.,0. ],[ 0. , 0. ],[ 0. , 0. ]],
+        #         [[35.28640194 ,36.62940076],[ 2.17566056, 62.93735003], [ 0.,0. ],[ 0. , 0. ],[ 0.,0. ]],
+        #         [[27.36085836 ,70.15696117], [13.35832339 ,31.69553696],[ 0. ,  0. ], [ 0. , 0. ],[ 0.,0. ]],
+        #         [[27.86992931, 30.22445439],[14.70413225 ,67.55460466],[ 0. ,  0. ],[ 0. , 0. ],[ 0. , 0. ]],
+        #         [[41.1063033 , 51.49589794],[ 0.80347033 ,47.09410832],[ 0.,0. ],[ 0.,0. ],[ 0.,0. ]]])
 
         initial_config = np.array([[[1, 1],[2, 2],[0, 0],[4, 2],[0, 0]] ,
                                 [[0, 0],[4, 2],[4, 2],[4, 2],[0, 0]] ,
@@ -136,8 +143,8 @@ class BeamManagementEnv(gym.Env):
                                 [[0, 0],[3,3],[1, 1],[4, 2], [4,2]]] )
 
         initial_if_turned = np.array([False, False, False, False, False])
-        if False:
-            dice = np.random.randint(0, 1)
+        if True:
+            dice = np.random.randint(0, 6)
             self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
             self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
             self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
@@ -246,7 +253,7 @@ class BeamManagementEnv(gym.Env):
         y_BS2 = np.einsum('uj, nijom->niuom ' , np.conj(transmit_beam.T), y_BS)
         y_BS2 = y_BS2* np.conj(self.x_rg)
 
-        echo_bf_db = np.zeros([ self.number_of_antennas])
+        echo_bf_db = np.zeros([self.N_UTs, self.number_of_antennas])
         for u in range(self.N_UTs):
             # Assuming self.action_beam and codebook are already TensorFlow tensors
             action_beam_mask = np.equal(self.action_beam, u + 1)
@@ -536,9 +543,9 @@ class BeamManagementEnv(gym.Env):
         
 
         # calculate the received sensing signal
-        su_idx = np.where(self.buffer_occupancy == 0)[0]
-        temp_sensing = np.einsum('uj, nijom->niuom', transmit_beam[:,su_idx], self.x_rg[:,:,su_idx,:,:])
-        y_UT_sensing = channel_freq(temp_sensing, H_UT, 0)
+        # su_idx = np.where(self.buffer_occupancy == 0)[0]
+        # temp_sensing = np.einsum('uj, nijom->niuom', transmit_beam[:,su_idx], self.x_rg[:,:,su_idx,:,:])
+        # y_UT_sensing = channel_freq(temp_sensing, H_UT, 0)
 
         #############################################################
         #               Received signal
@@ -560,7 +567,7 @@ class BeamManagementEnv(gym.Env):
         # spectral efficiency
         #y_UT_pow = tf.squeeze(tf.square(tf.abs(y_UT)))
         sig_pow = np.squeeze(np.square(np.abs(y_UT_eff)))
-        interference  = y_UT - y_UT_eff - y_UT_sensing
+        interference  = y_UT - y_UT_eff 
         inter_pow = np.squeeze(np.square(np.abs(interference)))
         
         sinr_pow = sig_pow/(inter_pow + self.noise_power)
@@ -637,8 +644,11 @@ class BeamManagementEnv(gym.Env):
         reward_transmission = np.zeros((self.N_UTs, ), dtype=np.float32)
         success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
 
-        reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.3) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.3)).astype('float32')
-        reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.15) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.2)).astype('float32')
+        # reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.3) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.3)).astype('float32')
+        # reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.15) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.2)).astype('float32')
+
+        reward_estimation1 = (np.sum(np.log( self.nmse_R[self.buffer_occupancy!=0])/np.log(1/3)) + np.sum(np.log(self.nmse_v[self.buffer_occupancy!=0])/np.log(1/3))).astype('float32')
+        reward_estimation2 = (np.sum( np.log(self.nmse_R[self.buffer_occupancy==0])/np.log(1/3)) + np.sum( np.log(self.nmse_v[self.buffer_occupancy==0])/np.log(1/3))).astype('float32')
 
         for user_id in np.where(success_packet != 0)[0]:
             pak_inx = np.argmax(self.waiting_times[user_id,])
@@ -670,7 +680,7 @@ class BeamManagementEnv(gym.Env):
 
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( np.sum(reward_transmission) + reward_drop + 2*reward_estimation1 + 2*reward_estimation2 + 0.5* reward_jump )
+        reward = float( np.sum(reward_transmission) - drop_latency + reward_estimation1 + reward_estimation2 + 0.5* reward_jump )
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
         for user_id in range(self.N_UTs):
@@ -684,6 +694,7 @@ class BeamManagementEnv(gym.Env):
                         break
             elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] > self.buffer_size[user_id]:
                 drop_overload += 1
+        reward -= drop_overload  # penalize for overload
 
         # self.buffers = np.maximum(self.buffers - success_packet - drop_latency - drop_overload + arrivals, 0)
         self.successful_transmission += np.sum(success_packet)
@@ -696,7 +707,8 @@ class BeamManagementEnv(gym.Env):
         if self.if_debugging:
             print('Action =', action)
             print('Pt =', Pt, self.SE, self.current_beam)
-            # plt.plot(self.memory)
+            plt.plot(echo_bf_db)
+            
             # plt.xlabel("beam index")
             # plt.ylabel("Echo power")
             print('GenieBeam =', beam_genie)
@@ -734,8 +746,8 @@ class BeamManagementEnv(gym.Env):
 
 
     def _get_state(self):
-        return (np.concatenate((self.memory.flatten(), 
-                                #self.action_beam, 
+        return (np.concatenate(((self.memory-np.min(self.memory)).flatten(), 
+                                self.action_beam, 
                                 #self.AoD, self.ut_velocities[0,: , 0], 
                                 self.buffer_occupancy,
                                 np.max(self.waiting_times, axis=1)

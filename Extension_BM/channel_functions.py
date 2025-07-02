@@ -241,9 +241,11 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
             counter -= 1
     
     if np.any(np.isnan(Pt)):
-        Pt[np.isnan(Pt)] = 0
-        Pt[~np.isnan(Pt)] = Pt_mW / np.count_nonzero(Pt[~np.isnan(Pt)])
+        Pt[np.isnan(Pt)] = Pt_mW - np.sum(Pt[~np.isnan(Pt)])
+        # Pt[~np.isnan(Pt)] = Pt_mW / np.count_nonzero(Pt[~np.isnan(Pt)])
 
+    if np.any(Pt == 0):
+        Pt = np.ones(N_UEs) * (Pt_mW/N_UEs)
     return Pt
 
 # ausiliary functions: convert decimal to base b

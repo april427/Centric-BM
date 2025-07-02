@@ -72,7 +72,7 @@ from beam_management_env_letter import BeamManagementEnv
 from channel_functions import *
 from util_functions import *
 
-env = gym.make('BeamManagementEnv-v2', if_training=False)
+# env = gym.make('BeamManagementEnv-v2', if_training=False)
 
 ########################################################################################
 # %%
@@ -116,11 +116,14 @@ topo = gen_topology(batch_size, N_UTs, scenario)
 bs_loc = tf.constant([50, 50, 0], dtype = tf.float32)
 bs_loc = tf.expand_dims(tf.expand_dims(bs_loc,axis=0),axis=0)
 ut_loc = np.zeros((batch_size, N_UTs, 3))
+cross_pos = np.array([[27, 80], [30, 70]])
+road_matrix = road(cross_pos)
+single_lane_width = 5
 
-ut_loc[0,:,:], config, if_turned = user_pos_direction_init(env.unwrapped.road_matrix, env.unwrapped.cross_pos, N_UTs, env.unwrapped.single_lane_width) 
+ut_loc[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UTs, single_lane_width) 
 for s in range(1, batch_size):
     for i in range(N_UTs):
-        ut_loc[s, i,:], config[i,:], if_turned[i] = update_positions(ut_loc[s-1,i,:], env.unwrapped.cross_pos, sample_velocity(), 0.1, env.unwrapped.single_lane_width, config[i,:], if_turned[i]) 
+        ut_loc[s, i,:], config[i,:], if_turned[i] = update_positions(ut_loc[s-1,i,:], cross_pos, sample_velocity(), 0.1, single_lane_width, config[i,:], if_turned[i]) 
 
 ut_velocities = np.zeros((batch_size, N_UTs, 3))
 ut_velocities[:,:,0:2] = np.random.normal(loc = 20, scale=2, size = (batch_size, N_UTs, 2))
