@@ -4,7 +4,7 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--N_UTs', type=int, default=2, help='Number of UEs')
+    parser.add_argument('--N_UTs', type=int, default=3, help='Number of UEs')
     parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
     parser.add_argument('--model', type=str, default='PPO', help='Model to train')
     parser.add_argument('--timesteps', type=int, default=4e5, help='Number of timesteps to train')

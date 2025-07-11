@@ -109,25 +109,26 @@ class BeamManagementEnv(gym.Env):
         ########################################################################
         #                set limited options for initial positions              #
         ########################################################################
-        initial_pos_training = np.array([[[36., 33.],[24., 62.],[72., 26.],[77., 68.],[17., 29.]],
-            [[17., 28.],[22., 66.],[83., 30.],[79., 74.],[20., 27.]],  
-            [[36., 25.],[26., 75.],[89., 30.],[77., 64.],[31., 29.]] ,
-            [[18., 25.],[25., 77.],[71., 32.],[78., 76.],[32., 31.]] ,
-            [[36., 25.],[26., 64.],[86., 27.],[75., 61.],[23., 31.]] ,
-            [[31., 25.],[24., 78.],[87., 30.],[76., 62.],[27., 26.]] ,
-            [[30., 29.],[23., 74.],[73., 25.],[78., 79.],[30., 32.]] ,
-            [[28., 32.],[25., 63.],[77., 25.],[77., 62.],[18., 34.]] ,
-            [[31., 27.],[26., 67.],[74., 26.],[75., 69.],[31., 26.]] ,
-            [[30., 34.],[22., 72.],[88., 28.],[75., 68.],[20., 34.]],
-            [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
-            [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
+        # initial_pos_training = np.array([[[36., 33.],[24., 62.],[72., 26.],[77., 68.],[17., 29.]],
+        #     [[17., 28.],[22., 66.],[83., 30.],[79., 74.],[20., 27.]],  
+        #     [[36., 25.],[26., 75.],[89., 30.],[77., 64.],[31., 29.]] ,
+        #     [[18., 25.],[25., 77.],[71., 32.],[78., 76.],[32., 31.]] ,
+        #     [[36., 25.],[26., 64.],[86., 27.],[75., 61.],[23., 31.]] ,
+        #     [[31., 25.],[24., 78.],[87., 30.],[76., 62.],[27., 26.]] ,
+        #     [[30., 29.],[23., 74.],[73., 25.],[78., 79.],[30., 32.]] ,
+        #     [[28., 32.],[25., 63.],[77., 25.],[77., 62.],[18., 34.]] ,
+        #     [[31., 27.],[26., 67.],[74., 26.],[75., 69.],[31., 26.]] ,
+        #     [[30., 34.],[22., 72.],[88., 28.],[75., 68.],[20., 34.]],
+        #     [[25., 35.],[46., 67.],[ 8., 71.],[76., 17.],[95., 30.]],
+        #     [[ 9., 26.],[84., 44.],[46., 74.],[80., 73.],[31,68]]] )
+
+        initial_pos_training = np.array([[[36., 33.],[24., 62.],[17., 29.],[72., 26.],[77., 68.]],
+            [[17., 28.],[22., 66.],[20., 27.],[83., 30.],[79., 74.]],  
+            [[36., 25.],[26., 75.],[31., 29.],[89., 30.],[77., 64.]] ,
+            [[18., 25.],[25., 77.],[32., 31.],[71., 32.],[78., 76.]] ,
+            [[36., 25.],[26., 64.],[23., 31.],[86., 27.],[75., 61.]] ,
+            [[31., 25.],[24., 78.],[27., 26.],[87., 30.],[76., 62.]]] )
         
-        # initial_pos_training = np.array([[[28.94107588, 68.23257549],[13.65641925, 32.50218955],[ 0.,0. ],[ 0., 0. ],[ 0. ,  0. ]],
-        #         [[38.55909558, 56.84769128],[ 2.86878198, 40.91991998],[ 0.,0. ],[ 0. , 0. ],[ 0. , 0. ]],
-        #         [[35.28640194 ,36.62940076],[ 2.17566056, 62.93735003], [ 0.,0. ],[ 0. , 0. ],[ 0.,0. ]],
-        #         [[27.36085836 ,70.15696117], [13.35832339 ,31.69553696],[ 0. ,  0. ], [ 0. , 0. ],[ 0.,0. ]],
-        #         [[27.86992931, 30.22445439],[14.70413225 ,67.55460466],[ 0. ,  0. ],[ 0. , 0. ],[ 0. , 0. ]],
-        #         [[41.1063033 , 51.49589794],[ 0.80347033 ,47.09410832],[ 0.,0. ],[ 0.,0. ],[ 0.,0. ]]])
 
         initial_config = np.array([[[1, 1],[2, 2],[0, 0],[4, 2],[0, 0]] ,
                                 [[0, 0],[4, 2],[4, 2],[4, 2],[0, 0]] ,
@@ -402,9 +403,9 @@ class BeamManagementEnv(gym.Env):
                 vec_u_norm = vec_u / np.linalg.norm(vec_u)
 
 
-            elif (action == 'greedy' or 'estimated'): # Greedy beam selection
+            elif (action == 'genie' or 'estimated'): # Greedy beam selection
                 self.action_beam = np.zeros((self.number_of_antennas))
-                if action == 'greedy':
+                if action == 'genie':
                     for u in range(self.N_UTs):
                         self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t[:,0,u])) @ codebook))
                 else:
@@ -499,6 +500,9 @@ class BeamManagementEnv(gym.Env):
                         used_beams = np.unique(used_beams)
                         unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
                         self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
+                
+                elif action[i] == 4: # beam is expanded to the adjacent two beams
+                    self.current_beam[i,] = np.mod(self.current_beam[i]+[-1, 0, 1], self.number_of_antennas) # for TDMA
 
                 self.action_beam[self.current_beam[i]] = i+1  
         
@@ -680,7 +684,8 @@ class BeamManagementEnv(gym.Env):
 
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( np.sum(reward_transmission) - drop_latency + reward_estimation1 + reward_estimation2 + 0.5* reward_jump )
+        reward = float( np.sum(reward_transmission) - drop_latency + reward_estimation1 + reward_estimation2 + 0.5* reward_jump  + np.sum(self.SE) ) #
+
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
         for user_id in range(self.N_UTs):

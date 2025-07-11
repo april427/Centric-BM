@@ -7,18 +7,11 @@ from stable_baselines3 import  PPO, DDPG, A2C
 #from stable_baselines3.common.env_util import make_env
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-#from stable_baselines3.common.evaluation import evaluate_policy
-# from stable_baselines3.common import results_plotter
-# from stable_baselines3.common.monitor import Monitor
-# from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
-# from stable_baselines3.common.noise import NormalActionNoise
-# from stable_baselines3.common.callbacks import BaseCallback
 import time
 
 import itertools
 
 import sys, os
-# sys.path.append('/Users/xiyu/Documents/AAU/CENTRIC_codes/PPO_beam_management/Extension_BM/')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from beam_management_env_letter import BeamManagementEnv
 import pandas as pd
@@ -26,19 +19,19 @@ import seaborn as sns
 from matplotlib.colors import BoundaryNorm
 from matplotlib.colors import ListedColormap
 from parse_args import parse_args
+from channel_functions import base, N_TDMA
 
 if __name__ == "__main__":
     args = parse_args()
     model_type = args.model
     model_class = getattr(sys.modules[__name__], model_type)
-    args.N_UTs = 2
-    args.cdir = 'logEstTh_beamAct'
+    # args.N_UTs = 2
     args.if_training=False
     # args.if_debugging = True
     method = args.eval_method
 
     log_dir = log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
-    # monitor_file = log_dir + "monitor.csv"
+    # monitor_file = log_dir + "monitor_0.csv"
     # monitor_data = pd.read_csv(monitor_file, skiprows=0)
 
     # window_size = 1000
@@ -54,6 +47,15 @@ if __name__ == "__main__":
     env = gym.make(args.EnvID,  args = args)
     print("N_UTs=", args.N_UTs)
     print(log_dir)
+
+    #### N-TDMA method ###
+    if method.endswith('TDMA'):
+        # Generate the N-TDMA actions
+        nn = int(method.split('-')[0])
+        list_actions = N_TDMA(nn, args.N_UTs)
+        for i in range(len(list_actions)):
+            list_actions[i] = base(2, list_actions[i], args.N_UTs)
+        list_actions = (np.array(list_actions) * 3 + 1).tolist()
 
     # %%
     ################################## Evaluate ####################################
@@ -87,12 +89,19 @@ if __name__ == "__main__":
 
         genie_beams = []
         beams = []
+        l_a = 0
 
         for t in range(num_steps):
-            action, _states = model.predict(obs)
-            
             if method == 'trained':
+                action, _states = model.predict(obs)
                 obs, rewards, dones, _, info = env.step(action=action)
+            elif method.endswith('TDMA'):
+                action = list_actions[l_a]
+                obs, rewards, dones, _, info = env.step(action=action)
+                l_a += 1
+                if l_a >= len(list_actions):
+                    l_a = 0
+
             else:
                 obs, rewards, dones, _, info = env.step(action=method)
             
@@ -134,8 +143,13 @@ if __name__ == "__main__":
 
 # %%
 ################################## PLOTS ####################################
-    color = ['red', 'grey']
-    labels = ['UE0', 'UE1']
+    from matplotlib.colors import ListedColormap
+    my_colors = ['#B2CCF3', '#FF983B', '#AF5124', '#83CA27']
+    my_cmap = ListedColormap(my_colors)
+    colors = ['#DB7415','#600C0CF0', '#09A603']
+
+    # colors = ['orange', 'red', 'green']
+    labels = ['UE1', 'UE2', 'UE3']
     if args.num_eval_episodes > 1:
         # Reward
         figure_handle = plt.figure()
@@ -157,11 +171,11 @@ if __name__ == "__main__":
         ax = figure_handle.add_subplot()
         se_cdf = np.sort(spectrum_efficiency[:,0])
         yvals = np.arange(len(se_cdf))/float(len(se_cdf)-1)
-        ax.plot(se_cdf, yvals, '-', color = 'red', label='UE0')
+        ax.plot(se_cdf, yvals, '-', color = 'red', label='UE1')
 
         se_cdf = np.sort(spectrum_efficiency[:,1])
         yvals = np.arange(len(se_cdf))/float(len(se_cdf)-1)
-        ax.plot(se_cdf, yvals, '-', color = 'grey', label='UE1')
+        ax.plot(se_cdf, yvals, '-', color = 'grey', label='UE2')
         ax.set_xlabel('Spectrum Efficiency')
         ax.set_ylabel('CDF')
         plt.show()
@@ -209,7 +223,7 @@ if __name__ == "__main__":
         er_cdf = np.sort(temp)
         yvals = np.arange(len(er_cdf))/float(len(er_cdf)-1)
 
-        ax3.plot(er_cdf, yvals, '-', color=color[u], label=labels[u])
+        ax3.plot(er_cdf, yvals, '-', color=colors[u], label=labels[u])
 
     ax3.set_xlabel('Normalized Error of Range Estimation')
     ax3.set_ylabel('CDF')
@@ -222,7 +236,7 @@ if __name__ == "__main__":
         temp = nmseV_allsteps[:,u,:].flatten()
         ev_cdf = np.sort(temp)
         yvals = np.arange(len(ev_cdf))/float(len(ev_cdf)-1)
-        ax4.plot(ev_cdf, yvals, '-', color=color[u], label=labels[u])
+        ax4.plot(ev_cdf, yvals, '-', color=colors[u], label=labels[u])
     ax4.set_xlabel('Normalized Error of Speed Estimation')
     ax4.set_ylabel('CDF')
     plt.show()
@@ -234,7 +248,7 @@ if __name__ == "__main__":
         temp = nmseA_allsteps[:,u,:].flatten()
         ea_cdf = np.sort(temp)
         yvals = np.arange(len(ea_cdf))/float(len(ea_cdf)-1)
-        ax5.plot(ea_cdf, yvals, '-', color=color[u], label=labels[u])
+        ax5.plot(ea_cdf, yvals, '-', color=colors[u], label=labels[u])
     ax5.set_xlabel('Error of Angle Estimation')
     ax5.set_ylabel('CDF')
     plt.show()
@@ -246,7 +260,7 @@ if __name__ == "__main__":
     # 1. NMSE of Range Estimation per User
     nmseR_allsteps = np.array(nmseR_allsteps)
     for i in range(args.N_UTs):
-        axs[0, 0].plot(nmseR_allsteps[0, i, :], color=color[i], label=labels[i])
+        axs[0, 0].plot(nmseR_allsteps[0, i, :], color=colors[i], label=labels[i])
     axs[0, 0].set_xlabel('Time Step')
     axs[0, 0].set_ylabel('Normalized Error of Range Estimation')
     axs[0, 0].set_title('NMSE of Range Estimation per User')
@@ -255,7 +269,7 @@ if __name__ == "__main__":
     # 2. NMSE of Speed Estimation per User
     nmseV_allsteps = np.array(nmseV_allsteps)
     for i in range(args.N_UTs):
-        axs[0, 1].plot(nmseV_allsteps[0, i, :], color=color[i], label=labels[i])
+        axs[0, 1].plot(nmseV_allsteps[0, i, :], color=colors[i], label=labels[i])
     axs[0, 1].set_xlabel('Time Step')
     axs[0, 1].set_ylabel('Normalized Error of Speed Estimation')
     axs[0, 1].set_title('NMSE of Speed Estimation per User')
@@ -264,7 +278,7 @@ if __name__ == "__main__":
     # 3. Trajectory of UEs
     bs_loc = env.unwrapped.bs_loc[0,:,:]
     axs[1, 0].scatter(bs_loc[:,0], bs_loc[:,1], marker="^", color='green', label='BS')
-    markcolor = ['red' , 'grey']
+    markcolor = ['red' , 'grey', 'green']
     for i in range(args.N_UTs):
         ue_pos_x = ut_loc[:,i,0]
         ue_pos_y = ut_loc[:,i,1]
@@ -273,7 +287,7 @@ if __name__ == "__main__":
         pos_x = ue_pos_x[:-1] + du/2
         pos_y = ue_pos_y[:-1] + dv/2
         norm = np.sqrt(du**2+dv**2) 
-        axs[1, 0].plot(ue_pos_x, ue_pos_y, marker="o", markersize=5, color=markcolor[i], label=f'UE {i}', zorder=3)
+        axs[1, 0].plot(ue_pos_x, ue_pos_y, marker="o", markersize=5, color=markcolor[i], label=f'UE {i+1}', zorder=3)
         axs[1, 0].quiver(pos_x, pos_y, du/norm, dv/norm, angles="xy", zorder=1, pivot="mid")
     axs[1, 0].set_xlabel('X-axis')
     axs[1, 0].set_ylabel('Y-axis')
@@ -286,27 +300,27 @@ if __name__ == "__main__":
     for t in num_steps_range:
         heatmap_data[:, t] = np.array(beams[t])
     levels = [0] + [i + 1 for i in range(args.N_UTs+1)]
-    cmap = plt.get_cmap("Paired", len(levels) - 1)
-    norm = BoundaryNorm(levels, cmap.N, clip=True)
-    legend_labels = ['Idle'] + [f'UE {i} beams' for i in range(args.N_UTs)]
-    custom_cmap = ListedColormap(cmap(np.linspace(0, 1, len(levels) - 1)))
-    sns.heatmap(heatmap_data, cmap=cmap, norm=norm, ax=axs[1, 1], cbar=False)
+    # cmap = plt.get_cmap("Paired", len(levels) - 1)
+    norm = BoundaryNorm(levels, my_cmap.N, clip=True)
+    legend_labels = ['Idle'] + [f'UE {i+1} beams' for i in range(args.N_UTs)]
+    # custom_cmap = ListedColormap(cmap(np.linspace(0, 1, len(levels) - 1)))
+    sns.heatmap(heatmap_data, cmap=my_cmap, norm=norm, ax=axs[1, 1], cbar=False)
     axs[1, 1].set_xlabel('Time Index')
     axs[1, 1].set_ylabel('Beam Steps')
     axs[1, 1].set_title('Allocated Beams and Genie Beams')
     axs[1, 1].grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
-    colors = plt.cm.get_cmap('Set1', args.N_UTs)
+    # colors = plt.cm.get_cmap('Set1', args.N_UTs)
     for t in num_steps_range:
         for u in range(args.N_UTs):
             if t == 0:
-                axs[1, 1].scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors(u), s=20, label=f'UE{u}')
+                axs[1, 1].scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors[u], s=20, label=f'UE{u+1}')
             else:
-                axs[1, 1].scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors(u), s=20)
+                axs[1, 1].scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors[u], s=20)
     handles, labels_ = axs[1, 1].get_legend_handles_labels()
     by_label = dict(zip(labels_, handles))
     axs[1, 1].legend(by_label.values(), by_label.keys(), loc='upper right', fontsize=8, markerscale=1.5)
     colorbar = plt.colorbar(
-        plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap),
+        plt.cm.ScalarMappable(norm=norm, cmap=my_cmap),
         ax=axs[1, 1],
         ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels)-1 )]
     )
@@ -314,6 +328,52 @@ if __name__ == "__main__":
 
 
     plt.tight_layout()
+    plt.show()
+
+    num_steps_range = range(num_steps)
+    # Create a 2D array for heatmap
+    heatmap_data = np.zeros((args.Nt, num_steps))
+
+    for t in num_steps_range:
+        #for u in range(args.N_UTs):
+            
+        heatmap_data[:, t] = np.array(beams[t])  # Increment the count for the allocated beam
+        #heatmap_data[genie_beams[:][t], t]  = np.array([0.5, 1.5]) 
+
+
+    # # Dynamically set levels, colors, and labels based on number of users
+    levels = [0] + [i + 1 for i in range(args.N_UTs+1)]  # 0: Idle, 1: UE0, 2: UE1, ...
+    # cmap = plt.get_cmap("Paired", len(levels) - 1)
+    norm = BoundaryNorm(levels, my_cmap.N, clip=True)
+    legend_labels = ['Idle'] + [f'UE {i+1} beams' for i in range(args.N_UTs)]
+    # custom_cmap = ListedColormap(cmap(np.linspace(0, 1, len(levels) - 1)))
+
+    figure_handle = plt.figure()
+    ax7 = figure_handle.add_subplot()
+    sns.heatmap(heatmap_data, cmap=my_cmap, norm=norm, ax=ax7, cbar=False)
+    ax7.set_xlabel('Time Index')
+    ax7.set_ylabel('Beam Steps')
+    ax7.grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
+
+    # Scatter plot for genie beams, with unique color per user
+    # colors = plt.cm.get_cmap('Set1', args.N_UTs)
+
+    for t in num_steps_range:
+        for u in range(args.N_UTs):
+            if t == 0:
+                ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors[u], s=20, label=f'UE{u+1}')
+            else:
+                ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors[u], s=20)
+    handles, labels = ax7.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax7.legend(by_label.values(), by_label.keys(), loc='upper right', fontsize=8, markerscale=1.5)
+
+    colorbar = plt.colorbar(
+        plt.cm.ScalarMappable(norm=norm, cmap=my_cmap),
+        ax=ax7,
+        ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels)-1 )]
+    )
+    colorbar.ax.set_yticklabels(legend_labels)
     plt.show()
 
 # %%                                        
@@ -413,50 +473,4 @@ if __name__ == "__main__":
 # plt.show()
 
 
-# %%                  
-###           Plot Allocated Beams and Genie Beams varying with num_steps
-num_steps_range = range(num_steps)
-# Create a 2D array for heatmap
-heatmap_data = np.zeros((args.Nt, num_steps))
-
-for t in num_steps_range:
-    #for u in range(args.N_UTs):
-        
-    heatmap_data[:, t] = np.array(beams[t])  # Increment the count for the allocated beam
-    #heatmap_data[genie_beams[:][t], t]  = np.array([0.5, 1.5]) 
-
-
-# # Dynamically set levels, colors, and labels based on number of users
-levels = [0] + [i + 1 for i in range(args.N_UTs+1)]  # 0: Idle, 1: UE0, 2: UE1, ...
-cmap = plt.get_cmap("Paired", len(levels) - 1)
-norm = BoundaryNorm(levels, cmap.N, clip=True)
-legend_labels = ['Idle'] + [f'UE {i} beams' for i in range(args.N_UTs)]
-custom_cmap = ListedColormap(cmap(np.linspace(0, 1, len(levels) - 1)))
-
-figure_handle = plt.figure()
-ax7 = figure_handle.add_subplot()
-sns.heatmap(heatmap_data, cmap=cmap, norm=norm, ax=ax7, cbar=False)
-ax7.set_xlabel('Time Index')
-ax7.set_ylabel('Beam Steps')
-ax7.grid(True, axis='both', linestyle='--', linewidth=0.5, which='major')
-
-# Scatter plot for genie beams, with unique color per user
-colors = plt.cm.get_cmap('Set1', args.N_UTs)
-for t in num_steps_range:
-    for u in range(args.N_UTs):
-        if t == 0:
-            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors(u), s=20, label=f'UE{u}')
-        else:
-            ax7.scatter(t + 0.5, genie_beams[t][u] + 0.5, color=colors(u), s=20)
-handles, labels = ax7.get_legend_handles_labels()
-by_label = dict(zip(labels, handles))
-ax7.legend(by_label.values(), by_label.keys(), loc='upper right', fontsize=8, markerscale=1.5)
-
-colorbar = plt.colorbar(
-    plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap),
-    ax=ax7,
-    ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels)-1 )]
-)
-colorbar.ax.set_yticklabels(legend_labels)
-plt.show()
 # %%

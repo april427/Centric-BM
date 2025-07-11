@@ -258,6 +258,21 @@ def base(b,n, N_UEs):
         convert_result = [0]*(N_UEs-len(convert_result)) + convert_result
     return convert_result
 
+def N_TDMA(N, N_UEs): # S - C - C... 
+    b = 2 
+    indices = []
+    a = np.ones(N_UEs, dtype = int)
+    ind = sum([a[i]*b**(N_UEs-i-1) for i in range(N_UEs)])
+    indices.append(ind)
+    # indices.extend([np.zeros(N_UEs, dtype = int)])
+
+    for _ in range(N):
+        a = np.zeros(N_UEs, dtype = int)
+        ind = sum([a[i]*b**(N_UEs-i-1) for i in range(N_UEs)]) 
+        indices.append(ind)
+
+    return indices
+
 # %%
 def hyperbolic_func(x, A1, A2, c):
     '''
