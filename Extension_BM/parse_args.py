@@ -17,7 +17,7 @@ def parse_args():
     parser.add_argument('--if_log', type=bool, default=False, help='If log the results')
     parser.add_argument('--num_eval_episodes', type=int, default=1, help='Number of evaluation episodes')
 
-    parser.add_argument('--eval_method', type=str, default='trained', help='Evaluation method: trained, greedy, estimated')
+    parser.add_argument('--eval_method', type=str, default='trained', help='Evaluation method: trained, genie, estimated')
     
     args, unknown = parser.parse_known_args()
     return args

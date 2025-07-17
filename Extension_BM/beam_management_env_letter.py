@@ -684,7 +684,7 @@ class BeamManagementEnv(gym.Env):
 
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
         
-        reward = float( np.sum(reward_transmission) - drop_latency + reward_estimation1 + reward_estimation2 + 0.5* reward_jump  + np.sum(self.SE) ) #
+        reward = float( np.sum(reward_transmission) - drop_latency + reward_estimation1 + reward_estimation2 + 0.5* reward_jump )# + np.sum(self.SE) ) #
 
         # packets arrival
         arrivals = np.random.binomial(size = self.N_UTs, n=1, p = self.arrival_probability) 
