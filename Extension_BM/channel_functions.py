@@ -65,7 +65,7 @@ def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient
 
     return mmWave_LOS_channel
 
-def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai1=None):
+def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai1=None, if_rician=False):
         # Nsym -- Number of OFDM symbols
         # Nc -- Number of subcarriers
         # N -- Number of paths 
@@ -97,10 +97,20 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
         if np.shape(P) != ():
             P = np.diag(P)
         H_f[:,:,k] = np.tile(np.dot(np.conj(A_t), P), [1,Nsym]) # Conjugate of A_t so H can be directly used ApplyOFDMChannel
+    
+    if if_rician:
+    ##### Rician channel
+        K_db = 10
+        K = 10**(K_db/10)
+        non_los_channel = np.sqrt(1/2) * (np.random.randn(Nt, Nsym, Nc) + 1j * np.random.randn(Nt, Nsym, Nc))
+        for sym in range(Nsym):
+            for c in range(Nc):
+                non_los_channel[:, sym, c] = non_los_channel[:, sym, c] / np.linalg.norm(non_los_channel[:, sym, c])
+        H_f = np.sqrt(K/(1+K)) * H_f + np.sqrt(1/(1+K)) * alpha* non_los_channel
         
     return H_f,A_t.squeeze(),alpha.squeeze()
 
-def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing, ofdm_symbol_duration, reflection_coefficient, ut_velocities, wavelength, tau, fai1=None):
+def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing, ofdm_symbol_duration, reflection_coefficient, ut_velocities, wavelength, tau, fai1=None, if_rician=False):
         # Nsym -- Number of OFDM symbols
         # Nc -- Number of subcarriers
         # N = 1 -- 1 path is considered for the sensing channel 
@@ -137,6 +147,22 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
         A_t_conj = np.conj(A_t[:, 0, u])
         A_t_outer = np.outer(A_t[:, 0, u], A_t_conj)
         H_f[0, 0, :, 0, :, :, :] += reflection_coefficient[0, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[0, u] * exp_omega_v[0, u]
+
+    ###  Multiple clutter resources cause echoes to the channel
+    if if_rician:
+        # Define clutter parameters as lists
+        faic_list = [np.pi/15*1, np.pi/14*3, np.pi/17*9, np.pi/17*15]  # Example: two clutters with different angles
+        Rdc_list = [13, 20, 29, 19]                   # Example: two clutters with different distances
+
+        for faic, Rdc in zip(faic_list, Rdc_list):
+            omega_Ac = - np.pi * np.sin(faic)
+            A_tc = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_Ac, n_t)).reshape((Nt, 1, 1), order = 'F')
+            rcc = wavelength*10/ Rdc**2 / (4*np.pi)**1.5
+            exp_omega_Rc = np.exp(1j * np.arange(Nc) * (-2*np.pi * subcarrier_spacing * 2*Rdc / 3e8))
+            exp_omega_vc = np.exp(1j * np.arange(Nsym)[:, np.newaxis] * (4*np.pi * ofdm_symbol_duration * 0))
+            H_f[0, 0, :, 0, :, :, :] += rcc * np.outer(A_tc[:, 0, 0], np.conj(A_tc[:, 0, 0]))[:, :, np.newaxis, np.newaxis] * exp_omega_Rc * exp_omega_vc[0, 0]
+
+
     for b in range(1, batch_size):
         H_f[b, :] = H_f[0, :]
     

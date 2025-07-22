@@ -20,6 +20,7 @@ class BeamManagementEnv(gym.Env):
         
         self.if_training = args.if_training
         self.if_debugging = args.if_debugging
+        self.if_rician = args.if_rician
 
         self.N_UTs = args.N_UTs  # number of UEs 
         self.number_of_antennas = args.Nt  # number of antennas at the ULA BS
@@ -144,13 +145,17 @@ class BeamManagementEnv(gym.Env):
                                 [[0, 0],[3,3],[1, 1],[4, 2], [4,2]]] )
 
         initial_if_turned = np.array([False, False, False, False, False])
-        if True:
+        if self.if_training:
             dice = np.random.randint(0, 6)
             self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
             self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
             self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
         else:
-            self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
+            dice = np.random.randint(0, 3)
+            self.ut_loc[0,:,0:2] = initial_pos_training[dice, 0:self.N_UTs,:]
+            self.config[0,:] = initial_config[dice, 0:self.N_UTs,:]
+            self.if_turned[0,:] = initial_if_turned[0:self.N_UTs]
+            # self.ut_loc[0,:,:], self.config[0,:], self.if_turned[0,:] = user_pos_direction_init(self.road_matrix, self.cross_pos, self.N_UTs, self.single_lane_width) 
         # plt.imshow(self.road_matrix.T)
         # for i in range(self.N_UTs):
         #     plt.scatter(self.ut_loc[0,i,0], self.ut_loc[0,i, 1], label='UE'+str(i+1))
@@ -171,8 +176,8 @@ class BeamManagementEnv(gym.Env):
 
             amp_c = (self.wavelength / (4 * np.pi * self.Rd[0,i]))**2
 
-            H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i])
-
+            H_UT[0, i,0,0, ],_,_ = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, N, self.number_of_antennas, amp_c,self.Rd[0,i]/3e8, self.AoD[i], self.if_rician)
+        print(self.if_rician)
         H_BS, A_t = freqency_sensing_channel(self.batch_size, 
                                              self.num_ofdm_symbols, 
                                              self.fft_size , 
@@ -184,7 +189,8 @@ class BeamManagementEnv(gym.Env):
                                              np.array([self.ut_velocities[0,]]), 
                                              self.wavelength, 
                                              self.Rd*2/3e8, 
-                                             self.AoD)
+                                             self.AoD,
+                                             self.if_rician)
         
         self.x_rg = np.zeros([self.batch_size, 1, self.N_UTs, self.num_ofdm_symbols, self.fft_size], dtype=np.complex64)
         self.x_rg[0,0,:] = np.exp(1j * np.deg2rad(np.random.choice([45, 135, 225, 315], size = (self.N_UTs, self.num_ofdm_symbols,self.fft_size ))))
@@ -361,10 +367,10 @@ class BeamManagementEnv(gym.Env):
 
             amp_c = (self.wavelength / (4 * np.pi * self.Rd[0,i]))**2
 
-            H_UT[0, i,0,0, ], ch_steer[:,i] , ch_alpha[i] = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i])
+            H_UT[0, i,0,0, ], ch_steer[:,i] , ch_alpha[i] = freqency_communication_channel(self.num_ofdm_symbols, self.fft_size, 1, self.number_of_antennas, amp_c, self.Rd[0,i]/3e8, self.AoD[i],self.if_rician)
         
     
-        H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD)
+        H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD, self.if_rician)
 
         #############################################################
         #                         action mask              
@@ -377,26 +383,26 @@ class BeamManagementEnv(gym.Env):
                 self.action_power = [1]*self.N_UTs
             
             elif action == 'other_work':
-                scale = 1/(2*np.sqrt(2**1.3))  # normalized power allocation
+                scale = 1/(2*np.sqrt(2**3))  # normalized power allocation
                 delta_scale = 0.3
-                k1 = np.sqrt((2**1.3 - 1)*self.noise_power) / ch_alpha[0]
-                k2 = np.sqrt(self.noise_power*(2**1.3 -1)) / ch_alpha[1]
+                k1 = np.sqrt((2**3 - 1)*self.noise_power) / ch_alpha[0]
+                k2 = np.sqrt(self.noise_power*(2**3 -1)) / ch_alpha[1]
                 mat_C = ch_steer.T 
                 mat_E = (mat_C @ np.conj(mat_C).T)**(-1)
                 while np.abs(delta_scale) > 0.1:
                     scale = (np.sqrt(scale) + delta_scale)**2
-                    vec_b = np.array([np.sqrt((2**1.3 - 1)*self.noise_power/ scale / ch_alpha[0]), np.sqrt(self.noise_power*(2**1.3 -1) / ch_alpha[1]/ (np.abs(1-scale)*(2**1.3)) ) ])
+                    vec_b = np.array([np.sqrt((2**3 - 1)*self.noise_power/ scale / ch_alpha[0]), np.sqrt(self.noise_power*(2**3 -1) / ch_alpha[1]/ (np.abs(1-scale)*(2**3)) ) ])
 
-                    delta_b = np.array([-k1/scale, k2*(2**1.3)*np.sqrt(scale)*(np.abs(1- scale)*(2**1.3))**(1.5)])
+                    delta_b = np.array([-k1/scale, k2*(2**3)*np.sqrt(scale)*(np.abs(1- scale)*(2**3))**(1.5)])
 
-                    delta_b_2 = np.array([2*k1/scale**(1.5), ((k2*(2**1.3)*(1-scale)* 2**1.3 )**(1.5) - 2**3.6 * scale * 1.5*k2 *np.abs(1-scale)*2**1.3)/(np.abs(1-scale)* (2**1.3))**(3) ])
+                    delta_b_2 = np.array([2*k1/scale**(1.5), ((k2*(2**3)*(1-scale)* 2**3 )**(1.5) - 2**3.6 * scale * 1.5*k2 *np.abs(1-scale)*2**3)/(np.abs(1-scale)* (2**3))**(3) ])
 
                     delta_scale = - (delta_b @ np.conj(mat_E) @ delta_b.T)/(delta_b @np.conj(mat_E) @ delta_b.T + delta_b_2@np.conj(mat_E)@vec_b.T  ) 
                     
                     delta_scale = np.real(delta_scale)
                     if np.isnan(scale) or np.isnan(delta_scale):
                         delta_scale = 0.1
-                        scale = 1/(2*np.sqrt(2**1.3))
+                        scale = 1/(2*np.sqrt(2**3))
                 scale = (np.sqrt(scale) + delta_scale)**2
                 vec_u = np.conj(mat_C).T @ mat_E @ vec_b.T
                 
@@ -646,7 +652,7 @@ class BeamManagementEnv(gym.Env):
         drop_overload = 0
         drop_latency = 0
         reward_transmission = np.zeros((self.N_UTs, ), dtype=np.float32)
-        success_packet = np.multiply((self.SE>=1.3),(self.buffer_occupancy!=0)) 
+        success_packet = np.multiply((self.SE>=3),(self.buffer_occupancy!=0)) 
 
         # reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.3) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.3)).astype('float32')
         # reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.15) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.2)).astype('float32')
