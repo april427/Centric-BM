@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # args.N_UTs = 2
     args.if_training=False
     # args.if_debugging = True
-    method = args.eval_method
+    method = args.eval_method #'heuristic'#
 
     log_dir =  "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/" 
     # monitor_file = log_dir + "monitor_0.csv"
@@ -103,7 +103,13 @@ if __name__ == "__main__":
                 l_a += 1
                 if l_a >= len(list_actions):
                     l_a = 0
-
+            elif method == 'heuristic':
+                if t==0:
+                    action = np.ones((env.unwrapped.N_UTs))
+                else:
+                    action =  (info['angle_error'] > (env.unwrapped.beamwidth/2/(np.pi/env.unwrapped.number_of_antennas))) * 4 + 1
+                obs, rewards, dones, _, info = env.step(action=action)  
+                
             else:
                 obs, rewards, dones, _, info = env.step(action=method)
             

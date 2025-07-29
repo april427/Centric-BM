@@ -12,25 +12,24 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.results_plotter import load_results, ts2xy, plot_results
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.callbacks import BaseCallback
-import time
+import pandas as pd
 import os
+import seaborn as sns
+from matplotlib.colors import BoundaryNorm
+from matplotlib.colors import ListedColormap
+
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from beam_management_env_letter import BeamManagementEnv
 
 from baseline_train import parse_args
-import pandas as pd
-
-import seaborn as sns
-from matplotlib.colors import BoundaryNorm
-from matplotlib.colors import ListedColormap
 
 args = parse_args()
+# args.dt = 0.1
 args.if_training=False
-# args.if_debugging=True
 env = gym.make(args.EnvID,  args=args)
 # check_env(env)
-num_episodes = 500
+num_episodes = 20
 num_steps = 40
 reward_done = []
 reward_list = []
@@ -44,7 +43,7 @@ nmseV_allsteps = []
 nmseA_allsteps = []
 
 spectrum_efficiency = []
-method_name = 'greedy'
+method_name = 'Estimated'
 
 for ep in range(1, num_episodes+1):
 
@@ -58,7 +57,6 @@ for ep in range(1, num_episodes+1):
     beams = []
 
     for t in range(num_steps):
-        # print(action)
         
         _, rewards, dones, _, info = env.step(method_name)
         
@@ -68,7 +66,6 @@ for ep in range(1, num_episodes+1):
         ea[:,t] = info['angle_error']
         
         spectrum_efficiency.append(info['SE'])
-
         genie_beams.append(info['genie_beams'])
         beams.append(info['allocated_beams'].copy())
 
@@ -77,7 +74,7 @@ for ep in range(1, num_episodes+1):
             break
         latency.append(info['latency'])
 
-    error_range[ep-1,] = np.mean(er, axis=1)/(t+1)
+    error_range[ep-1,] = np.sum(er, axis=1)/(t+1)
     error_speed[ep-1,] = np.sum(ev, axis=1)/(t+1)
     error_angle[ep-1,] = np.sum(ea, axis=1)/(t+1)
 
@@ -88,7 +85,7 @@ for ep in range(1, num_episodes+1):
     reward_list.append(reward_episode)       
     
     thp = info['transmitted_packets']/ info['total_traffic']
-    # print(info['buffers'])
+    print(info['buffers'])
     throughput.append(thp)
     
     print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
@@ -96,9 +93,11 @@ for ep in range(1, num_episodes+1):
     print("Reward: ", reward_episode)
 
 
+thp_cdf = np.sort(throughput)
+yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
+
 # %%
 #################################  PLOTS  ##############################
-
 thp_cdf = np.sort(throughput)
 yvals = np.arange(len(thp_cdf))/float(len(thp_cdf)-1)
 
@@ -251,9 +250,8 @@ ax7.legend(loc='upper right', fontsize=8, markerscale=1.5)
 colorbar = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=custom_cmap), ax=ax7, ticks=[(levels[i] + levels[i + 1]) / 2 for i in range(len(levels) - 1)])
 colorbar.ax.set_yticklabels(legend_labels)
 plt.show()
-
 # %%
-#################################  SAVE FILES  ##############################
+#################################  Save Files  ##############################
 
 # log_dir = "RL_mimo_ofdm/"  + "PPO_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_buffer/NEW/" + method_name
 # # Create directory if it does not exist
@@ -298,6 +296,3 @@ plt.show()
 # # save spectral efficiency
 # se = pd.DataFrame(spectrum_efficiency, columns=['SE1', 'SE2'])
 # se.to_csv(os.path.join(log_dir, 'SE.csv'), index=False)
-
-
-# %%

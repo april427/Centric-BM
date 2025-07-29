@@ -39,7 +39,7 @@ def compute_AoD_at_BS(BS_pos, UE_pos):
 
 def compute_ULA_response(M, AoD):
     # Compute array response
-    a_BS = 1/np.sqrt(M) * np.array([np.exp(-1j * np.pi * i * np.cos(AoD)) for i in range(M)])
+    a_BS = 1/np.sqrt(M) * np.array([np.exp(-1j * np.pi * i * np.sin(AoD)) for i in range(M)])
     return a_BS
 
 def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient=1):

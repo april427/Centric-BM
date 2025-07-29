@@ -4,7 +4,6 @@ from stable_baselines3.common.callbacks import BaseCallback
 import os
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 
-
 def cuboid_data(center, size=(1,1,1)):
     # suppose axis direction: x: to left; y: to inside; z: to upper
     # get the (left, outside, bottom) point
@@ -71,7 +70,7 @@ def music_alg(y, Nt, N_UTs):
     y = np.squeeze(y)
     N_ofdm,  N_sc = y.shape[-2], y.shape[-1]
     R = np.zeros([Nt, Nt], dtype = np.complex64)
-    for i in range(1):
+    for i in range(N_ofdm):
         for j in range(N_sc):
             R += np.outer(y[ :, i, j], np.conj(y[ :, i, j]))
     R = R/(N_ofdm*N_sc)
@@ -82,7 +81,7 @@ def music_alg(y, Nt, N_UTs):
 
     noise_eigenvectors = eigenvectors[:, N_UTs:]
     
-    angles = np.linspace(np.pi/2, np.pi, 180)
+    angles = np.linspace(-np.pi/2, np.pi/2, 180)
     pspectrum = np.zeros(len(angles))
 
     for i, angle in enumerate(angles): # angles in radians
@@ -97,12 +96,11 @@ def music_alg(y, Nt, N_UTs):
         pspectrum[i] = 1 / abs(denominator.squeeze())
     
     pspectrum = pspectrum / max(pspectrum)
-    
+
     peaks = np.argpartition(pspectrum, -N_UTs)[-N_UTs:]
     peaks = np.sort(peaks)
     estimated_angles = angles[peaks]
-
-    #estimated_angles[estimated_angles < 0] = np.pi - estimated_angles[estimated_angles > np.pi/2]
+    
     return estimated_angles
 
 # from sionna.mimo import StreamManagement
@@ -192,6 +190,40 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
       It must contains the file created by the ``Monitor`` wrapper.
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
+    # def __init__(self, check_freq: int, log_dir: str, verbose: int = 1, initial_entropy_coef: float = 1e-2, final_entropy_coef: float = 1e-4, total_timesteps: int = 1_000_000):
+    #     super().__init__(verbose)
+    #     self.check_freq = check_freq
+    #     self.log_dir = log_dir
+    #     self.save_path = os.path.join(log_dir, "best_model")
+    #     self.best_mean_reward = -np.inf
+    #     self.initial_entropy_coef = initial_entropy_coef
+    #     self.final_entropy_coef = final_entropy_coef
+    #     self.total_timesteps = total_timesteps
+
+    # def _on_step(self) -> bool:
+    #     # Stepwise entropy annealing
+    #     frac = min(1.0, self.num_timesteps / self.total_timesteps)
+    #     new_entropy_coef = self.initial_entropy_coef + frac * (self.final_entropy_coef - self.initial_entropy_coef)
+    #     if hasattr(self.model, "ent_coef"):
+    #         # For on-policy algorithms (e.g., PPO)
+    #         if isinstance(self.model.ent_coef, float):
+    #             self.model.ent_coef = new_entropy_coef
+    #         elif hasattr(self.model.ent_coef, "data"):
+    #             self.model.ent_coef.data.fill_(new_entropy_coef)
+    #     # Usual reward/model saving logic
+    #     if self.n_calls % self.check_freq == 0:
+    #         x, y = ts2xy(load_results(self.log_dir), "timesteps")
+    #         if len(x) > 0:
+    #             mean_reward = np.mean(y[-100:])
+    #             if self.verbose >= 1:
+    #                 print(f"Num timesteps: {self.num_timesteps}")
+    #                 print(f"Best mean reward: {self.best_mean_reward:.2f} - Last mean reward per episode: {mean_reward:.2f}")
+    #             if mean_reward > self.best_mean_reward:
+    #                 self.best_mean_reward = mean_reward
+    #                 if self.verbose >= 1:
+    #                     print(f"Saving new best model to {self.save_path}")
+    #                 self.model.save(self.save_path)
+    #     return True
     def __init__(self, check_freq: int, log_dir: str, verbose: int = 1):
         super().__init__(verbose)
         self.check_freq = check_freq

@@ -97,7 +97,20 @@ def music_alg(y, Nt, N_UTs):
     
     pspectrum = pspectrum / max(pspectrum)
 
-    peaks = np.argpartition(pspectrum, -N_UTs)[-N_UTs:]
+    # peaks = np.argpartition(pspectrum, -N_UTs)[-N_UTs:]
+    from scipy.signal import find_peaks
+    peak_indices, _ = find_peaks(pspectrum, height=0.1, distance=5)  # Adjust height and distance as needed    
+    
+    # Handle edge cases
+    if len(peak_indices) == 0 or len(peak_indices) < N_UTs:
+        peaks = np.argpartition(pspectrum, -N_UTs)[-N_UTs:]
+    elif len(peak_indices) > N_UTs:
+        peak_heights = pspectrum[peak_indices]
+        top_peak_indices = np.argsort(peak_heights)[-N_UTs:]
+        peaks = peak_indices[top_peak_indices]
+    else:
+        peaks = peak_indices
+
     peaks = np.sort(peaks)
     estimated_angles = angles[peaks]
     

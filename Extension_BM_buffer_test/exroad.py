@@ -171,26 +171,22 @@ def update_positions(position, cross_pos, velocity, dt, single_lane_width, confi
 # N_UEs = 2
 # single_lane_width = 5
 
-
-# for i in range(N_UEs):
-#     plt.scatter(ut_loc[i,0], ut_loc[i, 1], label='UE'+str(i+1))
-# plt.legend()
-# plt.show()
-
-
-
-
 # dt = 1
 # user_pos = np.zeros((batch_size, N_UEs, 3))
 # config = np.empty([N_UEs, 2], dtype = int)
+
+# user_pos[0,:,:], config, if_turned = user_pos_direction_init(road_matrix, cross_pos, N_UEs, single_lane_width=5)
+# plt.scatter(user_pos[0,:,0], user_pos[0, :,1], color='r')
+
+
 
 # for s in range(1, batch_size):
 #     for i in range(N_UEs):
 #         user_pos[s, i,:], config[i,:], if_turned[i] = update_positions(user_pos[s-1,i,:], cross_pos, sample_velocity(), dt, single_lane_width, config[i,:], if_turned[i]) 
 
 # for i in range(N_UEs):
-#     ue_pos_x = ut_loc[i,0]
-#     ue_pos_y = ut_loc[i,1]
+#     ue_pos_x = user_pos[:,i,0]
+#     ue_pos_y = user_pos[:,i,1]
 #     du = np.diff(ue_pos_x)
 #     dv = np.diff(ue_pos_y)
 #     pos_x = ue_pos_x[:-1] + du/2

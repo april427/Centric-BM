@@ -18,8 +18,8 @@ def dft_codebook(n, m):
         codebook (numpy.ndarray): A numpy array of shape (n, m) representing the codebook.
     """
     dft_matrix = np.ones((m, m), dtype=np.complex64) * complex(1, 0) 
-    for i in range(1, m+1):
-        dft_matrix[i-1,:] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i - 1 - m)/m) for j in range(n)])
+    for i in range(m):
+        dft_matrix[:,i] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i + 1 - m)/m) for j in range(n)])
     return dft_matrix
 
 def compute_AoD_at_BS(BS_pos, UE_pos):
@@ -35,12 +35,6 @@ def compute_AoD_at_BS(BS_pos, UE_pos):
     # Compute angle of departure at BS
     phi_radi = np.arctan2( UE_pos[1] - BS_pos[1], - BS_pos[0] + UE_pos[0]) 
     AoD = phi_radi#np.array([phi_radi])
-    if AoD < 0:
-        AoD = np.add(AoD,np.pi)
-    # if AoD < -np.pi/2:
-    #     AoD = np.add(-AoD,-np.pi)
-    # elif AoD > np.pi/2:
-    #     AoD = np.add(-AoD,np.pi)
     return AoD
 
 def compute_ULA_response(M, AoD):
@@ -71,7 +65,7 @@ def compute_mmWave_LoS_NLoS_channel(M, a_BS, d, wavelength, blockage_coefficient
 
     return mmWave_LOS_channel
 
-def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai1=None):
+def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai1=None, if_rician=False):
         # Nsym -- Number of OFDM symbols
         # Nc -- Number of subcarriers
         # N -- Number of paths 
@@ -91,7 +85,7 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
     else:
         fai1 = np.array([fai1])
     A_t = np.zeros([Nt,N],dtype = complex)
-    alpha = np.zeros([N],dtype = complex)
+    alpha = np.zeros([N],dtype = float)
     H_f = np.array(np.zeros([Nt, Nsym,Nc],dtype = complex))
     for i in range(N):
         A_t[:,i] = 1/np.sqrt(Nt) * np.exp(-1j*np.pi*n_t*np.sin(fai1[i])) # Normalized steering vector, it is the same as the one in frequency_sensing_channel 
@@ -103,10 +97,20 @@ def freqency_communication_channel(Nsym, Nc, N, Nt, sigma_2_alpha, tau=None, fai
         if np.shape(P) != ():
             P = np.diag(P)
         H_f[:,:,k] = np.tile(np.dot(np.conj(A_t), P), [1,Nsym]) # Conjugate of A_t so H can be directly used ApplyOFDMChannel
+    
+    if if_rician:
+    ##### Rician channel
+        K_db = 10
+        K = 10**(K_db/10)
+        non_los_channel = np.sqrt(1/2) * (np.random.randn(Nt, Nsym, Nc) + 1j * np.random.randn(Nt, Nsym, Nc))
+        for sym in range(Nsym):
+            for c in range(Nc):
+                non_los_channel[:, sym, c] = non_los_channel[:, sym, c] / np.linalg.norm(non_los_channel[:, sym, c])
+        H_f = np.sqrt(K/(1+K)) * H_f + np.sqrt(1/(1+K)) * alpha* non_los_channel
         
-    return H_f,A_t,alpha
+    return H_f,A_t.squeeze(),alpha.squeeze()
 
-def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing, ofdm_symbol_duration, reflection_coefficient, ut_velocities, wavelength, tau, fai1=None):
+def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing, ofdm_symbol_duration, reflection_coefficient, ut_velocities, wavelength, tau, fai1=None, if_rician=False):
         # Nsym -- Number of OFDM symbols
         # Nc -- Number of subcarriers
         # N = 1 -- 1 path is considered for the sensing channel 
@@ -143,6 +147,22 @@ def freqency_sensing_channel(batch_size, Nsym, Nc, Nt, N_UTs, subcarrier_spacing
         A_t_conj = np.conj(A_t[:, 0, u])
         A_t_outer = np.outer(A_t[:, 0, u], A_t_conj)
         H_f[0, 0, :, 0, :, :, :] += reflection_coefficient[0, u] * A_t_outer[:, :, np.newaxis, np.newaxis] * exp_omega_R[0, u] * exp_omega_v[0, u]
+
+    ###  Multiple clutter resources cause echoes to the channel
+    if if_rician:
+        # Define clutter parameters as lists
+        faic_list = [np.pi/15*1, np.pi/14*3, np.pi/17*9, np.pi/17*15]  # Example: two clutters with different angles
+        Rdc_list = [13, 20, 29, 19]                   # Example: two clutters with different distances
+
+        for faic, Rdc in zip(faic_list, Rdc_list):
+            omega_Ac = - np.pi * np.sin(faic)
+            A_tc = (1/np.sqrt(Nt)) * np.exp(1j*np.kron(omega_Ac, n_t)).reshape((Nt, 1, 1), order = 'F')
+            rcc = wavelength*10/ Rdc**2 / (4*np.pi)**1.5
+            exp_omega_Rc = np.exp(1j * np.arange(Nc) * (-2*np.pi * subcarrier_spacing * 2*Rdc / 3e8))
+            exp_omega_vc = np.exp(1j * np.arange(Nsym)[:, np.newaxis] * (4*np.pi * ofdm_symbol_duration * 0))
+            H_f[0, 0, :, 0, :, :, :] += rcc * np.outer(A_tc[:, 0, 0], np.conj(A_tc[:, 0, 0]))[:, :, np.newaxis, np.newaxis] * exp_omega_Rc * exp_omega_vc[0, 0]
+
+
     for b in range(1, batch_size):
         H_f[b, :] = H_f[0, :]
     
@@ -247,9 +267,11 @@ def dynamic_power_allocation(d, xi, Pt, Pt_mW, ue_type, threshold, N_UEs, datapo
             counter -= 1
     
     if np.any(np.isnan(Pt)):
-        Pt[np.isnan(Pt)] = 0
-        Pt[~np.isnan(Pt)] = Pt_mW / np.count_nonzero(Pt[~np.isnan(Pt)])
+        Pt[np.isnan(Pt)] = Pt_mW - np.sum(Pt[~np.isnan(Pt)])
+        # Pt[~np.isnan(Pt)] = Pt_mW / np.count_nonzero(Pt[~np.isnan(Pt)])
 
+    if np.any(Pt == 0):
+        Pt = np.ones(N_UEs) * (Pt_mW/N_UEs)
     return Pt
 
 # ausiliary functions: convert decimal to base b
@@ -261,6 +283,21 @@ def base(b,n, N_UEs):
     if len(convert_result) < N_UEs:
         convert_result = [0]*(N_UEs-len(convert_result)) + convert_result
     return convert_result
+
+def N_TDMA(N, N_UEs): # S - C - C... 
+    b = 2 
+    indices = []
+    a = np.ones(N_UEs, dtype = int)
+    ind = sum([a[i]*b**(N_UEs-i-1) for i in range(N_UEs)])
+    indices.append(ind)
+    # indices.extend([np.zeros(N_UEs, dtype = int)])
+
+    for _ in range(N):
+        a = np.zeros(N_UEs, dtype = int)
+        ind = sum([a[i]*b**(N_UEs-i-1) for i in range(N_UEs)]) 
+        indices.append(ind)
+
+    return indices
 
 # %%
 def hyperbolic_func(x, A1, A2, c):
@@ -274,7 +311,7 @@ def hyperbolic_func(x, A1, A2, c):
     x = np.atleast_1d(x)
     y=np.zeros(np.size(x))
     y[x>=c] = 1.5*(1 - np.exp(- A1 * (x[x>=c] - c)))
-    y[x<c] = - 0.5
+    y[x<c] = 0
     #y[x<c] = np.exp(A1 * (x[x<c] - c)) -1
     b = 12
     y[x>=c+b] = np.exp(-A2*(x[x>=c+b] - c - b )) 
@@ -289,10 +326,10 @@ def hyperbolic_func(x, A1, A2, c):
 # %%
 # import numpy as np
 # import matplotlib.pyplot as plt
-# x = np.linspace(0, 40, 1000)
-# A1 = 0.8
-# A2 = 0
-# c= 10
+# x = np.linspace(0, 6, 1000)
+# A1 = 4.9
+# A2 = 0.2
+# c= 1.1
 # b = 12
 # y = hyperbolic_func(x, A1, A2, c)
 # textstr = '\n'.join(( r'$y = exp(- %.1f( x - %.1f)), x >= %.1f$' % (A2, c+b, c+b),
