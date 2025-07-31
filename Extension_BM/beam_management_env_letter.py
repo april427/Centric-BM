@@ -24,6 +24,7 @@ class BeamManagementEnv(gym.Env):
 
         self.N_UTs = args.N_UTs  # number of UEs 
         self.number_of_antennas = args.Nt  # number of antennas at the ULA BS
+        self.reuse_beams = args.reuse_beams  # reuse beams for sweeping
 
         self.num_steps = 40 # number of steps per episode
 
@@ -344,7 +345,7 @@ class BeamManagementEnv(gym.Env):
         
         # channel_freq = ApplyOFDMChannel(add_awgn=True)
         
-        self.ut_velocities[0,:,0:2] = np.transpose(np.random.multivariate_normal( 6*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2)))
+        self.ut_velocities[0,:,0:2] = np.transpose(np.random.multivariate_normal( 14*np.arange(1,self.N_UTs+1,1), np.diag(4*np.ones([self.N_UTs])), size = (2)))
         for s in range(self.batch_size):
             positions = [update_positions(
                             self.ut_loc[s,i,:], 
@@ -359,6 +360,7 @@ class BeamManagementEnv(gym.Env):
             self.ut_loc[s,:,:] = np.array([p[0] for p in positions])
             self.config[s,:] = np.array([p[1] for p in positions])
             self.if_turned[s,:] = np.array([p[2] for p in positions])
+            # np.random.choice([True, False], size=self.N_UTs)
         self.Rd[0,:] = np.linalg.norm(self.bs_loc[0,0,:] - self.ut_loc[0,:,:], axis=1)
         self.AoD = np.array([compute_AoD_at_BS(self.bs_loc[0, 0, :], 
                                           self.ut_loc[0,i,:]) for i in range(self.N_UTs)])
@@ -373,6 +375,7 @@ class BeamManagementEnv(gym.Env):
     
         H_BS, A_t = freqency_sensing_channel(self.batch_size, self.num_ofdm_symbols, self.fft_size , self.number_of_antennas, self.N_UTs, self.subcarrier_spacing, self.ofdm_symbol_duration, self.reflection_coefficient, np.array([self.ut_velocities[0,]]), self.wavelength, self.Rd*2/3e8, self.AoD, self.if_rician)
 
+        beam_reuse_checker = np.zeros((self.N_UTs, self.number_of_antennas), dtype = bool)  # check if the beam is reused
         #############################################################
         #                         action mask              
         #############################################################
@@ -453,109 +456,49 @@ class BeamManagementEnv(gym.Env):
             for i in range(self.N_UTs):
                 if action[i] == 0: # beam stays the same
                     self.current_beam[i] = self.current_beam[i]
+                    beam_reuse_checker[i, self.current_beam[i]] = True
+
                 elif action[i] == 1: # beam is selected from multiple
                     if self.current_beam[i].size == 1:
                         self.current_beam[i,] = self.current_beam[i]
                     else:
                         index = np.argmax(self.memory[self.current_beam[i]])
                         self.current_beam[i,] = self.current_beam[i][index]
-                # elif action[i] == 2: # beam is turned left
-                #     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]]
-                #     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
-                #         if temp[1] == 1:
-                #             self.current_beam[i,] = np.mod(np.max(temp)+[-2, -1, 0], self.number_of_antennas)
-                #         else:
-                #             mask = (temp != 0) & (temp != self.number_of_antennas - 1)
-                #             self.current_beam[i,] = np.mod(np.min(temp[mask])+[-2, -1, 0], self.number_of_antennas)
-                #     else:
-                #         self.current_beam[i,] = np.mod(np.min(self.current_beam[i])+[-2, -1, 0], self.number_of_antennas)
-                #     # deal with reused beams
-                #     if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
-                #         count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
-                #         # Find the index of the first unused beam that is closest to the current beam
-                #         used_beams = []
-                #         for j in range(i+1):
-                #             if isinstance(self.current_beam[j], np.ndarray):
-                #                 used_beams.extend(self.current_beam[j].flatten())
-                #             else:
-                #                 used_beams.append(self.current_beam[j])
-                #         used_beams = np.unique(used_beams)
-                #         unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
-                #         self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
-
-                # elif action[i] == 3: # beam is turned right
-                #     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]] 
-                #     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
-                #         if temp[-2] == self.number_of_antennas - 2:
-                #             self.current_beam[i,] = np.mod(np.min(temp)+[0, 1, 2], self.number_of_antennas)
-                #         else:
-                #             mask = (temp != 0) & (temp != self.number_of_antennas - 1)
-                #             self.current_beam[i,] = np.mod(np.max(temp[mask])+[0, 1, 2], self.number_of_antennas)
-                #     else:
-                #         self.current_beam[i,] = np.mod(np.max(self.current_beam[i])+[0,1,2], self.number_of_antennas)
-                #     # deal with reused beams
-                #     if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
-                #         count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
-                #         # Find the index of the first unused beam that is closest to the current beam
-                #         # First find the beams already used by users 0 to i-1
-                #         used_beams = []
-                #         for j in range(i+1):
-                #             if isinstance(self.current_beam[j], np.ndarray):
-                #                 used_beams.extend(self.current_beam[j].flatten())
-                #             else:
-                #                 used_beams.append(self.current_beam[j])
-                #         used_beams = np.unique(used_beams)
-                #         unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
-                #         self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
-
+                    beam_reuse_checker[i, self.current_beam[i]] = True
+                
                 elif action[i] == 2: # beam is turned left
                     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]]
+                    if self.reuse_beams==2:  #multi beams sweeping
+                        beamspan = [-1, 0]
+                    elif self.reuse_beams==1:  # single beam sweeping
+                        beamspan = -1   
                     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
                         if temp[1] == 1:
-                            self.current_beam[i,] = np.mod(np.max(temp)-1, self.number_of_antennas)
+                            self.current_beam[i,] = np.mod(np.max(temp)+beamspan, self.number_of_antennas)
                         else:
                             mask = (temp != 0) & (temp != self.number_of_antennas - 1)
-                            self.current_beam[i,] = np.mod(np.min(temp[mask])-1, self.number_of_antennas)
+                            self.current_beam[i,] = np.mod(np.min(temp[mask])+beamspan, self.number_of_antennas)
                     else:
-                        self.current_beam[i,] = np.mod(np.min(self.current_beam[i])-1, self.number_of_antennas)
-                    # deal with reused beams
-                    if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
-                        count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
-                        # Find the index of the first unused beam that is closest to the current beam
-                        used_beams = []
-                        for j in range(i+1):
-                            if isinstance(self.current_beam[j], np.ndarray):
-                                used_beams.extend(self.current_beam[j].flatten())
-                            else:
-                                used_beams.append(self.current_beam[j])
-                        used_beams = np.unique(used_beams)
-                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
-                        self.current_beam[i]= unused_beam[0:count]
+                        self.current_beam[i,] = np.mod(np.min(self.current_beam[i])+beamspan, self.number_of_antennas)
+                    
+                    beam_reuse_checker[i, self.current_beam[i]] = True  # mark the beam as reused
 
                 elif action[i] == 3: # beam is turned right
                     temp = np.sort(self.current_beam[i]) if self.current_beam[i].size > 1 else [self.current_beam[i]] 
+                    if self.reuse_beams == 2:
+                        beamspan = [0, 1]
+                    elif self.reuse_beams == 1:
+                        beamspan = 1
                     if temp[0] == 0 and temp[-1] == self.number_of_antennas - 1:
                         if temp[-2] == self.number_of_antennas - 2:
-                            self.current_beam[i,] = np.mod(np.min(temp)+1, self.number_of_antennas)
+                            self.current_beam[i,] = np.mod(np.min(temp)+beamspan, self.number_of_antennas)
                         else:
                             mask = (temp != 0) & (temp != self.number_of_antennas - 1)
-                            self.current_beam[i,] = np.mod(np.max(temp[mask])+1, self.number_of_antennas)
+                            self.current_beam[i,] = np.mod(np.max(temp[mask])+beamspan, self.number_of_antennas)
                     else:
-                        self.current_beam[i,] = np.mod(np.max(self.current_beam[i])+1, self.number_of_antennas)
-                    # deal with reused beams
-                    if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
-                        count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
-                        # Find the index of the first unused beam that is closest to the current beam
-                        # First find the beams already used by users 0 to i-1
-                        used_beams = []
-                        for j in range(i+1):
-                            if isinstance(self.current_beam[j], np.ndarray):
-                                used_beams.extend(self.current_beam[j].flatten())
-                            else:
-                                used_beams.append(self.current_beam[j])
-                        used_beams = np.unique(used_beams)
-                        unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
-                        self.current_beam[i] = unused_beam[0:count]
+                        self.current_beam[i,] = np.mod(np.max(self.current_beam[i])+beamspan, self.number_of_antennas)
+                    
+                    beam_reuse_checker[i, self.current_beam[i]] = True
                 
                 elif action[i] == 4: # beam is expanded to the adjacent two beams
                     self.current_beam[i,] = np.mod(self.current_beam[i]+[-1, 0, 1], self.number_of_antennas) # for TDMA
@@ -584,8 +527,25 @@ class BeamManagementEnv(gym.Env):
                         used_beams = np.unique(used_beams)
                         unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
                         self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
-
-                self.action_beam[self.current_beam[i]] = i+1  
+                
+                # deal with reused beams
+                if np.any(self.action_beam[self.current_beam[i,]] != 0):  # Check if the beam is already used
+                    count = np.sum(self.action_beam[self.current_beam[i,]] != 0)
+                    # Find the index of the first unused beam that is closest to the current beam
+                    used_beams = []
+                    for j in range(i+1):
+                        if isinstance(self.current_beam[j], np.ndarray):
+                            used_beams.extend(self.current_beam[j].flatten())
+                        else:
+                            used_beams.append(self.current_beam[j])
+                    used_beams = np.unique(used_beams)
+                    unused_beam = np.setdiff1d(np.arange(self.number_of_antennas), used_beams)
+                    if self.reuse_beams == 1:
+                        self.current_beam[i]= unused_beam[0:count]
+                    elif self.reuse_beams == 2:
+                        self.current_beam[i][np.where(self.action_beam[self.current_beam[i,]] != 0)[0]] = unused_beam[0:count]
+                self.action_beam[self.current_beam[i]] = i+1
+ 
         
         # Water-filling power allocation -- with known channel
         transmit_beam = np.zeros((self.number_of_antennas, self.N_UTs), dtype=np.complex64)
