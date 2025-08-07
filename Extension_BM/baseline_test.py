@@ -56,7 +56,7 @@ if __name__ == "__main__":
         list_actions = N_TDMA(nn, args.N_UTs)
         for i in range(len(list_actions)):
             list_actions[i] = base(2, list_actions[i], args.N_UTs)
-        list_actions = (np.array(list_actions) * 3 + 1).tolist()
+        list_actions = (np.array(list_actions) * 8 + 1).tolist()
 
     # %%
     ################################## Evaluate ####################################
@@ -107,7 +107,7 @@ if __name__ == "__main__":
                 if t==0:
                     action = np.ones((env.unwrapped.N_UTs))
                 else:
-                    action =  (info['angle_error'] > (env.unwrapped.beamwidth/2/(np.pi/env.unwrapped.number_of_antennas))) * 4 + 1
+                    action =  (info['angle_error'] > (env.unwrapped.beamwidth/2/(np.pi/env.unwrapped.number_of_antennas))) * 9 + 1
                 obs, rewards, dones, _, info = env.step(action=action)  
                 
             else:

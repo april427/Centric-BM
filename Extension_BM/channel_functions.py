@@ -19,8 +19,10 @@ def dft_codebook(n, m):
     """
     dft_matrix = np.ones((m, m), dtype=np.complex64) * complex(1, 0) 
     for i in range(m):
-        dft_matrix[:,i] = 1/np.sqrt(n) * np.array([np.exp(-1j * np.pi * j *(2 * i + 1 - m)/m) for j in range(n)])
-    return dft_matrix
+        dft_matrix[:,i] = np.array([np.exp(-1j * np.pi * j *(2 * i + 1 - m)/m) for j in range(m)])
+    
+    cb = 1/np.sqrt(n) * dft_matrix[:, :n]
+    return cb
 
 def compute_AoD_at_BS(BS_pos, UE_pos):
     """
