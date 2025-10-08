@@ -27,6 +27,7 @@ class BeamManagementEnv(gym.Env):
         self.reuse_beams = args.reuse_beams  # reuse beams for sweeping
         self.arrival_prob = args.arrival_prob  # arrival probability of each UE
         self.ut_v = args.ut_v
+        self.buf_s = args.buffer_size
 
         self.num_steps = 40 # number of steps per episode
 
@@ -61,10 +62,10 @@ class BeamManagementEnv(gym.Env):
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
         self.max_latency = [6, 8]
-        self.buffer_size = [4, 5]  # buffers size of each UE 
+        self.buffer_size = self.buf_s + [0,1]  # buffers size of each UE
         if self.N_UTs == 3:
             self.max_latency = [6, 8, 10]
-            self.buffer_size = [4, 5, 6]
+            self.buffer_size = self.buf_s + [0, 1, 2]
         self.buffers = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
         self.waiting_times = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)
@@ -786,7 +787,7 @@ class BeamManagementEnv(gym.Env):
                         self.waiting_times[user_id, i] = 0
                         self.buffer_occupancy[user_id] += 1
                         break
-            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] > self.buffer_size[user_id]:
+            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] >= self.buffer_size[user_id]:
                 drop_overload += 1
         reward -= drop_overload  # penalize for overload
 

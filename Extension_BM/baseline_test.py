@@ -68,6 +68,7 @@ if __name__ == "__main__":
     reward_done = []
     reward_list = []
     throughput = []
+    packet_drop_rate = []
     latency = []
     error_range = np.zeros((num_episodes, args.N_UTs))
     error_speed = np.zeros((num_episodes, args.N_UTs))
@@ -107,7 +108,7 @@ if __name__ == "__main__":
                 if t==0:
                     action = np.ones((env.unwrapped.N_UTs))
                 else:
-                    action =  (info['angle_error'] > (env.unwrapped.beamwidth/2/(np.pi/env.unwrapped.number_of_antennas))) * 9 + 1
+                    action =  (info['angle_error'] > (env.unwrapped.beamwidth/2/(np.pi/env.unwrapped.number_of_antennas))) + 10
                 obs, rewards, dones, _, info = env.step(action=action)  
                 
             else:
@@ -144,9 +145,12 @@ if __name__ == "__main__":
             reward_list.append(reward_episode)       
         print(reward_episode)
         thp = np.sum(info['transmitted_packets'])/ info['total_traffic']
-        print(info['transmitted_packets'])
+
+        dropped_rate = info['dropped_packets'] / info['total_traffic'] if info['total_traffic'] > 0 else 0
+        print(info['transmitted_packets'], info['dropped_packets'], info['total_traffic'])
         throughput.append(thp)
-        
+        packet_drop_rate.append(dropped_rate)
+
         print("Episode : {} \t Throughput: {}".format(ep, round(thp,2)), flush = True)
 
 
@@ -456,6 +460,10 @@ if __name__ == "__main__":
         # # Save throughput
         throughput_df = pd.DataFrame(throughput, columns=['Throughput'])
         throughput_df.to_csv(os.path.join(log_dir_data, 'throughput.csv'), index=False)
+
+        ## Packet Drop Rate
+        packet_drop_rate_df = pd.DataFrame(packet_drop_rate, columns=['Packet Drop Rate'])
+        packet_drop_rate_df.to_csv(os.path.join(log_dir_data, 'packet_drop_rate.csv'), index=False)
 
         # Dynamically set column names according to N_UTs
         ue_columns = [f'UE{i+1}' for i in range(args.N_UTs)]

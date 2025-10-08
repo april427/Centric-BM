@@ -27,6 +27,7 @@ class BeamManagementEnv(gym.Env):
         self.reuse_beams = args.reuse_beams  # reuse beams for sweeping
         self.arrival_prob = args.arrival_prob  # arrival probability of each UE
         self.ut_v = args.ut_v
+        self.buf_s = args.buffer_size
 
         self.num_steps = 40 # number of steps per episode
 
@@ -61,10 +62,10 @@ class BeamManagementEnv(gym.Env):
         self.current_beam = np.empty([self.N_UTs,], dtype = object)  # current beam direction
 
         self.max_latency = [6, 8]
-        self.buffer_size = [4, 5]  # buffers size of each UE 
+        self.buffer_size = [self.buf_s + x for x in [0,1]]  # buffers size of each UE 
         if self.N_UTs == 3:
             self.max_latency = [6, 8, 10]
-            self.buffer_size = [4, 5, 6]
+            self.buffer_size = [self.buf_s + x for x in [0, 1, 2]]
         self.buffers = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)  # number of packets of each UE in the buffers
         self.total_traffic_episode = 0 # total downlink traffic per episode
         self.waiting_times = np.zeros((self.N_UTs, np.max(self.buffer_size)), dtype=np.int32)
@@ -315,7 +316,7 @@ class BeamManagementEnv(gym.Env):
 
         self.total_traffic_episode = np.sum(self.buffers[self.buffers>0]) # total downlink traffic per episode
         self.successful_transmission = 0  # number of successful transmission
-        
+        self.dropped_packets = 0  # number of dropped packets
         return self._get_state(), {}
 
 
@@ -538,7 +539,12 @@ class BeamManagementEnv(gym.Env):
                 elif action[i] == 9: # beam is expanded to the adjacent two beams
                     self.current_beam[i,] = np.mod(self.current_beam[i]+[-1, 0, 1], self.number_of_antennas) # for TDMA
 
-                elif action[i] == 10:
+                elif action[i] == 10: # beam is expanded to the adjacent two beams
+                    A_t_est = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j* -np.pi * np.outer( np.sin(self.music_est), np.arange(self.number_of_antennas))).T  
+                    for u in range(self.N_UTs):
+                        self.current_beam[u,] = np.argmax(np.abs(np.transpose(np.conj(A_t_est[:,u])) @ codebook))
+
+                elif action[i] == 11:
                     a_t = (1/np.sqrt(self.number_of_antennas)) * np.exp(1j* -np.pi * np.outer( np.sin(self.music_est[i]), np.arange(self.number_of_antennas))).T 
                     index = np.argmax(np.abs(np.transpose(np.conj(a_t)) @ codebook), axis=1).squeeze()
                     if np.isnan(self.crlb_a[i]):
@@ -792,11 +798,14 @@ class BeamManagementEnv(gym.Env):
         reward_transmission = np.zeros((self.N_UTs, ), dtype=np.float32)
         success_packet = np.multiply((self.SE>=3),(self.buffer_occupancy!=0)) 
 
-        # reward_estimation1 = (np.sum(self.nmse_R[self.buffer_occupancy!=0] < 0.3) + np.sum(self.nmse_v[self.buffer_occupancy!=0] < 0.3)).astype('float32')
-        # reward_estimation2 = (np.sum(self.nmse_R[self.buffer_occupancy==0] < 0.15) + np.sum(self.nmse_v[self.buffer_occupancy==0] < 0.2)).astype('float32')
-
         reward_estimation1 = (np.sum(np.log( self.nmse_R[self.buffer_occupancy!=0])/np.log(1/3)) + np.sum(np.log(self.nmse_v[self.buffer_occupancy!=0])/np.log(1/3))).astype('float32')
         reward_estimation2 = (np.sum( np.log(self.nmse_R[self.buffer_occupancy==0])/np.log(1/3)) + np.sum( np.log(self.nmse_v[self.buffer_occupancy==0])/np.log(1/3))).astype('float32')
+
+        ##################### if the sensing reward is on CRLB   #####################
+        # reward_estimation1 = (np.sum(np.log( np.sqrt(crlb_R[self.buffer_occupancy!=0]) )/np.log(1/3)) 
+        #                             + np.sum(np.log( np.sqrt(crlb_v[self.buffer_occupancy!=0]))/np.log(1/3))).astype('float32')
+        # reward_estimation2 = (np.sum(np.log( np.sqrt(crlb_R[self.buffer_occupancy==0]) )/np.log(1/3)) 
+        #                             + np.sum( np.log( np.sqrt(crlb_v[self.buffer_occupancy==0]) )/np.log(1/3))).astype('float32')
 
         for user_id in np.where(success_packet != 0)[0]:
             pak_inx = np.argmax(self.waiting_times[user_id,])
@@ -823,7 +832,7 @@ class BeamManagementEnv(gym.Env):
         #reward_transmission = np.sum(hyperbolic_func(self.SE[success_packet],A1=4.9,A2=0.2, c=1.0).astype('float32'))
         # reward_transmission = - np.sum(self.SE[self.buffer_occupancy!=0]<1.3).astype('float32')
 
-        reward_drop = - (drop_overload + drop_latency)
+        # reward_drop = - (drop_overload + drop_latency)
         #reward_estimation = - (np.sum(self.nmse_R>0.5) + np.sum(self.nmse_v >0.2)).astype('float32')
 
         reward_jump = - np.sum(np.abs(self.old_R_estimate - self.R_estimate)/ (3e8/2/self.fft_size/self.subcarrier_spacing)  > 2) - np.sum(np.abs(self.old_v_estimate - self.v_estimate)/ (3e8/2/self.num_ofdm_symbols/self.carrier_frequency/self.ofdm_symbol_duration) > 2)
@@ -841,12 +850,13 @@ class BeamManagementEnv(gym.Env):
                         self.waiting_times[user_id, i] = 0
                         self.buffer_occupancy[user_id] += 1
                         break
-            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] > self.buffer_size[user_id]:
+            elif arrivals[user_id] == 1 and self.buffer_occupancy[user_id] >= self.buffer_size[user_id]:
                 drop_overload += 1
         reward -= drop_overload  # penalize for overload
 
         # self.buffers = np.maximum(self.buffers - success_packet - drop_latency - drop_overload + arrivals, 0)
         self.successful_transmission += np.sum(success_packet)
+        self.dropped_packets += (drop_latency + drop_overload)
 
         terminated = bool(self.cstep == self.num_steps) 
         if not terminated:
@@ -880,10 +890,11 @@ class BeamManagementEnv(gym.Env):
         info = {'buffers': self.buffers.copy(),
                 'total_traffic': self.total_traffic_episode, 
                 'transmitted_packets': self.successful_transmission, 
+                'dropped_packets': self.dropped_packets,
                 'latency': self.latency, 
                 'nmse_R': self.nmse_R, 
                 'nmse_v': self.nmse_v,
-                'angle_error': np.sqrt(self.crlb_a_est)/ (np.pi/self.number_of_antennas),
+                'angle_error': self.angle_error, #np.sqrt(self.crlb_a_est)/ (np.pi/self.number_of_antennas),
                 'SE': self.SE,
                 'allocated_beams': self.action_beam,
                 'genie_beams': beam_genie,
