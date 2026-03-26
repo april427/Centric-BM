@@ -3,7 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from stable_baselines3 import  PPO
+from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
@@ -50,26 +50,79 @@ if __name__ == "__main__":
         env = SubprocVecEnv([lambda: gym.make(args.EnvID, args=args) for i in range(num_cpu)])
         env = VecMonitor(env, log_dir)
     # check_env(env, warn=True)
+
+    # Optional observation and reward normalization
+    if args.norm_obs or args.norm_reward:
+        from stable_baselines3.common.vec_env import VecNormalize
+        env = VecNormalize(
+            env,
+            norm_obs=args.norm_obs,
+            norm_reward=args.norm_reward,
+            clip_obs=args.clip_obs,
+            clip_reward=args.clip_reward,
+        )
     
+    act_fn = nn.Tanh if args.activation == 'Tanh' else nn.ReLU
+    h = args.net_arch_size
     policy_kwargs = {
-        "net_arch": dict(pi=[128,128], vf=[128, 128]),
-        "activation_fn": nn.ReLU
+        "net_arch": dict(pi=[h, h], vf=[h, h]),
+        "activation_fn": act_fn
     }
+
+    def linear_schedule(initial_value, final_value):
+        return lambda progress: final_value + (initial_value - final_value) * progress
 
     # %%
 
     model_path = log_dir + "best_model.zip"
     if os.path.exists(model_path):
-        model = model_class.load(model_path, env=env, learning_rate=lambda progress: 1e-4 + (5e-4 - 1e-4) * progress)
+        if model_type == "A2C":
+            model = model_class.load(
+                model_path,
+                env=env,
+                learning_rate=linear_schedule(1e-3, 1e-4)
+            )
+        else:
+            model = model_class.load(
+                model_path,
+                env=env,
+                learning_rate=linear_schedule(args.ppo_lr_start, args.ppo_lr_end)
+            )
     else:
-        model = model_class(   
-                "MlpPolicy", 
-                env, 
-                device="cpu", 
-                policy_kwargs=policy_kwargs, 
-                ent_coef=1e-2, 
-                learning_rate=lambda progress: 1e-4 + (3e-3 - 1e-4) * progress, 
-                verbose=1)
+        if model_type == "A2C":
+            model = model_class(
+                "MlpPolicy",
+                env,
+                device="cpu",
+                policy_kwargs=policy_kwargs,
+                n_steps=args.n_steps,
+                gamma=args.gamma,
+                gae_lambda=args.gae_lambda,
+                ent_coef=args.ent_coef,
+                vf_coef=args.vf_coef,
+                max_grad_norm=args.max_grad_norm,
+                rms_prop_eps=1e-5,
+                learning_rate=linear_schedule(args.lr_start, args.lr_end),
+                verbose=1
+            )
+        else:
+            model = model_class(
+                "MlpPolicy",
+                env,
+                device="cpu",
+                policy_kwargs=policy_kwargs,
+                n_steps=args.ppo_n_steps,
+                batch_size=args.ppo_batch_size,
+                n_epochs=args.ppo_n_epochs,
+                gamma=args.ppo_gamma,
+                gae_lambda=args.ppo_gae_lambda,
+                clip_range=linear_schedule(args.ppo_clip_range, args.ppo_clip_range),
+                ent_coef=args.ppo_ent_coef,
+                vf_coef=args.ppo_vf_coef,
+                max_grad_norm=args.ppo_max_grad_norm,
+                learning_rate=linear_schedule(args.ppo_lr_start, args.ppo_lr_end),
+                verbose=1
+            )
 
     timesteps = args.timesteps
 
@@ -86,6 +139,9 @@ if __name__ == "__main__":
     # plt.show()
 
     model.save(log_dir + "best_model")
+    # Save VecNormalize stats so they can be loaded during evaluation
+    if args.norm_obs or args.norm_reward:
+        env.save(log_dir + "vec_normalize.pkl")
     print(log_dir)
     env.close()
     #%%

@@ -1,0 +1,25 @@
+# Core RL stack
+stable-baselines3
+gymnasium
+torch
+
+# Numerical / plotting / data
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+
+# Logging / tensorboard integration
+tensorboard
+
+# Channel / simulation utilities
+tensorflow
+sionna
+DeepMIMOv3
+easydict
+gym-microrts
+
+# Optional, used by some notebooks and ad-hoc scripts
+ipython
+jupyter
