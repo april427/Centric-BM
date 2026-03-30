@@ -46,6 +46,19 @@ if __name__ == "__main__":
     # plt.show()
     
     env = gym.make(args.EnvID,  args = args)
+    vec_normalize = None
+    vecnorm_path = os.path.join(log_dir, "vec_normalize.pkl")
+
+    if args.norm_obs or args.norm_reward:
+        if os.path.exists(vecnorm_path):
+            # Load the training-time normalization statistics for fair evaluation.
+            norm_env = DummyVecEnv([lambda: gym.make(args.EnvID, args=args)])
+            vec_normalize = VecNormalize.load(vecnorm_path, norm_env)
+            vec_normalize.training = False
+            vec_normalize.norm_reward = False
+        else:
+            print(f"[Warning] VecNormalize stats not found at {vecnorm_path}. Evaluating with raw observations.")
+
     print("N_UTs=", args.N_UTs)
     print(log_dir)
 
@@ -96,7 +109,8 @@ if __name__ == "__main__":
 
         for t in range(num_steps):
             if method == 'trained':
-                action, _states = model.predict(obs)
+                model_obs = vec_normalize.normalize_obs(obs) if (vec_normalize is not None and args.norm_obs) else obs
+                action, _states = model.predict(model_obs, deterministic=True)
                 obs, rewards, dones, _, info = env.step(action=action)
             elif method.endswith('TDMA'):
                 action = list_actions[l_a]

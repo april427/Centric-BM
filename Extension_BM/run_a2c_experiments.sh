@@ -29,8 +29,8 @@ COMMON="python baseline_train.py --model A2C --N_UTs 2 --Nt 16"
 # Run 3 — n_steps=40 (match episode length)
 $COMMON --cdir run3_nsteps40 \
   --norm_obs True --norm_reward True --clip_obs 10 --clip_reward 10 \
-  --n_steps 40 \
-  --timesteps 400000
+  --n_steps 40 --initial_train 1 --if_rician 1\
+  --timesteps 1500000
 
 # # Run 4 — n_steps=80 (2 full episodes per rollout)
 # $COMMON --cdir run4_nsteps80 \

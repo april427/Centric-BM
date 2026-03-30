@@ -283,13 +283,27 @@ class BeamManagementEnv(gym.Env):
         # num_anglebin = self.number_of_antennas
 
         z_BS = np.fft.fft2(y_BS2, [num_dopplerbin, num_rangebin])
-        top = np.abs(z_BS[0,0,u,:,:]).ravel()
-        indices = np.zeros([self.N_UTs, 2])
+        indices = np.zeros([self.N_UTs, 2], dtype=int)
         for u in range(self.N_UTs):
-            indices[u,:] = np.concatenate(np.unravel_index(np.argsort(top, axis=None)[-1:], z_BS[0,0,u,:,:].shape)).astype('int')
-            # fft shift
-            indices[u,0] = indices[u,0] if indices[u,0]<np.ceil(num_dopplerbin/2) else indices[u,0] - num_dopplerbin
-            indices[u,1] = indices[u,1] if indices[u,1]<np.ceil(num_rangebin/2) else indices[u,1] - num_rangebin
+            z_user = np.abs(z_BS[0, 0, u, :, :])
+            flat_order = np.argsort(z_user, axis=None)[::-1]
+
+            chosen_idx = None
+            for flat_idx in flat_order:
+                candidate_idx = np.array(np.unravel_index(flat_idx, z_user.shape), dtype=int)
+                doppler_idx_shifted = candidate_idx[0] if candidate_idx[0] < np.ceil(num_dopplerbin/2) else candidate_idx[0] - num_dopplerbin
+
+                # Under Rician fading, reject stationary clutter (zero Doppler) peaks.
+                if self.if_rician == 1 and doppler_idx_shifted == 0:
+                    continue
+                chosen_idx = candidate_idx
+                break
+
+            if chosen_idx is None:
+                chosen_idx = np.array(np.unravel_index(flat_order[0], z_user.shape), dtype=int)
+
+            indices[u, 0] = chosen_idx[0] if chosen_idx[0] < np.ceil(num_dopplerbin/2) else chosen_idx[0] - num_dopplerbin
+            indices[u, 1] = chosen_idx[1] if chosen_idx[1] < np.ceil(num_rangebin/2) else chosen_idx[1] - num_rangebin
 
         self.R_estimate = - 3e8*indices[:,1]/(2*self.subcarrier_spacing * num_rangebin)
         self.v_estimate = 3e8 * indices[:,0]/(2 * self.ofdm_symbol_duration * self.carrier_frequency * num_dopplerbin)

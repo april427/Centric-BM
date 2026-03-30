@@ -2,8 +2,10 @@ import gymnasium as gym
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from gymnasium import ActionWrapper
+from gymnasium.spaces import Discrete
 
-from stable_baselines3 import PPO, A2C
+from stable_baselines3 import PPO, A2C, DQN
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from stable_baselines3.common.env_checker import check_env
@@ -31,6 +33,32 @@ from parse_args import parse_args
 
 # %%
 
+class MultiDiscreteToDiscreteWrapper(ActionWrapper):
+    """Wrap MultiDiscrete actions as a single Discrete index for DQN compatibility."""
+
+    def __init__(self, env):
+        super().__init__(env)
+        if not hasattr(env.action_space, "nvec"):
+            raise TypeError("MultiDiscreteToDiscreteWrapper requires a MultiDiscrete action space")
+
+        self.nvec = np.asarray(env.action_space.nvec, dtype=np.int64)
+        self.num_actions = int(np.prod(self.nvec))
+        self.action_space = Discrete(self.num_actions)
+
+    def action(self, action):
+        flat_action = int(action)
+        return np.array(np.unravel_index(flat_action, self.nvec), dtype=np.int64)
+
+
+def make_env_fn(env_id, args, use_dqn=False):
+    def _init():
+        env = gym.make(env_id, args=args)
+        if use_dqn:
+            env = MultiDiscreteToDiscreteWrapper(env)
+        return env
+
+    return _init
+
 if __name__ == "__main__":
 
     args = parse_args()
@@ -39,15 +67,19 @@ if __name__ == "__main__":
     log_dir = "RL_mimo_ofdm/" + model_type + "_"+ str(args.N_UTs) +"ue" + str(args.Nt)+ "Nt_" + args.cdir +"/"
     os.makedirs(log_dir, exist_ok=True)
 
+    use_dqn = model_type == "DQN"
+
     num_cpu = 4
     if num_cpu == 1:
         from stable_baselines3.common.monitor import Monitor
-        env = gym.make(args.EnvID,  args = args)
+        env = gym.make(args.EnvID, args=args)
+        if use_dqn:
+            env = MultiDiscreteToDiscreteWrapper(env)
         env = Monitor(env, log_dir)
     else:
         from stable_baselines3.common.vec_env import SubprocVecEnv
         from stable_baselines3.common.vec_env import VecMonitor
-        env = SubprocVecEnv([lambda: gym.make(args.EnvID, args=args) for i in range(num_cpu)])
+        env = SubprocVecEnv([make_env_fn(args.EnvID, args, use_dqn=use_dqn) for i in range(num_cpu)])
         env = VecMonitor(env, log_dir)
     # check_env(env, warn=True)
 
@@ -64,10 +96,16 @@ if __name__ == "__main__":
     
     act_fn = nn.Tanh if args.activation == 'Tanh' else nn.ReLU
     h = args.net_arch_size
-    policy_kwargs = {
-        "net_arch": dict(pi=[h, h], vf=[h, h]),
-        "activation_fn": act_fn
-    }
+    if use_dqn:
+        policy_kwargs = {
+            "net_arch": [h, h],
+            "activation_fn": act_fn,
+        }
+    else:
+        policy_kwargs = {
+            "net_arch": dict(pi=[h, h], vf=[h, h]),
+            "activation_fn": act_fn
+        }
 
     def linear_schedule(initial_value, final_value):
         return lambda progress: final_value + (initial_value - final_value) * progress
@@ -75,12 +113,28 @@ if __name__ == "__main__":
     # %%
 
     model_path = log_dir + "best_model.zip"
-    if os.path.exists(model_path):
+    vecnorm_path = log_dir + "vec_normalize.pkl"
+
+    # initial_train=1 -> always start from scratch, initial_train=0 -> continue from saved model.
+    if args.initial_train == 0:
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Continue training requested, but model not found: {model_path}")
+
+        if (args.norm_obs or args.norm_reward) and os.path.exists(vecnorm_path):
+            from stable_baselines3.common.vec_env import VecNormalize
+            env = VecNormalize.load(vecnorm_path, env)
+
         if model_type == "A2C":
             model = model_class.load(
                 model_path,
                 env=env,
-                learning_rate=linear_schedule(1e-3, 1e-4)
+                learning_rate=linear_schedule(args.lr_start, args.lr_end)
+            )
+        elif model_type == "DQN":
+            model = model_class.load(
+                model_path,
+                env=env,
+                learning_rate=linear_schedule(args.dqn_lr_start, args.dqn_lr_end)
             )
         else:
             model = model_class.load(
@@ -104,6 +158,27 @@ if __name__ == "__main__":
                 rms_prop_eps=1e-5,
                 learning_rate=linear_schedule(args.lr_start, args.lr_end),
                 verbose=1
+            )
+        elif model_type == "DQN":
+            model = model_class(
+                "MlpPolicy",
+                env,
+                device="cpu",
+                policy_kwargs=policy_kwargs,
+                learning_rate=linear_schedule(args.dqn_lr_start, args.dqn_lr_end),
+                buffer_size=args.dqn_buffer_size,
+                learning_starts=args.dqn_learning_starts,
+                batch_size=args.dqn_batch_size,
+                tau=args.dqn_tau,
+                gamma=args.dqn_gamma,
+                train_freq=(args.dqn_train_freq, "step"),
+                gradient_steps=args.dqn_gradient_steps,
+                target_update_interval=args.dqn_target_update_interval,
+                exploration_fraction=args.dqn_exploration_fraction,
+                exploration_initial_eps=args.dqn_exploration_initial_eps,
+                exploration_final_eps=args.dqn_exploration_final_eps,
+                max_grad_norm=args.dqn_max_grad_norm,
+                verbose=1,
             )
         else:
             model = model_class(

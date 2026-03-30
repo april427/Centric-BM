@@ -16,7 +16,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--N_UTs', type=int, default=2, help='Number of UEs')
     parser.add_argument('--Nt', type=int, default=16, help='Number of antennas')
-    parser.add_argument('--model', type=str, default='PPO', help='Model to train (e.g., PPO, A2C)')
+    parser.add_argument('--model', type=str, default='PPO', help='Model to train (e.g., PPO, A2C, DQN)')
     parser.add_argument('--timesteps', type=int, default=4e5, help='Number of timesteps to train')
     parser.add_argument('--if_training', type=str2bool, default=True, help='Training or testing')
     parser.add_argument('--if_debugging', type=str2bool, default=False, help='If in debugging mode')
@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument('--EnvID', type=str, default='BeamManagementEnv-v4', help='Environment ID')
 
     parser.add_argument('--cdir', type=str, default= '6a_crlb_clutters', help='Log directory')
+    parser.add_argument('--initial_train', type=int, default=1, help='1: start from scratch, 0: continue training from saved model')
 
     parser.add_argument('--dt', type=float, default=0.2, help='Time step')
     parser.add_argument('--if_log', type=str2bool, default=False, help='If log the results')
@@ -66,6 +67,22 @@ def parse_args():
     parser.add_argument('--ppo_max_grad_norm', type=float, default=0.5, help='Max gradient norm for PPO')
     parser.add_argument('--ppo_lr_start', type=float, default=3e-4, help='Initial learning rate for PPO')
     parser.add_argument('--ppo_lr_end', type=float, default=1e-4, help='Final learning rate for PPO')
+
+    # DQN hyperparameter tuning arguments
+    parser.add_argument('--dqn_buffer_size', type=int, default=100000, help='Replay buffer size for DQN')
+    parser.add_argument('--dqn_learning_starts', type=int, default=1000, help='Number of steps before learning starts (DQN)')
+    parser.add_argument('--dqn_batch_size', type=int, default=256, help='Batch size for DQN updates')
+    parser.add_argument('--dqn_tau', type=float, default=1.0, help='Soft update coefficient for target network (DQN)')
+    parser.add_argument('--dqn_gamma', type=float, default=0.99, help='Discount factor for DQN')
+    parser.add_argument('--dqn_train_freq', type=int, default=4, help='Training frequency in steps for DQN')
+    parser.add_argument('--dqn_gradient_steps', type=int, default=1, help='Gradient steps per training update for DQN')
+    parser.add_argument('--dqn_target_update_interval', type=int, default=1000, help='Target network update interval for DQN')
+    parser.add_argument('--dqn_exploration_fraction', type=float, default=0.2, help='Fraction of training for epsilon decay in DQN')
+    parser.add_argument('--dqn_exploration_initial_eps', type=float, default=1.0, help='Initial epsilon for DQN exploration')
+    parser.add_argument('--dqn_exploration_final_eps', type=float, default=0.05, help='Final epsilon for DQN exploration')
+    parser.add_argument('--dqn_max_grad_norm', type=float, default=10.0, help='Max gradient norm for DQN')
+    parser.add_argument('--dqn_lr_start', type=float, default=1e-3, help='Initial learning rate for DQN')
+    parser.add_argument('--dqn_lr_end', type=float, default=1e-4, help='Final learning rate for DQN')
 
     args, unknown = parser.parse_known_args()
     return args
